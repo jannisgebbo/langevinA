@@ -1,2 +1,8 @@
 This directory is the initial steps with petsc and MODELA
+Now contains the code for:
+- 2D heat equation 
+- 3D heat equation for 4 fields
+- Model A pf O(4) without noise 
+
+
 
