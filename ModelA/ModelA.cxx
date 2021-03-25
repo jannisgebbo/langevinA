@@ -405,9 +405,7 @@ PetscErrorCode Monitor(TS ts,PetscInt steps,PetscReal time,Vec u,void *ptr)
     global_data     *user=(global_data*) ptr;
     model_data      data=user->model;
     
-    // Get Ghost cells
-    DMGlobalToLocalBegin(user->da, finalnoise, INSERT_VALUES, run.phi_local);
-    DMGlobalToLocalEnd(user->da, finalnoise, INSERT_VALUES, run.phi_local);
+   
     
     return(0);
 }
