@@ -40,12 +40,12 @@ struct model_data {
     PetscReal finaltime=1.;
     PetscReal initialtime=0.;
     //Time Step
-    PetscReal deltat=0.05;
+    PetscReal deltat=hX*hX;
     
     
     //Put here the information for the model ex the mass
     //The mass in the action has 1/2 and is the actuall mass square and the quartic has intead 1/4
-    PetscReal mass=-1.;
+    PetscReal mass=1.;
     PetscReal lambda=5.;
     PetscReal gamma=1.;
     
@@ -81,7 +81,7 @@ extern PetscErrorCode initialcondition(DM, Vec,void*);
 extern PetscErrorCode RHSJacobian(TS , PetscReal ,Vec , Mat , Mat , void* );
 extern PetscErrorCode RHSfunction(TS , PetscReal , Vec , Vec , void* );
 extern PetscErrorCode Monitor(TS ,PetscInt ,PetscReal ,Vec ,void*);
-extern PetscErrorCode noiseGeneration(DM , Vec , void* ptr);
+extern PetscErrorCode noiseGeneration(Vec* , void* ptr);
 
 
 int main(int argc, char **argv) 
@@ -119,10 +119,6 @@ int main(int argc, char **argv)
     VecDuplicate(auxsolution,&user.noise);
     
     
-    
-    
-    
-    
     //Create the output file
     
     ierr = PetscObjectSetName((PetscObject) solution, "solution");CHKERRQ(ierr);
@@ -135,7 +131,7 @@ int main(int argc, char **argv)
     
     ierr = PetscObjectSetName((PetscObject) user.noise, "prova");CHKERRQ(ierr);
     
-    noiseGeneration(da,user.noise,&user);
+    noiseGeneration(&user.noise,&user);
     
     ierr = PetscViewerHDF5PushGroup(user.viewer, "/noise");CHKERRQ(ierr);
     ierr = VecView(user.noise,user.viewer);CHKERRQ(ierr);
@@ -401,7 +397,7 @@ PetscErrorCode initialcondition(DM da, Vec U, void* ptr)
                 PetscReal x=i*hx;
                 PetscReal r = PetscSqrtReal((x-.5)*(x-.5)+(y-.5)*(y-.5)+(z-.5)*(z-.5));
                 for (l=0; l<data.Ndof; l++) {
-                    if (r<0.725) u[k][j][i].f[l]=PetscExpReal(-(1+1.*(PetscReal)l)*r*r*r);
+                    if (r<1.) u[k][j][i].f[l]=gsl_ran_gaussian(user->rndm, 2.*data.gamma/PetscSqrtReal(data.deltat) );//PetscExpReal(-(1+1.*(PetscReal)l)*r*r*r);
                     else u[k][j][i].f[l]=0.0;
                 }
                 // u[j][i]=PetscSinReal(2.*10.*M_PI*x)*PetscSinReal(5.*M_PI*y);
@@ -427,7 +423,7 @@ PetscErrorCode Monitor(TS ts,PetscInt steps,PetscReal time,Vec u,void *ptr)
     ierr = VecView(u, hdf5);CHKERRQ(ierr);
     PetscViewerHDF5IncrementTimestep(hdf5);
     
-    noiseGeneration(user->da,user->noise,user);
+    noiseGeneration(&user->noise,user);
     PetscPrintf(PETSC_COMM_SELF,"Timestep %D: step size = %g, time = %g\n",steps,(double)dt,(double)time);
     return(0);
 }
@@ -436,7 +432,7 @@ PetscErrorCode Monitor(TS ts,PetscInt steps,PetscReal time,Vec u,void *ptr)
 
 //Noise Genration
 
-PetscErrorCode noiseGeneration(DM da, Vec U, void* ptr)
+PetscErrorCode noiseGeneration( Vec* U, void* ptr)
 {
     global_data     *user=(global_data*) ptr;
     model_data      data=user->model;
@@ -447,23 +443,23 @@ PetscErrorCode noiseGeneration(DM da, Vec U, void* ptr)
     
     //This Get a pointer to do the calculation
     o4_node ***u;
-    DMDAVecGetArray(da,U,&u);
+    DMDAVecGetArray(user->da,*U,&u);
     
     //Get the Local Corner od the vector
-    DMDAGetCorners(da,&xstart,&ystart,&zstart,&xdimension,&ydimension,&zdimension);
+    DMDAGetCorners(user->da,&xstart,&ystart,&zstart,&xdimension,&ydimension,&zdimension);
     
     //This is the actual computation of the thing
     for (k=zstart; k<zstart+zdimension; k++){
         for (j=ystart; j<ystart+ydimension; j++){
             for (i=xstart; i<xstart+xdimension; i++) {
                 for (l=0; l<data.Ndof; l++) {
-                    u[k][j][i].f[l]=gsl_ran_gaussian(user->rndm, 2.*data.gamma);
+                    u[k][j][i].f[l]=gsl_ran_gaussian(user->rndm, 2.*data.gamma/PetscSqrtReal(data.deltat) );
                 }
                 // u[j][i]=PetscSinReal(2.*10.*M_PI*x)*PetscSinReal(5.*M_PI*y);
             }
         }
     }
-    DMDAVecRestoreArray(da,U,&u);
+    DMDAVecRestoreArray(user->da,*U,&u);
     return(0);
     
     
