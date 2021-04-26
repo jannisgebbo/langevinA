@@ -13,11 +13,11 @@
 # The following variable must either be a path to PETSc.pc or just "PETSc" if PETSc.pc
 # has been installed to a system location or can be found in PKG_CONFIG_PATH.
 #$(PETSC_DIR)/$(PETSC_ARCH)/lib/pkgconfig/PETSc.pc
-PETSc.pc := PETSc 
+PETSc.pc := PETSc
 
 
 # Additional libraries that support pkg-config can be added to the list of PACKAGES below.
-PACKAGES := $(PETSc.pc) gsl 
+PACKAGES := $(PETSc.pc) gsl
 
 CC := $(shell pkg-config --variable=ccompiler $(PACKAGES))
 CXX := $(shell pkg-config --variable=cxxcompiler $(PACKAGES))
