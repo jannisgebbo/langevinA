@@ -52,7 +52,7 @@ public:
     if(rank == 0) PetscViewerDestroy(&viewer);
   }
 
-  void measure(Vec *solution)
+  void measure(Vec *solution, Vec *momenta)
   {
 
     int rank = 0;
@@ -60,7 +60,13 @@ public:
     computeSliceAverage(solution);
     if(rank == 0){
       computeDerivedObs();
-      save();
+      save("phi");
+    }
+    computeSliceAverage(momenta);
+    if(rank == 0){
+      computeDerivedObs();
+      save("phidot");
+      PetscViewerHDF5IncrementTimestep(viewer);
     }
   }
 
@@ -80,11 +86,11 @@ private:
       DMGlobalToLocalEnd(da,*solution,INSERT_VALUES,localU);
 
       //From the vector define the pointer for the field phi
-      o4_node ***phi;
-      DMDAVecGetArrayRead(da,localU,&phi);
+      o4_node ***fld;
+      DMDAVecGetArrayRead(da,localU,&fld);
 
 
-      // OX0[i] will contain the average of phi0 at wall x=i.
+      // OX0[i] will contain the average of fld0 at wall x=i.
       // And analagous vectors for the wall averages in the y and z directions
 
       sliceAveragesX = std::vector<std::vector<PetscScalar>>(Ndof, std::vector<PetscScalar>(N));
@@ -102,9 +108,9 @@ private:
           for (int j = iys; j < iys + ny; j++) {
               for (int i = ixs; i < ixs + nx; i++) {
                   for (int l = 0; l < Ndof; l++) {
-                      sliceAveragesLocalX[l][i] += phi[k][j][i].f[l];
-                      sliceAveragesLocalY[l][j] += phi[k][j][i].f[l];
-                      sliceAveragesLocalZ[l][k] += phi[k][j][i].f[l];
+                      sliceAveragesLocalX[l][i] += fld[k][j][i].f[l];
+                      sliceAveragesLocalY[l][j] += fld[k][j][i].f[l];
+                      sliceAveragesLocalZ[l][k] += fld[k][j][i].f[l];
                   }
               }
           }
@@ -118,7 +124,7 @@ private:
         }
       }
       // Retstore the array
-      DMDAVecRestoreArray(da, localU, &phi);
+      DMDAVecRestoreArray(da, localU, &fld);
 
       // Bring all the data x data into one
       for (int l = 0; l < Ndof; l++) {
@@ -149,20 +155,19 @@ private:
     }
 
 
-    void save()
+    void save(std::string fld)
     {
-      std::string phi;
+      std::string tmp;
       for(PetscInt i = 0 ; i< Ndof ; ++i ){
-        phi = "phi_"+std::to_string(i);
-        saveCorLike(sliceAveragesX[i], "wallX_"+ phi);
-        saveCorLike(sliceAveragesY[i], "wallY_"+ phi);
-        saveCorLike(sliceAveragesZ[i], "wallZ_"+ phi);
+        tmp = fld + "_"+std::to_string(i);
+        saveCorLike(sliceAveragesX[i], "wallX_"+ tmp);
+        saveCorLike(sliceAveragesY[i], "wallY_"+ tmp);
+        saveCorLike(sliceAveragesZ[i], "wallZ_"+ tmp);
 
-        saveCorLike(isotropicWallToWallCii[i], "Cii_" + phi);
+        saveCorLike(isotropicWallToWallCii[i], "Cii_" + tmp);
 
       }
-      saveScalarsLike(OAverage, "phi");
-      PetscViewerHDF5IncrementTimestep(viewer);
+      saveScalarsLike(OAverage, fld);
 
     }
 
@@ -210,6 +215,8 @@ private:
     std::vector<
       std::vector<PetscScalar>
     > sliceAveragesZ; //First dimension O4 component, last dimension slice number.
+
+
 
 
     std::vector<

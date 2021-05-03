@@ -57,14 +57,19 @@ typedef struct {
 struct global_data  {
    DM da;
    model_data model;
+   //Solution
+   Vec solution,auxsolution;
    //Previous solution
    Vec previoussolution;
    //Global vector with the stored noise
    Vec noise;
    Vec localnoise;
-   //
-   Vec phi;
-   Vec localphi;
+   //Momentum
+   Vec phidot;
+
+   //Jacobian
+   Mat jacob;
+
 
    // Tag labelling the run. All output files are tag_foo.txt, or tag_bar.h5
    std::string filename = "o4output";
@@ -74,56 +79,99 @@ struct global_data  {
 
    // mesuemrnet stuff
    PetscInt N=model.NX;
+
+
+   global_data(FCN::ParameterParser& par)
+   {
+     // Here we set up the dimension and the number of fields for now peridic boundary condition.
+     read_o4_data(par);
+     PetscInt stencil_width =1 ;
+     //
+     DMDACreate3d(PETSC_COMM_WORLD,DM_BOUNDARY_PERIODIC,DM_BOUNDARY_PERIODIC,DM_BOUNDARY_PERIODIC,DMDA_STENCIL_STAR,model.NX,
+                  model.NY,model.NZ,PETSC_DECIDE,PETSC_DECIDE,PETSC_DECIDE, model.Ndof,stencil_width,NULL,NULL,NULL,&da);
+    // DMDACreate2d(PETSC_COMM_WORLD, DM_BOUNDARY_MIRROR, DM_BOUNDARY_MIRROR,DMDA_STENCIL_STAR,N, M, PETSC_DECIDE, PETSC_DECIDE, Ndof,  stencil_width, NULL, NULL, &da) ;
+     DMSetFromOptions(da) ;
+     DMSetUp(da) ;
+     //PetscPrintf(PETSC_COMM_SELF," hx = %g, hy = %g\n",(double)model.hX,(double)model.hY);
+     //Extract the vector structure
+     DMCreateGlobalVector(da,&auxsolution);
+     VecDuplicate(auxsolution,&solution);
+     VecDuplicate(auxsolution,&noise);
+     VecDuplicate(auxsolution,&previoussolution);
+     VecDuplicate(auxsolution,&phidot);
+
+
+     //Set the Jacobian matrix
+     DMSetMatType(da,MATAIJ);
+     DMCreateMatrix(da,&jacob);
+
+     //Setup the random number generation
+     rndm = gsl_rng_alloc(gsl_rng_default);
+     gsl_rng_set(rndm, model.seed );
+   }
+
+   void finalize()
+   {
+     gsl_rng_free(rndm);
+     MatDestroy(&jacob);
+     VecDestroy(&solution);
+     VecDestroy(&auxsolution);
+     VecDestroy(&noise);
+     VecDestroy(&previoussolution);
+     VecDestroy(&phidot);
+     DMDestroy(&da);
+   }
+
+   PetscErrorCode read_o4_data(FCN::ParameterParser& par) {
+
+    model.NX = par.get<int>("NX");
+    model.NY = par.get<int>("NY");
+    model.NZ = par.get<int>("NZ");
+    model.LX = par.get<double>("LX");
+    model.LY = par.get<double>("LY");
+    model.LZ = par.get<double>("LZ");
+    model.Ndof = par.get<int>("Ndof");
+    model.finaltime = par.get<double>("finaltime");
+    model.initialtime = par.get<double>("initialtime");
+    model.deltat = par.get<double>("deltat");
+    model.mass = par.get<double>("mass");
+    model.lambda = par.get<double>("lambda");
+    model.gamma = par.get<double>("gamma");
+    model.H = par.get<double>("H");
+    model.seed = par.getSeed("seed");
+    filename = par.get<std::string>("output");
+
+    PetscReal saveFreqReal = par.get<double>("saveFreq");
+    model.saveFreq = saveFreqReal / model.deltat;
+
+
+    model.hX= model.LX/(PetscReal)(model.NX-1);
+    model.hY= model.LY/(PetscReal)(model.NY-1);
+    model.hZ= model.LZ/(PetscReal)(model.NZ-1);
+
+
+    PetscPrintf(PETSC_COMM_WORLD, "NX = %d\n", model.NX);
+    PetscPrintf(PETSC_COMM_WORLD, "NY = %d\n", model.NY);
+    PetscPrintf(PETSC_COMM_WORLD, "NZ = %d\n", model.NZ);
+    PetscPrintf(PETSC_COMM_WORLD, "hX = %e\n", model.hX);
+    PetscPrintf(PETSC_COMM_WORLD, "hY = %e\n", model.hY);
+    PetscPrintf(PETSC_COMM_WORLD, "hZ = %e\n", model.hZ);
+    PetscPrintf(PETSC_COMM_WORLD, "initialtime = %e\n", model.initialtime);
+    PetscPrintf(PETSC_COMM_WORLD, "finaltime = %e\n", model.finaltime);
+    PetscPrintf(PETSC_COMM_WORLD, "delta t  = %e\n", model.deltat);
+    PetscPrintf(PETSC_COMM_WORLD, "seed = %d\n", model.seed);
+
+    PetscPrintf(PETSC_COMM_WORLD, "m2 = %e\n", model.mass);
+    PetscPrintf(PETSC_COMM_WORLD, "lambda = %e\n", model.lambda);
+    PetscPrintf(PETSC_COMM_WORLD, "H = %e\n", model.H);
+    PetscPrintf(PETSC_COMM_WORLD, "filename = %s\n", filename.c_str());
+
+
+    return(0);
+   }
 };
 
-PetscErrorCode read_o4_data(int argc, char **argv, global_data &data) {
- FCN::ParameterParser par(argc, argv);
 
- data.model.NX = par.get<int>("NX");
- data.model.NY = par.get<int>("NY");
- data.model.NZ = par.get<int>("NZ");
- data.model.LX = par.get<double>("LX");
- data.model.LY = par.get<double>("LY");
- data.model.LZ = par.get<double>("LZ");
- data.model.Ndof = par.get<int>("Ndof");
- data.model.finaltime = par.get<double>("finaltime");
- data.model.initialtime = par.get<double>("initialtime");
- data.model.deltat = par.get<double>("deltat");
- data.model.mass = par.get<double>("mass");
- data.model.lambda = par.get<double>("lambda");
- data.model.gamma = par.get<double>("gamma");
- data.model.H = par.get<double>("H");
- data.model.seed = par.getSeed("seed");
- data.filename = par.get<std::string>("output");
-
- PetscReal saveFreqReal = par.get<double>("saveFreq");
- data.model.saveFreq = saveFreqReal / data.model.deltat;
-
-
- data.model.hX= data.model.LX/(PetscReal)(data.model.NX-1);
- data.model.hY= data.model.LY/(PetscReal)(data.model.NY-1);
- data.model.hZ= data.model.LZ/(PetscReal)(data.model.NZ-1);
-
-
- PetscPrintf(PETSC_COMM_WORLD, "NX = %d\n", data.model.NX);
- PetscPrintf(PETSC_COMM_WORLD, "NY = %d\n", data.model.NY);
- PetscPrintf(PETSC_COMM_WORLD, "NZ = %d\n", data.model.NZ);
- PetscPrintf(PETSC_COMM_WORLD, "hX = %e\n", data.model.hX);
- PetscPrintf(PETSC_COMM_WORLD, "hY = %e\n", data.model.hY);
- PetscPrintf(PETSC_COMM_WORLD, "hZ = %e\n", data.model.hZ);
- PetscPrintf(PETSC_COMM_WORLD, "initialtime = %e\n", data.model.initialtime);
- PetscPrintf(PETSC_COMM_WORLD, "finaltime = %e\n", data.model.finaltime);
- PetscPrintf(PETSC_COMM_WORLD, "delta t  = %e\n", data.model.deltat);
- PetscPrintf(PETSC_COMM_WORLD, "seed = %d\n", data.model.seed);
-
- PetscPrintf(PETSC_COMM_WORLD, "m2 = %e\n", data.model.mass);
- PetscPrintf(PETSC_COMM_WORLD, "lambda = %e\n", data.model.lambda);
- PetscPrintf(PETSC_COMM_WORLD, "H = %e\n", data.model.H);
- PetscPrintf(PETSC_COMM_WORLD, "filename = %s\n", data.filename.c_str());
-
-
- return(0);
-}
 
 
 

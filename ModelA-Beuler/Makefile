@@ -59,6 +59,9 @@ ModelA-Beuler.exe : ModelA-Beuler.o
 #
 ModelA-Beuler.exe : LDLIBS +=  -lstdc++
 
+clean:
+	rm *.o
+
 print:
 	@echo CC=$(CC)
 	@echo CXX=$(CXX)

@@ -31,54 +31,18 @@ extern PetscErrorCode noiseGeneration(Vec* , void* ptr);
 
 int main(int argc, char **argv)
 {
-    global_data          user,user1; // collection of variabile
     // Initialization
     PetscErrorCode ierr;
     std::string help = "Model A. Call ./ModelA-Beuler.exe input=input.in with input.in your input file.";
     ierr = PetscInitialize(&argc,&argv,(char*)0,help.c_str()); if (ierr) return ierr;
 
+    FCN::ParameterParser par(argc, argv);
     //Read the data form command line
-    read_o4_data(argc, argv, user);
+    global_data          user(par); // collection of variable
 
-
-    // 3D array descriptor
-    DM da ;
-    // Here we set up the dimension and the number of fields for now peridic boundary condition.
-    PetscInt dimx = user.model.NX;
-    PetscInt dimy = user.model.NY;
-    PetscInt dimz = user.model.NZ;
-    PetscInt Ndof = user.model.Ndof ;
-    PetscInt stencil_width =1 ;
-    //
-    DMDACreate3d(PETSC_COMM_WORLD,DM_BOUNDARY_PERIODIC,DM_BOUNDARY_PERIODIC,DM_BOUNDARY_PERIODIC,DMDA_STENCIL_STAR,dimx,
-                 dimy,dimz,PETSC_DECIDE,PETSC_DECIDE,PETSC_DECIDE, Ndof,stencil_width,NULL,NULL,NULL,&da);
-   // DMDACreate2d(PETSC_COMM_WORLD, DM_BOUNDARY_MIRROR, DM_BOUNDARY_MIRROR,DMDA_STENCIL_STAR,N, M, PETSC_DECIDE, PETSC_DECIDE, Ndof,  stencil_width, NULL, NULL, &da) ;
-    DMSetFromOptions(da) ;
-    DMSetUp(da) ;
-    user.da=da ; //save the vector structure into the global structure meybe is usueful
-    //PetscPrintf(PETSC_COMM_SELF," hx = %g, hy = %g\n",(double)user.model.hX,(double)user.model.hY);
-    //Extract the vector structure
-    Vec solution,auxsolution;
-    DMCreateGlobalVector(da,&auxsolution);
-    VecDuplicate(auxsolution,&solution);
-    VecDuplicate(auxsolution,&user.noise);
-    VecDuplicate(auxsolution,&user.previoussolution);
-
-
-    //Set the Jacobian matrix
-    Mat jacob;
-    DMSetMatType(da,MATAIJ);
-    DMCreateMatrix(da,&jacob);
-
-
-    //initialize the mesurment vector
-
-
+    //initialize the measurments
     Measurer measurer(&user);
 
-    //Setup the random number generation
-    user.rndm = gsl_rng_alloc(gsl_rng_default);
-    gsl_rng_set(user.rndm, user.model.seed );
 
     ierr = PetscObjectSetName((PetscObject) user.noise, "noise");CHKERRQ(ierr);
 
@@ -90,18 +54,18 @@ int main(int argc, char **argv)
     // Create
     SNESCreate(PETSC_COMM_WORLD,&snes);
     // Create the equation
-    SNESSetFunction(snes,auxsolution,FormFunction,&user);
+    SNESSetFunction(snes,user.auxsolution,FormFunction,&user);
     // and the jacobian
-    SNESSetJacobian(snes,jacob,jacob,FormJacobian,&user);
+    SNESSetJacobian(snes,user.jacob,user.jacob,FormJacobian,&user);
     SNESSetFromOptions(snes);
 
 
     //Now the intial condition
-    initialcondition(da,solution,&user);
+    initialcondition(user.da,user.solution,&user);
     //Copy the iniail condition
-    VecCopy(solution,user.previoussolution);
+    VecCopy(user.solution,user.previoussolution);
     //mesure the intial observable
-    measurer.measure(&solution);
+    measurer.measure(&user.solution,&user.phidot);
 
     PetscInt            steps=1;
     //Thsi is the loop for the time step
@@ -109,27 +73,22 @@ int main(int argc, char **argv)
         //generate the noise
         noiseGeneration(&user.noise,&user);
         //solve the non linear equation
-        SNESSolve(snes,NULL,solution);
+        SNESSolve(snes,NULL,user.solution);
         // mesure the solution
-        if(steps % user.model.saveFreq == 0)  measurer.measure(&solution);
+        if(steps % user.model.saveFreq == 0)  measurer.measure(&user.solution,&user.phidot);
 
         //print some information to not get bored during the running
         PetscPrintf(PETSC_COMM_WORLD,"Timestep %D: step size = %g, time = %g\n",steps,(double) user.model.deltat ,(double)time);
         //copi the solution in the previous time step
-        VecCopy(solution,user.previoussolution);
+        VecCopy(user.solution,user.previoussolution);
         //advance the step
         steps ++;
     }
 
     //Destroy Everything
-    gsl_rng_free(user.rndm);
-    MatDestroy(&jacob);
-    VecDestroy(&solution);
-    VecDestroy(&auxsolution);
-    VecDestroy(&user.noise);
-    VecDestroy(&user.previoussolution);
+
+    user.finalize();
     SNESDestroy(&snes);
-    DMDestroy(&da);
     measurer.finalize();
 
     return PetscFinalize();
@@ -160,11 +119,9 @@ PetscErrorCode FormFunction(SNES snes, Vec U, Vec F, void *ptr )
 
     //take the global vector U and distribute to the local vector localU
     DMGlobalToLocalBegin(da,U,INSERT_VALUES,localU);
-
     DMGlobalToLocalEnd(da,U,INSERT_VALUES,localU);
 
 
-    //take the global vector U and distribute to the local vector localU
 
     //From the vector define the pointer for the field u and the rhs f
     o4_node ***phi, ***f;//, ***noise;
@@ -177,7 +134,9 @@ PetscErrorCode FormFunction(SNES snes, Vec U, Vec F, void *ptr )
     o4_node ***oldphi;
     DMDAVecGetArrayRead(da,user->previoussolution,&oldphi);
 
-    //DMDAVecGetArrayRead(da,user->localnoise,&noise);
+    o4_node ***phidot;
+    DMDAVecGetArrayRead(da,user->phidot,&phidot);
+
 
     //Get The local coordinates
     DMDAGetCorners(da,&xstart,&ystart,&zstart,&xdimension,&ydimension,&zdimension);
@@ -196,10 +155,14 @@ PetscErrorCode FormFunction(SNES snes, Vec U, Vec F, void *ptr )
                         uxx= ( -2.0* ucentral + phi[k][j][i-1].f[l] + phi[k][j][i+1].f[l] )/(hx*hx);
                         uyy= ( -2.0* ucentral + phi[k][j-1][i].f[l] + phi[k][j+1][i].f[l] )/(hy*hy);
                         uzz= ( -2.0* ucentral + phi[k-1][j][i].f[l] + phi[k+1][j][i].f[l] )/(hz*hz);
+
+
+                        phidot[i][j][k].f[l] = data.gamma*(uxx+uyy+uzz)-data.gamma*(data.mass+data.lambda*phisquare)*ucentral
+                          +  ( l==0 ? data.gamma*data.H : 0. )
+                          +  PetscSqrtReal(2.* data.gamma / data.deltat) * gaussiannoise[k][j][i].f[l];
+
                         //here you want to put the formula for the euler step F(phi)=0
-                        f[k][j][i].f[l]=-phi[k][j][i].f[l]+oldphi[k][j][i].f[l]+data.deltat*(data.gamma*(uxx+uyy+uzz)-data.gamma*(data.mass+data.lambda*phisquare)*ucentral)
-                        +  ( l==0 ? data.deltat*data.gamma*data.H : 0. )
-                        +PetscSqrtReal(data.deltat * 2.* data.gamma)*gaussiannoise[k][j][i].f[l];
+                        f[k][j][i].f[l]=-phi[k][j][i].f[l] + oldphi[k][j][i].f[l] + data.deltat * phidot[i][j][k].f[l];
                 }
             }
         }
@@ -211,6 +174,7 @@ PetscErrorCode FormFunction(SNES snes, Vec U, Vec F, void *ptr )
     DMRestoreLocalVector(da,&localU);
     DMDAVecRestoreArrayRead(da,user->noise,&gaussiannoise);
     DMDAVecRestoreArrayRead(da,user->previoussolution,&oldphi);
+    DMDAVecRestoreArrayRead(da,user->phidot,&phidot);
 
 
     return(0);
