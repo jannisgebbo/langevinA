@@ -135,7 +135,7 @@ PetscErrorCode FormFunction(SNES snes, Vec U, Vec F, void *ptr )
     DMDAVecGetArrayRead(da,user->previoussolution,&oldphi);
 
     o4_node ***phidot;
-    DMDAVecGetArrayRead(da,user->phidot,&phidot);
+    DMDAVecGetArray(da,user->phidot,&phidot);
 
 
     //Get The local coordinates
@@ -157,12 +157,13 @@ PetscErrorCode FormFunction(SNES snes, Vec U, Vec F, void *ptr )
                         uzz= ( -2.0* ucentral + phi[k-1][j][i].f[l] + phi[k+1][j][i].f[l] )/(hz*hz);
 
 
-                        phidot[i][j][k].f[l] = data.gamma*(uxx+uyy+uzz)-data.gamma*(data.mass+data.lambda*phisquare)*ucentral
+                        phidot[k][j][i].f[l] = data.gamma*(uxx+uyy+uzz)-data.gamma*(data.mass+data.lambda*phisquare)*ucentral
                           +  ( l==0 ? data.gamma*data.H : 0. )
                           +  PetscSqrtReal(2.* data.gamma / data.deltat) * gaussiannoise[k][j][i].f[l];
 
+
                         //here you want to put the formula for the euler step F(phi)=0
-                        f[k][j][i].f[l]=-phi[k][j][i].f[l] + oldphi[k][j][i].f[l] + data.deltat * phidot[i][j][k].f[l];
+                        f[k][j][i].f[l]=-phi[k][j][i].f[l] + oldphi[k][j][i].f[l] + data.deltat * phidot[k][j][i].f[l];
                 }
             }
         }
@@ -174,7 +175,8 @@ PetscErrorCode FormFunction(SNES snes, Vec U, Vec F, void *ptr )
     DMRestoreLocalVector(da,&localU);
     DMDAVecRestoreArrayRead(da,user->noise,&gaussiannoise);
     DMDAVecRestoreArrayRead(da,user->previoussolution,&oldphi);
-    DMDAVecRestoreArrayRead(da,user->phidot,&phidot);
+
+    DMDAVecRestoreArray(da,user->phidot,&phidot);
 
 
     return(0);
