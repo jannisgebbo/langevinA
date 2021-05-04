@@ -1,0 +1,34 @@
+#Magnetic field
+H = 0.01
+
+#Lattice size
+NX = 16
+NY = 16
+NZ = 16
+
+#Lattice length L = N dx
+LX = 15
+LY = 15
+LZ = 15
+
+#N in O(N)
+Ndof = 4
+
+
+#Times and timestep
+finaltime = 15
+initialtime = 0
+deltat    = 0.01
+saveFreq = 0.1
+
+#Parameters
+mass = -10
+lambda  = 1.25
+gamma  = 1
+
+# Set to 0 or don't pass to have a random seed
+#seed = 12235456
+
+
+#output tag
+output = output
