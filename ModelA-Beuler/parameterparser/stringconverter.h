@@ -5,6 +5,8 @@
 
 #include <vector>
 #include <iomanip>
+#include <sstream>
+
 
 namespace FCN {
 

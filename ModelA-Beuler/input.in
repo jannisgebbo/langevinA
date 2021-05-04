@@ -27,7 +27,7 @@ lambda  = 1.25
 gamma  = 1
 
 # Set to 0 or don't pass to have a random seed
-seed = 12235456
+#seed = 12235456
 
 
 #output tag
