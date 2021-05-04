@@ -25,7 +25,7 @@ struct model_data {
    PetscReal hZ= LZ/(PetscReal)(NZ-1);
 
    //Number of field
-   PetscInt Ndof=4;
+   PetscInt Ndof=10;
    //
    PetscReal finaltime=20.;
    PetscReal initialtime=0.;
@@ -41,6 +41,8 @@ struct model_data {
    PetscReal lambda=5.;
    PetscReal gamma=1.;
    PetscReal H=0.;
+   PetscReal sigma=1.;
+   PetscReal chi=1.;
 
 
    // random seed
@@ -51,7 +53,7 @@ struct model_data {
 };
 
 typedef struct {
- PetscScalar f[4];
+ PetscScalar f[10];
 } o4_node;
 
 struct global_data  {
@@ -137,6 +139,8 @@ struct global_data  {
     model.mass = par.get<double>("mass");
     model.lambda = par.get<double>("lambda");
     model.gamma = par.get<double>("gamma");
+    model.sigma = par.get<double>("sigma");
+    model.chi = par.get<double>("chi");
     model.H = par.get<double>("H");
     model.seed = par.getSeed("seed");
     filename = par.get<std::string>("output");
@@ -163,6 +167,8 @@ struct global_data  {
 
     PetscPrintf(PETSC_COMM_WORLD, "m2 = %e\n", model.mass);
     PetscPrintf(PETSC_COMM_WORLD, "lambda = %e\n", model.lambda);
+    PetscPrintf(PETSC_COMM_WORLD, "sigma = %e\n", model.sigma);
+    PetscPrintf(PETSC_COMM_WORLD, "chi = %e\n", model.chi);
     PetscPrintf(PETSC_COMM_WORLD, "H = %e\n", model.H);
     PetscPrintf(PETSC_COMM_WORLD, "filename = %s\n", filename.c_str());
 
