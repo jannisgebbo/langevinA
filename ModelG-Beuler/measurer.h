@@ -19,7 +19,7 @@ public:
                     "Nx, Ny, and Nz must be equal for the correlation analysis to work");
         throw("Nx, Ny, and Nz must be equal for the correlation analysis to work");
     }
-    int nObs = 4;
+    int nObs = 10;
     VecCreateSeq(PETSC_COMM_SELF,nObs, &vecSaverScalars);
     VecCreateSeq(PETSC_COMM_SELF,N, &vecSaverCors);
 

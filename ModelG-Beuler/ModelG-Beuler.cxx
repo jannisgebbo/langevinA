@@ -142,39 +142,43 @@ PetscErrorCode FormFunction(SNES snes, Vec U, Vec F, void *ptr )
     DMDAGetCorners(da,&xstart,&ystart,&zstart,&xdimension,&ydimension,&zdimension);
 
     //This actually compute the right hand side
-    PetscScalar uxx,uyy,uzz,ucentral,phisquare,vdotphi,adotphi[3],advectionxx,advectionyy,advectionzz;
+    PetscScalar uxx,uyy,uzz,ucentral,phisquare,vdotphi,advectionxx,advectionyy,advectionzz;
     for (k=zstart; k<zstart+ydimension; k++){
         for (j=ystart; j<ystart+ydimension; j++){
             for (i=xstart; i<xstart+xdimension; i++) {
                 phisquare=0.;
-               
+
                 for (l=0; l<4; l++){
                     phisquare  = phisquare+ phi[k][j][i].f[l] * phi[k][j][i].f[l];
                 }
-                
+
                 vdotphi=0.;
-                adotphi={0.,0.,0.};
+                PetscScalar adotphi[3];
+                for (l=0; l<3;l++) {
+                  adotphi[l]=0;
+                }
+
                 for(l=0; l<3; l++){
                 //contraction of vector current with phi
-                vdotphi=phi[k][j][i].f[l+1] phi[k][j][i].f[l+3];
+                vdotphi=phi[k][j][i].f[l+1] *phi[k][j][i].f[l+3];
              		PetscInt   m=(l+1)%3;
              		PetscInt   n=(l+2)%3;
                 //contraction of axial current with phi
                 adotphi[l]=(l-m)*(m-n)*(n-l)/2*(phi[k][j][i].f[m+1]*phi[k][j][i].f[n+6]
                 -phi[k][j][i].f[n+1]*phi[k][j][i].f[m+6]);
                 }
-                
-                
+
+
                 //the phi_zero equation
                  ucentral= phi[k][j][i].f[0];
-                        uxx= ( -2.0* ucentral0 + phi[k][j][i-1].f[0] + phi[k][j][i+1].f[0] )/(hx*hx);
-                        uyy= ( -2.0* ucentral0 + phi[k][j-1][i].f[0] + phi[k][j+1][i].f[0] )/(hy*hy);
-                        uzz= ( -2.0* ucentral0 + phi[k-1][j][i].f[0] + phi[k+1][j][i].f[0] )/(hz*hz);
+                        uxx= ( -2.0* ucentral + phi[k][j][i-1].f[0] + phi[k][j][i+1].f[0] )/(hx*hx);
+                        uyy= ( -2.0* ucentral + phi[k][j-1][i].f[0] + phi[k][j+1][i].f[0] )/(hy*hy);
+                        uzz= ( -2.0* ucentral + phi[k-1][j][i].f[0] + phi[k+1][j][i].f[0] )/(hz*hz);
 
 
 
                         phidot[k][j][i].f[0] = data.gamma*(uxx+uyy+uzz)-data.gamma*(data.mass+data.lambda*phisquare)*ucentral
-                          +  data.gamma*data.H 
+                          +  data.gamma*data.H
                           -1/data.chi*vdotphi
                           +  PetscSqrtReal(2.* data.gamma / data.deltat) * gaussiannoise[k][j][i].f[0];
 
@@ -189,20 +193,20 @@ PetscErrorCode FormFunction(SNES snes, Vec U, Vec F, void *ptr )
 
 
                         phidot[k][j][i].f[l] = data.gamma*(uxx+uyy+uzz)-data.gamma*(data.mass+data.lambda*phisquare)*ucentral
-                        +1/data.chi*phi[k][j][i].f[0]*phi[k][j][i].f[l+3] 
+                        +1/data.chi*phi[k][j][i].f[0]*phi[k][j][i].f[l+3]
                         -1/data.chi*adotphi[l]
                           +  PetscSqrtReal(2.* data.gamma / data.deltat) * gaussiannoise[k][j][i].f[l];
 
 
                 }
-                
+
                 //v_s equation
                 for ( l=4; l<7; l++) {
                         ucentral= phi[k][j][i].f[l];
                         uxx= ( -2.0* ucentral + phi[k][j][i-1].f[l] + phi[k][j][i+1].f[l] )/(hx*hx);
                         uyy= ( -2.0* ucentral + phi[k][j-1][i].f[l] + phi[k][j+1][i].f[l] )/(hy*hy);
                         uzz= ( -2.0* ucentral + phi[k-1][j][i].f[l] + phi[k+1][j][i].f[l] )/(hz*hz);
-                        
+
                         //advection term
 			advectionxx=(-phi[k][j][i+1].f[0]*phi[k][j][i].f[l-3]
 				+phi[k][j][i].f[0]*phi[k][j][i+1].f[l-3]
@@ -216,7 +220,7 @@ PetscErrorCode FormFunction(SNES snes, Vec U, Vec F, void *ptr )
 				+phi[k][j][i].f[0]*phi[k+1][j][i].f[l-3]
 				+phi[k][j][i].f[0]*phi[k-1][j][i].f[l-3]
 				-phi[k-1][j][i].f[0]*phi[k][j][i].f[l-3])/(hz*hz);
-				
+
 
 
                         phidot[k][j][i].f[l] = data.sigma/data.chi*(uxx+uyy+uzz)
@@ -234,8 +238,8 @@ PetscErrorCode FormFunction(SNES snes, Vec U, Vec F, void *ptr )
                         uxx= ( -2.0* ucentral + phi[k][j][i-1].f[l] + phi[k][j][i+1].f[l] )/(hx*hx);
                         uyy= ( -2.0* ucentral + phi[k][j-1][i].f[l] + phi[k][j+1][i].f[l] )/(hy*hy);
                         uzz= ( -2.0* ucentral + phi[k-1][j][i].f[l] + phi[k+1][j][i].f[l] )/(hz*hz);
-			
-			PescInt s=l-7;
+
+			PetscInt s=l-7;
 			PetscInt   s1=(s+1)%3;
              		PetscInt   s2=(s+2)%3;
 
@@ -252,8 +256,8 @@ PetscErrorCode FormFunction(SNES snes, Vec U, Vec F, void *ptr )
 				+phi[k][j][i].f[s2]*phi[k-1][j][i].f[s1]
 				-(phi[k+1][j][i].f[s1]*phi[k][j][i].f[s2]
 				+phi[k][j][i].f[s1]*phi[k-1][j][i].f[s2]))/(hz*hz);
-			
-				
+
+
 
                         phidot[k][j][i].f[l] = data.sigma/data.chi*(uxx+uyy+uzz)
                         +advectionxx+advectionyy+advectionzz
@@ -261,7 +265,7 @@ PetscErrorCode FormFunction(SNES snes, Vec U, Vec F, void *ptr )
 
 
                 }
-                
+
                     for ( l=0; l<10; l++) {
                         //here you want to put the formula for the euler step F(phi)=0
                         f[k][j][i].f[l]=-phi[k][j][i].f[l] + oldphi[k][j][i].f[l] + data.deltat * phidot[k][j][i].f[l];
@@ -315,12 +319,12 @@ PetscErrorCode FormJacobian(SNES snes, Vec U, Mat J, Mat Jpre, void *ptr)
     for (k=info.zs; k<info.zs+info.zm; k++){
         for (j=info.ys; j<info.ys+info.ym; j++){
             for (i=info.xs; i<info.xs+info.xm; i++) {
-            	
+
                 PetscScalar phisquare=0.;
                 for (l=0; l<4; l++){
                     phisquare  =phisquare+ phi[k][j][i].f[l] * phi[k][j][i].f[l];
                 }
-                
+
                 //dF_0/dphi_0
                     //we define the column
                     PetscInt nc=0;
@@ -341,26 +345,26 @@ PetscErrorCode FormJacobian(SNES snes, Vec U, Mat J, Mat Jpre, void *ptr)
                     //The central element need a loop over the flavour index of the column (is a full matrix in the flavour index )
 
 
-                    column[nc].i=i;  column[nc].j=j;   column[nc].k=k; column[nc].c=0;   
+                    column[nc].i=i;  column[nc].j=j;   column[nc].k=k; column[nc].c=0;
                     value[nc++]=-1.+data.deltat*data.gamma*(-2.0/(hx*hx)-2.0/(hy*hy)-2.0/(hz*hz)-
                     data.mass-data.lambda*(phisquare+2.*phi[k][j][i].f[0] * phi[k][j][i].f[0]));
-                    
+
                   for (l=1; l<4; l++) {
-                                column[nc].i=i;  column[nc].j=j;   column[nc].k=k; column[nc].c=l;   
+                                column[nc].i=i;  column[nc].j=j;   column[nc].k=k; column[nc].c=l;
                                 value[nc++]=data.deltat*(2*data.gamma*phi[k][j][i].f[l]*phi[k][j][i].f[0]
-                                -1/data.chi phi[k][j][i].f[l+3]));
-                        
+                                -1/data.chi*phi[k][j][i].f[l+3]);
+
                     }
-                    
+
                      for (l=4; l<7; l++) {
-                                column[nc].i=i;  column[nc].j=j;   column[nc].k=k; column[nc].c=l;   
-                                value[nc++]=-data.deltat/data.chi phi[k][j][i].f[l-3]));
+                                column[nc].i=i;  column[nc].j=j;   column[nc].k=k; column[nc].c=l;
+                                value[nc++]=-data.deltat/data.chi*phi[k][j][i].f[l-3];
                     }
-                    
+
 			MatSetValuesStencil(Jpre,1,&row,nc,column,value,INSERT_VALUES );
-			
-			
-                    
+
+
+
                        for (l=1; l<4; l++) {
                     //we define the columns again
                     PetscInt nc=0;
@@ -369,9 +373,9 @@ PetscErrorCode FormJacobian(SNES snes, Vec U, Mat J, Mat Jpre, void *ptr)
                     //here we insert the position of the row
                     row.i=i; row.j=j; row.k=k; row.c=l;
                  //dF_s/dphi_0
-                 column[nc].i=i;  column[nc].j=j;   column[nc].k=k; column[nc].c=0;   
+                 column[nc].i=i;  column[nc].j=j;   column[nc].k=k; column[nc].c=0;
                                 value[nc++]=data.deltat*(-2*data.gamma*phi[k][j][i].f[l]*phi[k][j][i].f[0]
-                                +1/data.chi phi[k][j][i].f[l+3]));   
+                                +1/data.chi*phi[k][j][i].f[l+3]);
                   //dF_s/dphi_s3
 
                     //x direction
@@ -385,9 +389,9 @@ PetscErrorCode FormJacobian(SNES snes, Vec U, Mat J, Mat Jpre, void *ptr)
                     column[nc].i=i; column[nc].j=j;  column[nc].k=k+1;  column[nc].c=l;    value[nc++]=data.gamma*data.deltat*1.0/(hz*hz);
 
 
-                  for(s3=1;s3<4;s3++){
-				   if(s3==l){ 
-				    column[nc].i=i;  column[nc].j=j;   column[nc].k=k; column[nc].c=l;   
+                  for(PetscInt s3=1;s3<4;s3++){
+				   if(s3==l){
+				    column[nc].i=i;  column[nc].j=j;   column[nc].k=k; column[nc].c=l;
 				    value[nc++]=-1.+data.deltat*data.gamma*(-2.0/(hx*hx)-2.0/(hy*hy)-2.0/(hz*hz)-
 				    data.mass-data.lambda*(phisquare+2.*phi[k][j][i].f[l] * phi[k][j][i].f[l]));
 				    }
@@ -396,42 +400,43 @@ PetscErrorCode FormJacobian(SNES snes, Vec U, Mat J, Mat Jpre, void *ptr)
               			   f1=l-1;
                  		   f2=s3-1;
                  		   f3=(-f2-f1)%3;
-				  column[nc].i=i;  column[nc].j=j;   column[nc].k=k; column[nc].c=s3;   
-				   value[nc++]=-2data.lambda*(phi[k][j][i].f[s3]*phi[k][j][i].f[l])
-				   -1/data.chi*(f1-f2)*(f2-f3)*(f3-f1)/2*(phi[k][j][i].f[f3+6])  
-                                }}
-                                
+				  column[nc].i=i;  column[nc].j=j;   column[nc].k=k; column[nc].c=s3;
+				   value[nc++]=-2*data.lambda*(phi[k][j][i].f[s3]*phi[k][j][i].f[l])
+				   -1/data.chi*(f1-f2)*(f2-f3)*(f3-f1)/2*(phi[k][j][i].f[f3+6]);
+                                }
+                              }
+
                                  //dF_s/dV
-			column[nc].i=i;  column[nc].j=j;   column[nc].k=k; column[nc].c=l+3;   
+			column[nc].i=i;  column[nc].j=j;   column[nc].k=k; column[nc].c=l+3;
 				value[nc++]=data.deltat/data.chi*(phi[k][j][i].f[0]);
-									
-                                
-						 //dF_s/dA        
-						 for(s3=7;s3<10,s3++){
+
+
+						 //dF_s/dA
+						 for(PetscInt s3=7; s3<10 ;s3++){
 						 PetscInt f1,f2,f3;
 						 f1=l-1;
 						 f2=s3-7;
 						 f3=(-f2-f1)%3;
-						column[nc].i=i;  column[nc].j=j;   column[nc].k=k; column[nc].c=s3;   
+						column[nc].i=i;  column[nc].j=j;   column[nc].k=k; column[nc].c=s3;
 								value[nc++]=-(f1-f2)*(f2-f3)*(f3-f1)/2*
 								data.deltat/data.chi*
 								(phi[k][j][i].f[1+f3]);
 									}
-               
-                        			  
-               
-               MatSetValuesStencil(Jpre,1,&row,nc,column,value,INSERT_VALUES );    
-               }
-               
 
-for (s=4; s<7; s++) {
+
+
+               MatSetValuesStencil(Jpre,1,&row,nc,column,value,INSERT_VALUES );
+               }
+
+
+for (PetscInt s=4; s<7; s++) {
                     //we define the columns again
                     PetscInt nc=0;
                     MatStencil row, column[100];
                     PetscScalar value[100];
                     //here we insert the position of the row
                     row.i=i; row.j=j; row.k=k; row.c=s;
-                    
+
 		//dG_s /dphi_0
 		   column[nc].i=i-1; column[nc].j=j;  column[nc].k=k; column[nc].c=0;    value[nc++]=-data.deltat*1.0/(hx*hx)*phi[k][j][i].f[s];
                     column[nc].i=i+1; column[nc].j=j;  column[nc].k=k; column[nc].c=0;    value[nc++]=-data.deltat*1.0/(hx*hx)*phi[k][j][i].f[s];
@@ -444,12 +449,12 @@ for (s=4; s<7; s++) {
                     //The central element need a loop over the flavour index of the column (is a full matrix in the flavour index )
 
 
-                    column[nc].i=i;  column[nc].j=j;   column[nc].k=k; column[nc].c=0;   
+                    column[nc].i=i;  column[nc].j=j;   column[nc].k=k; column[nc].c=0;
                     value[nc++]=data.deltat*(
                     (phi[k][j][i+1].f[s-3]+phi[k][j][i-1].f[s-3])/(hx*hx)
                     +(phi[k][j+1][i].f[s-3]+phi[k][j-1][i].f[s-3])/(hy*hy)
-                    +(phi[k+1][j][i].f[s-3]+phi[k-1][j][i].f[s-3])/(hz*hz)));
-                    
+                    +(phi[k+1][j][i].f[s-3]+phi[k-1][j][i].f[s-3])/(hz*hz));
+
                     //dG_s /dphi_s
 		   column[nc].i=i-1; column[nc].j=j;  column[nc].k=k; column[nc].c=s-3;    value[nc++]=data.deltat*1.0/(hx*hx)*phi[k][j][i].f[0];
                     column[nc].i=i+1; column[nc].j=j;  column[nc].k=k; column[nc].c=s-3;    value[nc++]=data.deltat*1.0/(hx*hx)*phi[k][j][i].f[0];
@@ -462,13 +467,13 @@ for (s=4; s<7; s++) {
                     //The central element need a loop over the flavour index of the column (is a full matrix in the flavour index )
 
 
-                    column[nc].i=i;  column[nc].j=j;   column[nc].k=k; column[nc].c=s-3;   
+                    column[nc].i=i;  column[nc].j=j;   column[nc].k=k; column[nc].c=s-3;
                     value[nc++]=
                     -data.deltat*(data.H+
                     (phi[k][j][i+1].f[0]+phi[k][j][i-1].f[0])/(hx*hx)
                     +(phi[k][j+1][i].f[0]+phi[k][j-1][i].f[0])/(hy*hy)
-                    +(phi[k+1][j][i].f[0]+phi[k-1][j][i].f[0])/(hz*hz)));
-                    
+                    +(phi[k+1][j][i].f[0]+phi[k-1][j][i].f[0])/(hz*hz));
+
                     //dG_s/d V_s3
                      //x direction
                     column[nc].i=i-1; column[nc].j=j;  column[nc].k=k; column[nc].c=s;    value[nc++]=data.sigma/data.chi*data.deltat*1.0/(hx*hx);
@@ -482,28 +487,28 @@ for (s=4; s<7; s++) {
                     //The central element need a loop over the flavour index of the column (is a full matrix in the flavour index )
 
 
-                    column[nc].i=i;  column[nc].j=j;   column[nc].k=k; column[nc].c=s;   
+                    column[nc].i=i;  column[nc].j=j;   column[nc].k=k; column[nc].c=s;
                     value[nc++]=-1.+data.deltat*data.sigma/data.chi*(-2.0/(hx*hx)-2.0/(hy*hy)-2.0/(hz*hz));
-                    
+
                      MatSetValuesStencil(Jpre,1,&row,nc,column,value,INSERT_VALUES );
                     }
-                   
-                   
- for (s=7; s<10; s++) {
+
+
+ for (PetscInt s=7; s<10; s++) {
                     //we define the columns again
                     PetscInt nc=0;
                     MatStencil row, column[100];
                     PetscScalar value[100];
                     //here we insert the position of the row
                     row.i=i; row.j=j; row.k=k; row.c=s;
-                    
-                    for(s3=1;s3<4;s3++){
+
+                    for(PetscInt s3=1;s3<4;s3++){
                     PetscInt f1,f2,f3,epsilon;
                  f1=s-7;
                  f2=s3-1;
                  f3=(-f2-f1)%3;
                   epsilon=(f1-f2)*(f2-f3)*(f3-f1)/2;
-                    
+
                          //dH_s /dphi_s
 		   column[nc].i=i-1; column[nc].j=j;  column[nc].k=k; column[nc].c=s3;    value[nc++]=data.deltat*1.0/(hx*hx)*phi[k][j][i].f[f3+1]*epsilon;
                     column[nc].i=i+1; column[nc].j=j;  column[nc].k=k; column[nc].c=s3;    value[nc++]=-data.deltat*1.0/(hx*hx)*phi[k][j][i].f[f3+1]*epsilon;
@@ -516,15 +521,15 @@ for (s=4; s<7; s++) {
                     //The central element need a loop over the flavour index of the column (is a full matrix in the flavour index )
 
 
-                    column[nc].i=i;  column[nc].j=j;   column[nc].k=k; column[nc].c=s3;   
+                    column[nc].i=i;  column[nc].j=j;   column[nc].k=k; column[nc].c=s3;
                     value[nc++]=
                     epsilon*data.deltat*(
                     (phi[k][j][i+1].f[f3+1]-phi[k][j][i-1].f[f3+1])/(hx*hx)
                     +(phi[k][j+1][i].f[f3+1]-phi[k][j-1][i].f[f3+1])/(hy*hy)
-                    +(phi[k+1][j][i].f[f3+1]-phi[k-1][j][i].f[f3+1])/(hz*hz)));
-                    
+                    +(phi[k+1][j][i].f[f3+1]-phi[k-1][j][i].f[f3+1])/(hz*hz));
+
                     }
-                    
+
                      column[nc].i=i-1; column[nc].j=j;  column[nc].k=k; column[nc].c=s;    value[nc++]=data.sigma/data.chi*data.deltat*1.0/(hx*hx);
                     column[nc].i=i+1; column[nc].j=j;  column[nc].k=k; column[nc].c=s;    value[nc++]=data.sigma/data.chi*data.deltat*1.0/(hx*hx);
                     //y direction
@@ -536,12 +541,12 @@ for (s=4; s<7; s++) {
                     //The central element need a loop over the flavour index of the column (is a full matrix in the flavour index )
 
 
-                    column[nc].i=i;  column[nc].j=j;   column[nc].k=k; column[nc].c=s;   
+                    column[nc].i=i;  column[nc].j=j;   column[nc].k=k; column[nc].c=s;
                     value[nc++]=-1.+data.deltat*data.sigma/data.chi*(-2.0/(hx*hx)-2.0/(hy*hy)-2.0/(hz*hz));
-                    
+
                      MatSetValuesStencil(Jpre,1,&row,nc,column,value,INSERT_VALUES );
-                    
-                    }                      
+
+                    }
             }
         }
     }

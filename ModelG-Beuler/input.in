@@ -12,7 +12,7 @@ LY = 15
 LZ = 15
 
 #N in O(N)
-Ndof = 4
+Ndof = 10
 
 
 #Times and timestep
@@ -25,6 +25,8 @@ saveFreq = 0.1
 mass = -10
 lambda  = 1.25
 gamma  = 1
+sigma=1
+chi=1
 
 # Set to 0 or don't pass to have a random seed
 #seed = 12235456
