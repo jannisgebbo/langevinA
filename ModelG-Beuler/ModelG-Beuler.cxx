@@ -1,4 +1,3 @@
-
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
@@ -141,17 +140,21 @@ PetscErrorCode FormFunction(SNES snes, Vec U, Vec F, void *ptr )
     //Get The local coordinates
     DMDAGetCorners(da,&xstart,&ystart,&zstart,&xdimension,&ydimension,&zdimension);
 
-    //This actually compute the right hand side
+//The right hand side
     PetscScalar uxx,uyy,uzz,ucentral,phisquare,vdotphi,advectionxx,advectionyy,advectionzz;
     for (k=zstart; k<zstart+ydimension; k++){
         for (j=ystart; j<ystart+ydimension; j++){
             for (i=xstart; i<xstart+xdimension; i++) {
-                phisquare=0.;
 
+       	//l is an index for our vector. l=0,1,2,3 is phi,l=4,5,6 is V and l=7,8,9 is A
+
+		//computing phi squared 
+		phisquare=0.;
                 for (l=0; l<4; l++){
                     phisquare  = phisquare+ phi[k][j][i].f[l] * phi[k][j][i].f[l];
                 }
-
+		
+		//adotphi vector, to be contracted in the next loop
                 vdotphi=0.;
                 PetscScalar adotphi[3];
                 for (l=0; l<3;l++) {
@@ -164,10 +167,9 @@ PetscErrorCode FormFunction(SNES snes, Vec U, Vec F, void *ptr )
              		PetscInt   m=(l+1)%3;
              		PetscInt   n=(l+2)%3;
                 //contraction of axial current with phi
-                adotphi[l]=(l-m)*(m-n)*(n-l)/2*(phi[k][j][i].f[m+1]*phi[k][j][i].f[n+6]
-                -phi[k][j][i].f[n+1]*phi[k][j][i].f[m+6]);
+                adotphi[l]=(l-m)*(m-n)*(n-l)/2*(phi[k][j][i].f[m+1]*phi[k][j][i].f[n+7]
+                -phi[k][j][i].f[n+1]*phi[k][j][i].f[m+7]);
                 }
-
 
                 //the phi_zero equation
                  ucentral= phi[k][j][i].f[0];
@@ -175,13 +177,11 @@ PetscErrorCode FormFunction(SNES snes, Vec U, Vec F, void *ptr )
                         uyy= ( -2.0* ucentral + phi[k][j-1][i].f[0] + phi[k][j+1][i].f[0] )/(hy*hy);
                         uzz= ( -2.0* ucentral + phi[k-1][j][i].f[0] + phi[k+1][j][i].f[0] )/(hz*hz);
 
-
-
-                        phidot[k][j][i].f[0] = data.gamma*(uxx+uyy+uzz)-data.gamma*(data.mass+data.lambda*phisquare)*ucentral
-                          +  data.gamma*data.H
-                          -1/data.chi*vdotphi
-                          +  PetscSqrtReal(2.* data.gamma / data.deltat) * gaussiannoise[k][j][i].f[0];
-
+                        phidot[k][j][i].f[0] = data.gamma*(uxx+uyy+uzz)
+					-data.gamma*(data.mass+data.lambda*phisquare)*ucentral
+                        		  +  data.gamma*data.H
+                          		-1/data.chi*vdotphi
+                   		       +  PetscSqrtReal(2.* data.gamma / data.deltat) * gaussiannoise[k][j][i].f[0];
 
                 //phi_i equation
                  for ( l=1; l<4; l++) {
@@ -190,14 +190,10 @@ PetscErrorCode FormFunction(SNES snes, Vec U, Vec F, void *ptr )
                         uyy= ( -2.0* ucentral + phi[k][j-1][i].f[l] + phi[k][j+1][i].f[l] )/(hy*hy);
                         uzz= ( -2.0* ucentral + phi[k-1][j][i].f[l] + phi[k+1][j][i].f[l] )/(hz*hz);
 
-
-
                         phidot[k][j][i].f[l] = data.gamma*(uxx+uyy+uzz)-data.gamma*(data.mass+data.lambda*phisquare)*ucentral
                         +1/data.chi*phi[k][j][i].f[0]*phi[k][j][i].f[l+3]
                         -1/data.chi*adotphi[l]
                           +  PetscSqrtReal(2.* data.gamma / data.deltat) * gaussiannoise[k][j][i].f[l];
-
-
                 }
 
                 //v_s equation
@@ -221,15 +217,11 @@ PetscErrorCode FormFunction(SNES snes, Vec U, Vec F, void *ptr )
 				+phi[k][j][i].f[0]*phi[k-1][j][i].f[l-3]
 				-phi[k-1][j][i].f[0]*phi[k][j][i].f[l-3])/(hz*hz);
 
-
-
                         phidot[k][j][i].f[l] = data.sigma/data.chi*(uxx+uyy+uzz)
                         +advectionxx+advectionyy+advectionzz
                         -data.gamma*(data.mass+data.lambda*phisquare)*ucentral
                         -data.H*phi[k][j][i].f[l-3]
                           +  PetscSqrtReal(2.* data.sigma/data.chi / data.deltat) * gaussiannoise[k][j][i].f[l];
-
-
                 }
 
 		//a_i equation
@@ -267,7 +259,7 @@ PetscErrorCode FormFunction(SNES snes, Vec U, Vec F, void *ptr )
                 }
 
                     for ( l=0; l<10; l++) {
-                        //here you want to put the formula for the euler step F(phi)=0
+                        //The euler step, F(phi)=0
                         f[k][j][i].f[l]=-phi[k][j][i].f[l] + oldphi[k][j][i].f[l] + data.deltat * phidot[k][j][i].f[l];
                 }
             }
@@ -288,7 +280,7 @@ PetscErrorCode FormFunction(SNES snes, Vec U, Vec F, void *ptr )
 
 
 }
-// Jacobian !!
+// Jacobian!!
 PetscErrorCode FormJacobian(SNES snes, Vec U, Mat J, Mat Jpre, void *ptr)
 {
     global_data     *user=(global_data*) ptr;
@@ -353,7 +345,6 @@ PetscErrorCode FormJacobian(SNES snes, Vec U, Mat J, Mat Jpre, void *ptr)
                                 column[nc].i=i;  column[nc].j=j;   column[nc].k=k; column[nc].c=l;
                                 value[nc++]=data.deltat*(2*data.gamma*phi[k][j][i].f[l]*phi[k][j][i].f[0]
                                 -1/data.chi*phi[k][j][i].f[l+3]);
-
                     }
 
                      for (l=4; l<7; l++) {
@@ -372,10 +363,12 @@ PetscErrorCode FormJacobian(SNES snes, Vec U, Mat J, Mat Jpre, void *ptr)
                     PetscScalar value[100];
                     //here we insert the position of the row
                     row.i=i; row.j=j; row.k=k; row.c=l;
+
                  //dF_s/dphi_0
                  column[nc].i=i;  column[nc].j=j;   column[nc].k=k; column[nc].c=0;
                                 value[nc++]=data.deltat*(-2*data.gamma*phi[k][j][i].f[l]*phi[k][j][i].f[0]
                                 +1/data.chi*phi[k][j][i].f[l+3]);
+
                   //dF_s/dphi_s3
 
                     //x direction
