@@ -146,15 +146,15 @@ PetscErrorCode FormFunction(SNES snes, Vec U, Vec F, void *ptr )
         for (j=ystart; j<ystart+ydimension; j++){
             for (i=xstart; i<xstart+xdimension; i++) {
 
-       	//l is an index for our vector. l=0,1,2,3 is phi,l=4,5,6 is V and l=7,8,9 is A
+                //l is an index for our vector. l=0,1,2,3 is phi,l=4,5,6 is V and l=7,8,9 is A
 
-		//computing phi squared 
-		phisquare=0.;
+                //computing phi squared
+                phisquare=0.;
                 for (l=0; l<4; l++){
                     phisquare  = phisquare+ phi[k][j][i].f[l] * phi[k][j][i].f[l];
                 }
 		
-		//adotphi vector, to be contracted in the next loop
+                //adotphi vector, to be contracted in the next loop
                 PetscScalar vdotphi=0.;
                 PetscScalar adotphi[3] = {0., 0., 0};
                 //for (l=0; l<3;l++) {
@@ -163,41 +163,33 @@ PetscErrorCode FormFunction(SNES snes, Vec U, Vec F, void *ptr )
 
                 for (l=0; l<3; l++) {
                     //contraction of vector current with phi
-                    vdotphi +=phi[k][j][i].f[l+1] *phi[k][j][i].f[l+3];
+                    vdotphi += phi[k][j][i].f[l+1] *phi[k][j][i].f[l+3];
                 }
                 
                 for(l=0; l<3; l++){
              		PetscInt   m=(l+1)%3;
              		PetscInt   n=(l+2)%3;
-                //contraction of axial current with phi
-                adotphi[l]=(l-m)*(m-n)*(n-l)/2*(phi[k][j][i].f[m+1]*phi[k][j][i].f[n+7]
-                -phi[k][j][i].f[n+1]*phi[k][j][i].f[m+7]);
+                    //contraction of axial current with phi
+                    adotphi[l]=(l-m)*(m-n)*(n-l)/2*(phi[k][j][i].f[m+1]*phi[k][j][i].f[n+7]-phi[k][j][i].f[n+1]*phi[k][j][i].f[m+7]);
                 }
 
                 //the phi_zero equation
-                 ucentral= phi[k][j][i].f[0];
-                        uxx= ( -2.0* ucentral + phi[k][j][i-1].f[0] + phi[k][j][i+1].f[0] )/(hx*hx);
-                        uyy= ( -2.0* ucentral + phi[k][j-1][i].f[0] + phi[k][j+1][i].f[0] )/(hy*hy);
-                        uzz= ( -2.0* ucentral + phi[k-1][j][i].f[0] + phi[k+1][j][i].f[0] )/(hz*hz);
+                ucentral= phi[k][j][i].f[0];
+                uxx= ( -2.0* ucentral + phi[k][j][i-1].f[0] + phi[k][j][i+1].f[0] )/(hx*hx);
+                uyy= ( -2.0* ucentral + phi[k][j-1][i].f[0] + phi[k][j+1][i].f[0] )/(hy*hy);
+                uzz= ( -2.0* ucentral + phi[k-1][j][i].f[0] + phi[k+1][j][i].f[0] )/(hz*hz);
 
-                        phidot[k][j][i].f[0] = data.gamma*(uxx+uyy+uzz)
-					-data.gamma*(data.mass+data.lambda*phisquare)*ucentral
-                        		  +  data.gamma*data.H
-                          		-1/data.chi*vdotphi
-                   		       +  PetscSqrtReal(2.* data.gamma / data.deltat) * gaussiannoise[k][j][i].f[0];
+                phidot[k][j][i].f[0] = data.gamma*(uxx+uyy+uzz)-data.gamma*(data.mass+data.lambda*phisquare)*ucentral+  data.gamma*data.H-1/data.chi*vdotphi+ PetscSqrtReal(2.* data.gamma / data.deltat) * gaussiannoise[k][j][i].f[0];
 
                 //phi_i equation
-                 for ( l=1; l<4; l++) {
+                for ( l=1; l<4; l++) {
                         ucentral= phi[k][j][i].f[l];
                         uxx= ( -2.0* ucentral + phi[k][j][i-1].f[l] + phi[k][j][i+1].f[l] )/(hx*hx);
                         uyy= ( -2.0* ucentral + phi[k][j-1][i].f[l] + phi[k][j+1][i].f[l] )/(hy*hy);
                         uzz= ( -2.0* ucentral + phi[k-1][j][i].f[l] + phi[k+1][j][i].f[l] )/(hz*hz);
 
-                        phidot[k][j][i].f[l] = data.gamma*(uxx+uyy+uzz)-data.gamma*(data.mass+data.lambda*phisquare)*ucentral
-                        +1/data.chi*phi[k][j][i].f[0]*phi[k][j][i].f[l+3]
-                        -1/data.chi*adotphi[l-1]
-                          +  PetscSqrtReal(2.* data.gamma / data.deltat) * gaussiannoise[k][j][i].f[l];
-                }
+                        phidot[k][j][i].f[l] = data.gamma*(uxx+uyy+uzz)-data.gamma*(data.mass+data.lambda*phisquare)*ucentral+1/data.chi*phi[k][j][i].f[0]*phi[k][j][i].f[l+3]-1/data.chi*adotphi[l-1]+  PetscSqrtReal(2.* data.gamma / data.deltat) * gaussiannoise[k][j][i].f[l];
+                        }
 
                 //v_s equation
                 for ( l=4; l<7; l++) {
@@ -225,9 +217,9 @@ PetscErrorCode FormFunction(SNES snes, Vec U, Vec F, void *ptr )
                         -data.gamma*(data.mass+data.lambda*phisquare)*ucentral
                         -data.H*phi[k][j][i].f[l-3]
                           +  PetscSqrtReal(2.* data.sigma/data.chi / data.deltat) * gaussiannoise[k][j][i].f[l];
-                }
+                    }
 
-		//a_i equation
+                //a_i equation
                 for ( l=7; l<10; l++) {
                         ucentral= phi[k][j][i].f[l];
                         uxx= ( -2.0* ucentral + phi[k][j][i-1].f[l] + phi[k][j][i+1].f[l] )/(hx*hx);
@@ -256,12 +248,12 @@ PetscErrorCode FormFunction(SNES snes, Vec U, Vec F, void *ptr )
 
                     phidot[k][j][i].f[l] = data.sigma/data.chi*(uxx+uyy+uzz)+advectionxx+advectionyy+advectionzz+PetscSqrtReal(2.* data.sigma/data.chi / data.deltat) * gaussiannoise[k][j][i].f[l];
 
-                }
+                    }
 
                     for ( l=0; l<10; l++) {
                         //The euler step, F(phi)=0
                         f[k][j][i].f[l]=-phi[k][j][i].f[l] + oldphi[k][j][i].f[l] + data.deltat * phidot[k][j][i].f[l];
-                }
+                    }
             }
         }
     }
