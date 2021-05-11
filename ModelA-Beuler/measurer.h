@@ -13,13 +13,14 @@ public:
     da=user->da;
     N = user->model.NX;
     Ndof = user->model.Ndof;
+    verbosity = user->model.verboseMeas;
     if (user->model.NX != user->model.NY || user->model.NX != user->model.NZ) {
         PetscPrintf(
                     PETSC_COMM_WORLD,
                     "Nx, Ny, and Nz must be equal for the correlation analysis to work");
         throw("Nx, Ny, and Nz must be equal for the correlation analysis to work");
     }
-    int nObs = 4;
+    int nObs = 5;
     VecCreateSeq(PETSC_COMM_SELF,nObs, &vecSaverScalars);
     VecCreateSeq(PETSC_COMM_SELF,N, &vecSaverCors);
 
@@ -93,9 +94,9 @@ private:
       // OX0[i] will contain the average of fld0 at wall x=i.
       // And analagous vectors for the wall averages in the y and z directions
 
-      sliceAveragesX = std::vector<std::vector<PetscScalar>>(Ndof, std::vector<PetscScalar>(N));
-      sliceAveragesY = std::vector<std::vector<PetscScalar>>(Ndof, std::vector<PetscScalar>(N));
-      sliceAveragesZ = std::vector<std::vector<PetscScalar>>(Ndof, std::vector<PetscScalar>(N));
+      sliceAveragesX = std::vector<std::vector<PetscScalar>>(Ndof + 1, std::vector<PetscScalar>(N));
+      sliceAveragesY = std::vector<std::vector<PetscScalar>>(Ndof + 1, std::vector<PetscScalar>(N));
+      sliceAveragesZ = std::vector<std::vector<PetscScalar>>(Ndof + 1, std::vector<PetscScalar>(N));
       auto sliceAveragesLocalX = sliceAveragesX;
       auto sliceAveragesLocalY = sliceAveragesY;
       auto sliceAveragesLocalZ = sliceAveragesZ;
@@ -103,20 +104,27 @@ private:
       // Get the ranges
       PetscInt ixs, iys, izs, nx, ny, nz;
       DMDAGetCorners(da, &ixs, &iys, &izs, &nx, &ny, &nz);
+      PetscReal norm;
 
       for (int k = izs; k < izs + nz; k++) {
           for (int j = iys; j < iys + ny; j++) {
               for (int i = ixs; i < ixs + nx; i++) {
+                  norm = 0.0;
                   for (int l = 0; l < Ndof; l++) {
                       sliceAveragesLocalX[l][i] += fld[k][j][i].f[l];
                       sliceAveragesLocalY[l][j] += fld[k][j][i].f[l];
                       sliceAveragesLocalZ[l][k] += fld[k][j][i].f[l];
+                      norm += pow(fld[k][j][i].f[l], 2);
                   }
+                  norm = sqrt(norm);
+                  sliceAveragesLocalX.back()[i] += norm;
+                  sliceAveragesLocalY.back()[j] += norm;
+                  sliceAveragesLocalZ.back()[k] += norm;
               }
           }
       }
 
-      for(int l = 0; l<Ndof; ++l){
+      for(int l = 0; l < sliceAveragesLocalX.size(); ++l){
         for(int i = 0; i<N; ++i){
           sliceAveragesLocalX[l][i] /= PetscReal(N * N);
           sliceAveragesLocalY[l][i] /= PetscReal(N * N);
@@ -127,7 +135,7 @@ private:
       DMDAVecRestoreArray(da, localU, &fld);
 
       // Bring all the data x data into one
-      for (int l = 0; l < Ndof; l++) {
+      for (int l = 0; l < sliceAveragesLocalX.size(); l++) {
         MPI_Reduce(sliceAveragesLocalX[l].data(), sliceAveragesX[l].data(), N, MPIU_SCALAR, MPI_SUM, 0,PETSC_COMM_WORLD);
         MPI_Reduce(sliceAveragesLocalY[l].data(), sliceAveragesY[l].data(), N, MPIU_SCALAR, MPI_SUM, 0,PETSC_COMM_WORLD);
         MPI_Reduce(sliceAveragesLocalZ[l].data(), sliceAveragesZ[l].data(), N, MPIU_SCALAR, MPI_SUM, 0,PETSC_COMM_WORLD);
@@ -136,9 +144,9 @@ private:
 
     void computeDerivedObs()
     {
-      isotropicWallToWallCii = std::vector<std::vector<PetscScalar>>(Ndof, std::vector<PetscScalar>(N));
-      OAverage = std::vector<PetscScalar>(Ndof);
-      for (int l = 0; l < Ndof; l++) {
+      isotropicWallToWallCii = std::vector<std::vector<PetscScalar>>(Ndof + 1, std::vector<PetscScalar>(N));
+      OAverage = std::vector<PetscScalar>(Ndof + 1);
+      for (int l = 0; l < Ndof + 1; l++) {
         for (int i = 0; i < N; i++) {
           for (int j = 0; j < N; j++) {
               int jj = (i + j) % N; // Circulate the index, if i=N-1 j=1, jj=0
@@ -149,7 +157,7 @@ private:
           OAverage[l] += sliceAveragesX[l][i];
         }
       }
-      for (int l = 0; l < Ndof; l++) {
+      for (int l = 0; l < Ndof + 1; l++) {
           OAverage[l] /= PetscReal(N);
       }
     }
@@ -158,13 +166,14 @@ private:
     void save(std::string fld)
     {
       std::string tmp;
-      for(PetscInt i = 0 ; i< Ndof ; ++i ){
+      for(PetscInt i = 0 ; i< Ndof + 1 ; ++i ){
         tmp = fld + "_"+std::to_string(i);
         saveCorLike(sliceAveragesX[i], "wallX_"+ tmp);
-        saveCorLike(sliceAveragesY[i], "wallY_"+ tmp);
-        saveCorLike(sliceAveragesZ[i], "wallZ_"+ tmp);
 
-        saveCorLike(isotropicWallToWallCii[i], "Cii_" + tmp);
+        if(verbosity) saveCorLike(sliceAveragesY[i], "wallY_"+ tmp);
+        if(verbosity) saveCorLike(sliceAveragesZ[i], "wallZ_"+ tmp);
+
+        if(verbosity) saveCorLike(isotropicWallToWallCii[i], "Cii_" + tmp);
 
       }
       saveScalarsLike(OAverage, fld);
@@ -188,7 +197,7 @@ private:
   {
     PetscObjectSetName((PetscObject) vecSaverScalars, name.c_str());
 
-    VecSetValues(vecSaverScalars,Ndof,vecScalarsIndex.data(),arr.data(),INSERT_VALUES);
+    VecSetValues(vecSaverScalars,Ndof+1,vecScalarsIndex.data(),arr.data(),INSERT_VALUES);
 
     VecAssemblyBegin(vecSaverScalars);
     VecAssemblyEnd(vecSaverScalars);
@@ -204,6 +213,7 @@ private:
     Vec vecSaverScalars;
     std::vector<PetscInt> vecScalarsIndex;
 
+    bool verbosity;
 
 
     std::vector<

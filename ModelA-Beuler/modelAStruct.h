@@ -34,6 +34,8 @@ struct model_data {
    //Save frequency
    PetscInt saveFreq;
 
+   bool verboseMeas;
+
 
    //Put here the information for the model ex the mass
    //The mass in the action has 1/2 and is the actuall mass square and the quartic has intead 1/4
@@ -139,6 +141,8 @@ struct global_data  {
     model.gamma = par.get<double>("gamma");
     model.H = par.get<double>("H");
     model.seed = par.getSeed("seed");
+    model.verboseMeas = par.get<bool>("verboseMeas",false);
+
     filename = par.get<std::string>("output");
 
     PetscReal saveFreqReal = par.get<double>("saveFreq");
