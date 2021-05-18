@@ -143,7 +143,7 @@ PetscErrorCode FormFunction(SNES snes, Vec U, Vec F, void *ptr )
 
     //This actually compute the right hand side
     PetscScalar uxx,uyy,uzz,ucentral,phisquare;
-    for (k=zstart; k<zstart+ydimension; k++){
+    for (k=zstart; k<zstart+zdimension; k++){
         for (j=ystart; j<ystart+ydimension; j++){
             for (i=xstart; i<xstart+xdimension; i++) {
                 phisquare=0.;
