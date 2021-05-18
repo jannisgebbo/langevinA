@@ -177,7 +177,121 @@ struct global_data  {
    }
 };
 
+o4_node localtimederivative(o4_node *phi, o4_node *phixminus, o4_node *phixplus, o4_node *phiyminus, o4_node *phiyplus, o4_node *phizminus, o4_node *phizplus, void *ptr){
+    
+    global_data     *user=(global_data*) ptr;
+    model_data      data=user->model;
+    PetscReal hx=data.hX; //1.0/(PetscReal)(Mx-1);
+    PetscReal hy=data.hX; //1.0/(PetscReal)(My-1);
+    PetscReal hz=data.hX; //1.0/(PetscReal)(Mz-1);
+    o4_node phidot;
+    //l is an index for our vector. l=0,1,2,3 is phi,l=4,5,6 is V and l=7,8,9 is A
+    //std::cout << "bad Job: " ;
+    //computing phi squared
+    PetscScalar phisquare=0.;
+    for (PetscInt l=0; l<4; l++){
+        phisquare  = phisquare+ phi->f[l] * phi->f[l];
+    }
 
+    //adotphi vector, to be contracted in the next loop
+    PetscScalar vdotphi=0.;
+    PetscScalar adotphi[3] = {0., 0., 0};
+    //for (l=0; l<3;l++) {
+    //  adotphi[l]=0;
+    //}
+
+    for (PetscInt l=0; l<3; l++) {
+        //contraction of vector current with phi
+        vdotphi += phi->f[l+1] *phi->f[l+5];
+    }
+    
+    for(PetscInt l=0; l<3; l++){
+         PetscInt   m=(l+1)%3;
+         PetscInt   n=(l+2)%3;
+         PetscScalar epsilon=((PetscScalar) (l-m)*(m-n)*(n-l))/2.;
+        //contraction of axial current with phi
+        adotphi[l]=epsilon*(phi->f[m+1]*phi->f[n+7]-phi->f[n+1]*phi->f[m+7]);
+    }
+
+    //the phi_zero equation
+    PetscScalar ucentral= phi->f[0];
+    PetscScalar uxx= ( -2.0* ucentral + phixminus->f[0] + phixplus->f[0] )/(hx*hx);
+    PetscScalar uyy= ( -2.0* ucentral + phiyminus->f[0] + phiyplus->f[0] )/(hy*hy);
+    PetscScalar uzz= ( -2.0* ucentral + phizminus->f[0] + phizplus->f[0] )/(hz*hz);
+
+     phidot.f[0] = data.gamma*(uxx+uyy+uzz)-data.gamma*(data.mass+data.lambda*phisquare)*ucentral+  data.gamma*data.H-1/data.chi*vdotphi;
+    
+   // phidot[k][j][i].f[0] = data.gamma*(uxx+uyy+uzz)-data.gamma*(data.mass+data.lambda*phisquare)*ucentral+  data.gamma*data.H-1/data.chi*vdotphi+ PetscSqrtReal(2.* data.gamma / data.deltat) * gaussiannoise[k][j][i].f[0];
+
+    //phi_i equation
+    for (PetscInt l=1; l<4; l++) {
+            ucentral= phi->f[l];
+            uxx= ( -2.0* ucentral + phixminus->f[l] + phixplus->f[l] )/(hx*hx);
+            uyy= ( -2.0* ucentral + phiyminus->f[l] + phiyplus->f[l] )/(hy*hy);
+            uzz= ( -2.0* ucentral + phizminus->f[l] + phizplus->f[l] )/(hz*hz);
+
+        phidot.f[l] = data.gamma*(uxx+uyy+uzz)-data.gamma*(data.mass+data.lambda*phisquare)*ucentral+1/data.chi*phi->f[0]*phi->f[l+3]-1/data.chi*adotphi[l-1];
+        
+        //phidot[k][j][i].f[l] = data.gamma*(uxx+uyy+uzz)-data.gamma*(data.mass+data.lambda*phisquare)*ucentral+1/data.chi*phi[k][j][i].f[0]*phi[k][j][i].f[l+3]-1/data.chi*adotphi[l-1]+  PetscSqrtReal(2.* data.gamma / data.deltat) * gaussiannoise[k][j][i].f[l];
+            }
+
+    //v_s equation
+    for (PetscInt l=4; l<7; l++) {
+            ucentral= phi->f[l];
+            uxx= ( -2.0* ucentral + phixminus->f[l] + phixplus->f[l] )/(hx*hx);
+            uyy= ( -2.0* ucentral + phiyminus->f[l] + phiyplus->f[l] )/(hy*hy);
+            uzz= ( -2.0* ucentral + phizminus->f[l] + phizplus->f[l] )/(hz*hz);
+
+            //advection term
+        PetscScalar advectionxx=(-phixplus->f[0]*phi->f[l-3]
+                         +phi->f[0]*phixplus->f[l-3]
+                         +phi->f[0]*phixminus->f[l-3]
+                         -phixminus->f[0]*phi->f[l-3])/(hx*hx);
+        PetscScalar advectionyy=(-phiyplus->f[0]*phi->f[l-3]
+                         +phi->f[0]*phiyplus->f[l-3]
+                         +phi->f[0]*phiyminus->f[l-3]
+                         -phiyminus->f[0]*phi->f[l-3])/(hy*hy);
+        PetscScalar advectionzz=(-phizplus->f[0]*phi->f[l-3]
+                         +phi->f[0]*phizplus->f[l-3]
+                         +phi->f[0]*phizminus->f[l-3]
+                         -phizminus->f[0]*phi->f[l-3])/(hz*hz);
+
+        phidot.f[l] = data.sigma/data.chi*(uxx+uyy+uzz)+advectionxx+advectionyy+advectionzz -data.gamma*(data.mass+data.lambda*phisquare)*ucentral-data.H*phi->f[l-3];
+        
+            
+        //phidot[k][j][i].f[l] = data.sigma/data.chi*(uxx+uyy+uzz)+advectionxx+advectionyy+advectionzz -data.gamma*(data.mass+data.lambda*phisquare)*ucentral-data.H*phi[k][j][i].f[l-3]+  PetscSqrtReal(2.* data.sigma/data.chi / data.deltat) * gaussiannoise[k][j][i].f[l];
+        }
+
+    //a_i equation
+    for (PetscInt l=7; l<10; l++) {
+            ucentral= phi->f[l];
+            uxx= ( -2.0* ucentral + phixminus->f[l] + phixplus->f[l] )/(hx*hx);
+            uyy= ( -2.0* ucentral + phiyminus->f[l] + phiyplus->f[l] )/(hy*hy);
+            uzz= ( -2.0* ucentral + phizminus->f[l] + phizplus->f[l] )/(hz*hz);
+
+        PetscInt s=l-7;
+        PetscInt s1=(s+1)%3;
+        PetscInt s2=(s+2)%3;
+        PetscScalar epsilon=((PetscScalar) (s-s1)*(s1-s2)*(s2-s))/2.;
+            //advection term with epsilon
+        PetscScalar advectionxx=epsilon*(phixplus->f[s2]*phi->f[s1]
+                                             +phi->f[s2]*phixminus->f[s1]
+                                             -(phixplus->f[s1]*phi->f[s2]
+                                               +phi->f[s1]*phixminus->f[s2]))/(hx*hx);
+        PetscScalar advectionyy=epsilon*(phiyplus->f[s2]*phi->f[s1]
+                                             +phi->f[s2]*phiyminus->f[s1]
+                                             -(phiyplus->f[s1]*phi->f[s2]
+                                               +phi->f[s1]*phiyminus->f[s2]))/(hy*hy);
+        PetscScalar advectionzz=epsilon*(phizplus->f[s2]*phi->f[s1]
+                                             +phi->f[s2]*phizminus->f[s1]
+                                             -(phizplus->f[s1]*phi->f[s2]
+                                               +phi->f[s1]*phizminus->f[s2]))/(hz*hz);
+        phidot.f[l] = data.sigma/data.chi*(uxx+uyy+uzz)+advectionxx+advectionyy+advectionzz;
+        //phidot[k][j][i].f[l] = data.sigma/data.chi*(uxx+uyy+uzz)+advectionxx+advectionyy+advectionzz+PetscSqrtReal(2.* data.sigma/data.chi / data.deltat) * gaussiannoise[k][j][i].f[l];
+
+        }
+    return (phidot);
+};
 
 
 
