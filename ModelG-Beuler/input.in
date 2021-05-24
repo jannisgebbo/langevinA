@@ -16,7 +16,7 @@ Ndof = 10
 
 
 #Times and timestep
-finaltime = 7
+finaltime = 0.02
 initialtime = 0
 deltat    = 0.01
 saveFreq = 0.1
