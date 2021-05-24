@@ -6,6 +6,7 @@
 #include <petscdmda.h>
 #include <petscts.h>
 #include <petscviewerhdf5.h>
+#include <fstream>
 
 
 
@@ -170,6 +171,9 @@ struct global_data  {
     PetscPrintf(PETSC_COMM_WORLD, "H = %e\n", model.H);
     PetscPrintf(PETSC_COMM_WORLD, "filename = %s\n", filename.c_str());
 
+    std::ofstream infofile(filename + ".infos");
+    infofile << par;
+    infofile.close();
 
     return(0);
    }
