@@ -24,14 +24,17 @@ public:
     VecCreateSeq(PETSC_COMM_SELF,nObs, &vecSaverScalars);
     VecCreateSeq(PETSC_COMM_SELF,N, &vecSaverCors);
 
-    int rank = 0;
-    MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
-    if(rank == 0) {
-      std::string name(user->filename + ".h5");
-      PetscViewerHDF5Open(PETSC_COMM_SELF, name.c_str(), FILE_MODE_WRITE, &viewer);
-      PetscViewerSetFromOptions(viewer);
-      PetscViewerHDF5SetTimestep(viewer, user->model.initialtime);
-    }
+    outputfileName = user->filename + ".h5";
+    currentTime = user->model.initialtime;
+    dt = user->model.deltat;
+    //int rank = 0;
+    //MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
+    //if(rank == 0) {
+      //std::string name(user->filename + ".h5");
+      //PetscViewerHDF5Open(PETSC_COMM_SELF, name.c_str(), FILE_MODE_WRITE, &viewer);
+      //PetscViewerSetFromOptions(viewer);
+      //PetscViewerHDF5SetTimestep(viewer, user->model.initialtime);
+    //}
 
     for(PetscInt i =0; i<N; ++i){
       vecCorsIndex.emplace_back(i);
@@ -53,11 +56,30 @@ public:
     if(rank == 0) PetscViewerDestroy(&viewer);
   }
 
+  void openHDF5(std::string name, PetscReal time, int rank)
+  {
+    if(rank == 0) {
+      PetscViewerHDF5Open(PETSC_COMM_SELF, name.c_str(), FILE_MODE_APPEND, &viewer);
+      PetscViewerSetFromOptions(viewer);
+      PetscViewerHDF5SetTimestep(viewer, time);
+    }
+  }
+
+  void closeHDF5(int rank){
+    if(rank == 0) PetscViewerDestroy(&viewer);
+  }
+
+
   void measure(Vec *solution, Vec *momenta)
   {
 
+
     int rank = 0;
     MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
+
+    openHDF5(outputfileName, currentTime, rank);;
+
+
     computeSliceAverage(solution);
     if(rank == 0){
       computeDerivedObs();
@@ -68,7 +90,10 @@ public:
       computeDerivedObs();
       save("phidot");
       PetscViewerHDF5IncrementTimestep(viewer);
+      currentTime++;//=dt;
     }
+
+    closeHDF5(rank);
   }
 
 
@@ -237,6 +262,10 @@ private:
 
     // Viewer
     PetscViewer viewer;
+
+    PetscReal dt;
+    std::string outputfileName;
+    PetscInt currentTime;
 
 };
 
