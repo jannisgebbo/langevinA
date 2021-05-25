@@ -51,6 +51,10 @@ struct model_data {
    PetscInt seed = 10;
    //The name of the file can be put here
 
+
+   std:: string initFile;
+   bool coldStart;
+
 };
 
 typedef struct {
@@ -74,20 +78,26 @@ struct global_data  {
    Mat jacob;
 
 
+   // Viewer
+   PetscViewer initViewer;
+
+
    // Tag labelling the run. All output files are tag_foo.txt, or tag_bar.h5
    std::string filename = "o4output";
+
 
    // Random number generator of gsl
    gsl_rng *rndm;
 
    // mesuemrnet stuff
-   PetscInt N=model.NX;
+   PetscInt N;
 
 
    global_data(FCN::ParameterParser& par)
    {
      // Here we set up the dimension and the number of fields for now peridic boundary condition.
      read_o4_data(par);
+     N = model.NX;
      PetscInt stencil_width =1 ;
      //
      DMDACreate3d(PETSC_COMM_WORLD,DM_BOUNDARY_PERIODIC,DM_BOUNDARY_PERIODIC,DM_BOUNDARY_PERIODIC,DMDA_STENCIL_STAR,model.NX,
@@ -108,9 +118,23 @@ struct global_data  {
      DMSetMatType(da,MATAIJ);
      DMCreateMatrix(da,&jacob);
 
+     if(model.coldStart == false) loadFromDereksFile();
+
      //Setup the random number generation
      rndm = gsl_rng_alloc(gsl_rng_default);
      gsl_rng_set(rndm, model.seed );
+   }
+
+   PetscErrorCode loadFromDereksFile(){
+     // Initialize a stored initial conditon
+     PetscViewerHDF5Open(PETSC_COMM_WORLD, model.initFile.c_str(), FILE_MODE_READ, &initViewer);
+     PetscViewerSetFromOptions(initViewer);
+     PetscObjectSetName((PetscObject)solution, "final_phi");
+     PetscErrorCode ierr = VecLoad(solution, initViewer);
+     CHKERRQ(ierr);
+     PetscObjectSetName((PetscObject)solution, "o4fields");
+     PetscViewerDestroy(&initViewer);
+     return ierr;
    }
 
    void finalize()
@@ -124,6 +148,8 @@ struct global_data  {
      VecDestroy(&phidot);
      DMDestroy(&da);
    }
+
+
 
    PetscErrorCode read_o4_data(FCN::ParameterParser& par) {
 
@@ -145,6 +171,10 @@ struct global_data  {
     model.verboseMeas = par.get<bool>("verboseMeas",false);
 
     filename = par.get<std::string>("output");
+
+    model.initFile = par.get<std::string>("initFile", "x");
+    if(model.initFile == "x") model.coldStart = true;
+    else model.coldStart = false;
 
     PetscReal saveFreqReal = par.get<double>("saveFreq");
     model.saveFreq = saveFreqReal / model.deltat;

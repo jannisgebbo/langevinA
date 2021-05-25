@@ -83,12 +83,12 @@ public:
     computeSliceAverage(solution);
     if(rank == 0){
       computeDerivedObs();
-      //save("phi");
+      save("phi");
     }
     computeSliceAverage(momenta);
     if(rank == 0){
       computeDerivedObs();
-      //save("phidot");
+      save("phidot");
       PetscViewerHDF5IncrementTimestep(viewer);
       currentTime++;//=dt;
     }
@@ -126,6 +126,9 @@ private:
       auto sliceAveragesLocalY = sliceAveragesY;
       auto sliceAveragesLocalZ = sliceAveragesZ;
 
+      //OAverageLocal = std::vector<PetscReal>(Ndof + 1);
+      //OAverage = std::vector<PetscReal>(Ndof + 1);
+
       // Get the ranges
       PetscInt ixs, iys, izs, nx, ny, nz;
       DMDAGetCorners(da, &ixs, &iys, &izs, &nx, &ny, &nz);
@@ -140,6 +143,7 @@ private:
                       sliceAveragesLocalY[l][j] += fld[k][j][i].f[l];
                       sliceAveragesLocalZ[l][k] += fld[k][j][i].f[l];
                       norm += pow(fld[k][j][i].f[l], 2);
+                      //OAverageLocal[l] += fld[k][j][i].f[l];
                   }
                   norm = sqrt(norm);
                   sliceAveragesLocalX.back()[i] += norm;
@@ -166,6 +170,8 @@ private:
         MPI_Reduce(sliceAveragesLocalY[l].data(), sliceAveragesY[l].data(), N, MPIU_SCALAR, MPI_SUM, 0,PETSC_COMM_WORLD);
         MPI_Reduce(sliceAveragesLocalZ[l].data(), sliceAveragesZ[l].data(), N, MPIU_SCALAR, MPI_SUM, 0,PETSC_COMM_WORLD);
       }
+      //MPI_Reduce(OAverageLocal.data(), OAverage.data(), OAverageLocal.size() , MPIU_SCALAR, MPI_SUM, 0,PETSC_COMM_WORLD);
+
     }
 
     void computeDerivedObs()
@@ -260,6 +266,7 @@ private:
     > isotropicWallToWallCii;
 
     std::vector<PetscScalar> OAverage;
+    std::vector<PetscScalar> OAverageLocal;
 
     // Viewer
     PetscViewer viewer;

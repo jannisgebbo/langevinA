@@ -61,7 +61,7 @@ int main(int argc, char **argv)
 
 
     //Now the intial condition
-    initialcondition(user.da,user.solution,&user);
+    if (user.model.coldStart == true ) initialcondition(user.da,user.solution,&user);
     //Copy the iniail condition
     VecCopy(user.solution,user.previoussolution);
     //mesure the intial observable

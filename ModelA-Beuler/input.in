@@ -22,8 +22,8 @@ deltat    = 0.01
 saveFreq = 0.1
 
 #Parameters
-mass = -10
-lambda  = 1.25
+mass = -7
+lambda  = 6.4
 gamma  = 1
 
 # Set to 0 or don't pass to have a random seed
