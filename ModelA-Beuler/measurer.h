@@ -83,12 +83,12 @@ public:
     computeSliceAverage(solution);
     if(rank == 0){
       computeDerivedObs();
-      save("phi");
+      //save("phi");
     }
     computeSliceAverage(momenta);
     if(rank == 0){
       computeDerivedObs();
-      save("phidot");
+      //save("phidot");
       PetscViewerHDF5IncrementTimestep(viewer);
       currentTime++;//=dt;
     }
@@ -157,7 +157,8 @@ private:
         }
       }
       // Retstore the array
-      DMDAVecRestoreArray(da, localU, &fld);
+      DMDAVecRestoreArrayRead(da, localU, &fld);
+      DMRestoreLocalVector(da,&localU);
 
       // Bring all the data x data into one
       for (int l = 0; l < sliceAveragesLocalX.size(); l++) {
