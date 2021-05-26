@@ -27,14 +27,14 @@ public:
     outputfileName = user->filename + ".h5";
     currentTime = user->model.initialtime;
     dt = user->model.deltat;
-    //int rank = 0;
-    //MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
-    //if(rank == 0) {
-      //std::string name(user->filename + ".h5");
-      //PetscViewerHDF5Open(PETSC_COMM_SELF, name.c_str(), FILE_MODE_WRITE, &viewer);
-      //PetscViewerSetFromOptions(viewer);
-      //PetscViewerHDF5SetTimestep(viewer, user->model.initialtime);
-    //}
+    int rank = 0;
+    MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
+    if(rank == 0) {
+      std::string name(user->filename + ".h5");
+      PetscViewerHDF5Open(PETSC_COMM_SELF, name.c_str(), FILE_MODE_WRITE, &viewer);
+      PetscViewerSetFromOptions(viewer);
+      PetscViewerHDF5SetTimestep(viewer, user->model.initialtime);
+    }
 
     for(PetscInt i =0; i<N; ++i){
       vecCorsIndex.emplace_back(i);
@@ -56,7 +56,7 @@ public:
     if(rank == 0) PetscViewerDestroy(&viewer);
   }
 
-  void openHDF5(std::string name, PetscReal time, int rank)
+  /*void openHDF5(std::string name, PetscReal time, int rank)
   {
     if(rank == 0) {
       PetscViewerHDF5Open(PETSC_COMM_SELF, name.c_str(), FILE_MODE_APPEND, &viewer);
@@ -67,7 +67,7 @@ public:
 
   void closeHDF5(int rank){
     if(rank == 0) PetscViewerDestroy(&viewer);
-  }
+  }*/
 
 
   void measure(Vec *solution, Vec *momenta)
@@ -77,7 +77,7 @@ public:
     int rank = 0;
     MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
 
-    openHDF5(outputfileName, currentTime, rank);;
+    //openHDF5(outputfileName, currentTime, rank);;
 
 
     computeSliceAverage(solution);
@@ -90,10 +90,10 @@ public:
       computeDerivedObs();
       save("phidot");
       PetscViewerHDF5IncrementTimestep(viewer);
-      currentTime++;//=dt;
+      //currentTime++;//=dt;
     }
 
-    closeHDF5(rank);
+    //closeHDF5(rank);
   }
 
 
@@ -126,8 +126,6 @@ private:
       auto sliceAveragesLocalY = sliceAveragesY;
       auto sliceAveragesLocalZ = sliceAveragesZ;
 
-      //OAverageLocal = std::vector<PetscReal>(Ndof + 1);
-      //OAverage = std::vector<PetscReal>(Ndof + 1);
 
       // Get the ranges
       PetscInt ixs, iys, izs, nx, ny, nz;
@@ -143,7 +141,6 @@ private:
                       sliceAveragesLocalY[l][j] += fld[k][j][i].f[l];
                       sliceAveragesLocalZ[l][k] += fld[k][j][i].f[l];
                       norm += pow(fld[k][j][i].f[l], 2);
-                      //OAverageLocal[l] += fld[k][j][i].f[l];
                   }
                   norm = sqrt(norm);
                   sliceAveragesLocalX.back()[i] += norm;
@@ -170,8 +167,6 @@ private:
         MPI_Reduce(sliceAveragesLocalY[l].data(), sliceAveragesY[l].data(), N, MPIU_SCALAR, MPI_SUM, 0,PETSC_COMM_WORLD);
         MPI_Reduce(sliceAveragesLocalZ[l].data(), sliceAveragesZ[l].data(), N, MPIU_SCALAR, MPI_SUM, 0,PETSC_COMM_WORLD);
       }
-      //MPI_Reduce(OAverageLocal.data(), OAverage.data(), OAverageLocal.size() , MPIU_SCALAR, MPI_SUM, 0,PETSC_COMM_WORLD);
-
     }
 
     void computeDerivedObs()
