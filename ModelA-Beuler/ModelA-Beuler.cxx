@@ -292,8 +292,11 @@ PetscErrorCode initialcondition(DM da, Vec U, void* ptr)
                 PetscReal x=i*hx;
                 PetscReal r = PetscSqrtReal((x-.5)*(x-.5)+(y-.5)*(y-.5)+(z-.5)*(z-.5));
                 for (l=0; l<data.Ndof; l++) {
+                  if(!data.zeroStart){
                     if (r<1.) u[k][j][i].f[l]=gsl_ran_gaussian(user->rndm,1.);//PetscExpReal(-(1+1.*(PetscReal)l)*r*r*r);
                     else u[k][j][i].f[l]=0.0;
+                  }
+                  else  u[k][j][i].f[l]=0.0;
                 }
                 // u[j][i]=PetscSinReal(2.*10.*M_PI*x)*PetscSinReal(5.*M_PI*y);
             }

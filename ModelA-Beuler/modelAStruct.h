@@ -45,6 +45,7 @@ struct model_data {
    PetscReal gamma=1.;
    PetscReal H=0.;
 
+   bool zeroStart;
 
    // random seed
 
@@ -171,6 +172,8 @@ struct global_data  {
     model.verboseMeas = par.get<bool>("verboseMeas",false);
 
     filename = par.get<std::string>("output");
+
+    model.zeroStart = par.get<bool>("zero_start",false);
 
     model.initFile = par.get<std::string>("initFile", "x");
     if(model.initFile == "x") model.coldStart = true;
