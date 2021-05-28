@@ -48,16 +48,25 @@ int main(int argc, char **argv)
 
     noiseGeneration(&user.noise,&user);
 
-
+    
     //Create the the non linear solver
     SNES           snes;
     // Create
     SNESCreate(PETSC_COMM_WORLD,&snes);
-    // Create the equation
-    SNESSetFunction(snes,user.auxsolution,FormFunction,&user);
-    // and the jacobian
-    SNESSetJacobian(snes,user.jacob,user.jacob,FormJacobian,&user);
-    SNESSetFromOptions(snes);
+
+    switch (user.model.evolverType) {
+        case 1:
+            //This is the BEuler
+            // Create the equation
+            SNESSetFunction(snes,user.auxsolution,FormFunction,&user);
+            // and the jacobian
+            SNESSetJacobian(snes,user.jacob,user.jacob,FormJacobian,&user);
+            SNESSetFromOptions(snes);
+            break;
+        case 2:
+            //This is FEuler
+            break;
+    }
 
 
     //Now the intial condition
@@ -73,7 +82,17 @@ int main(int argc, char **argv)
         //generate the noise
         noiseGeneration(&user.noise,&user);
         //solve the non linear equation
-        SNESSolve(snes,NULL,user.solution);
+        switch (user.model.evolverType) {
+            case 1:
+                //This is the BEuler
+                SNESSolve(snes,NULL,user.solution);
+                break;
+            case 2:
+                //This is the FEuler
+                FormFunctionFEuler( user.solution, &user );
+                break;
+                
+        }
         // mesure the solution
         if(steps % user.model.saveFreq == 0)  measurer.measure(&user.solution,&user.phidot);
 

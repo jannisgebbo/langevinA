@@ -202,7 +202,7 @@ o4_node localtimederivative(o4_node *phi, o4_node *phixminus, o4_node *phixplus,
 
     for (PetscInt l=0; l<3; l++) {
         //contraction of vector current with phi
-        vdotphi += phi->f[l+1] *phi->f[l+5];
+        vdotphi += phi->f[l+1] *phi->f[l+4];
     }
     
     for(PetscInt l=0; l<3; l++){
@@ -274,18 +274,18 @@ o4_node localtimederivative(o4_node *phi, o4_node *phixminus, o4_node *phixplus,
         PetscInt s2=(s+2)%3;
         PetscScalar epsilon=((PetscScalar) (s-s1)*(s1-s2)*(s2-s))/2.;
             //advection term with epsilon
-        PetscScalar advectionxx=epsilon*(phixplus->f[s2]*phi->f[s1]
-                                             +phi->f[s2]*phixminus->f[s1]
-                                             -(phixplus->f[s1]*phi->f[s2]
-                                               +phi->f[s1]*phixminus->f[s2]))/(hx*hx);
-        PetscScalar advectionyy=epsilon*(phiyplus->f[s2]*phi->f[s1]
-                                             +phi->f[s2]*phiyminus->f[s1]
-                                             -(phiyplus->f[s1]*phi->f[s2]
-                                               +phi->f[s1]*phiyminus->f[s2]))/(hy*hy);
-        PetscScalar advectionzz=epsilon*(phizplus->f[s2]*phi->f[s1]
-                                             +phi->f[s2]*phizminus->f[s1]
-                                             -(phizplus->f[s1]*phi->f[s2]
-                                               +phi->f[s1]*phizminus->f[s2]))/(hz*hz);
+        PetscScalar advectionxx=epsilon*(phixplus->f[1+s2]*phi->f[1+s1]
+                                             +phi->f[1+s2]*phixminus->f[1+s1]
+                                             -(phixplus->f[1+s1]*phi->f[1+s2]
+                                               +phi->f[1+s1]*phixminus->f[1+s2]))/(hx*hx);
+        PetscScalar advectionyy=epsilon*(phiyplus->f[1+s2]*phi->f[1+s1]
+                                             +phi->f[1+s2]*phiyminus->f[1+s1]
+                                             -(phiyplus->f[1+s1]*phi->f[1+s2]
+                                               +phi->f[1+s1]*phiyminus->f[1+s2]))/(hy*hy);
+        PetscScalar advectionzz=epsilon*(phizplus->f[1+s2]*phi->f[1+s1]
+                                             +phi->f[1+s2]*phizminus->f[1+s1]
+                                             -(phizplus->f[1+s1]*phi->f[1+s2]
+                                               +phi->f[1+s1]*phizminus->f[1+s2]))/(hz*hz);
         phidot.f[l] = data.sigma/data.chi*(uxx+uyy+uzz)+advectionxx+advectionyy+advectionzz;
         //phidot[k][j][i].f[l] = data.sigma/data.chi*(uxx+uyy+uzz)+advectionxx+advectionyy+advectionzz+PetscSqrtReal(2.* data.sigma/data.chi / data.deltat) * gaussiannoise[k][j][i].f[l];
 

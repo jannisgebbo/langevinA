@@ -16,19 +16,22 @@ Ndof = 4
 
 
 #Times and timestep
-finaltime = 100
+finaltime =400
 initialtime = 0
-deltat    = 0.01
+deltat    = 0.001
 saveFreq = 0.1
 
 #Parameters
-mass = -7
-lambda  = 6.4
+mass = -4.8129999999999997
+lambda  = 4
 gamma  = 1
 
 # Set to 0 or don't pass to have a random seed
-#seed = 12235456
+seed = 122335456
 
 
 #output tag
-output = output
+output = outputN16dt001E
+
+#Beuler=1 Feuler=2
+evolverType=1

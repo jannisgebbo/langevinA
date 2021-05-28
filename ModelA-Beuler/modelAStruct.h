@@ -10,6 +10,7 @@
 
 
 
+
 struct model_data {
    //Lattice dimension
    PetscInt NX = 16;
@@ -55,7 +56,8 @@ struct model_data {
 
    std:: string initFile;
    bool coldStart;
-
+    // 1 is BEuler, 2 is FEuler
+    PetscInt evolverType=2;
 };
 
 typedef struct {
@@ -170,6 +172,7 @@ struct global_data  {
     model.H = par.get<double>("H");
     model.seed = par.getSeed("seed");
     model.verboseMeas = par.get<bool>("verboseMeas",false);
+    model.evolverType = par.get<int>("evolverType");
 
     filename = par.get<std::string>("output");
 
@@ -212,8 +215,122 @@ struct global_data  {
    }
 };
 
+o4_node localtimederivative(o4_node *phi, o4_node *phixminus, o4_node *phixplus, o4_node *phiyminus, o4_node *phiyplus, o4_node *phizminus, o4_node *phizplus, void *ptr){
+    
+    global_data     *user=(global_data*) ptr;
+    model_data      data=user->model;
+    PetscReal hx=data.hX; //1.0/(PetscReal)(Mx-1);
+    PetscReal hy=data.hX; //1.0/(PetscReal)(My-1);
+    PetscReal hz=data.hX; //1.0/(PetscReal)(Mz-1);
+    o4_node phidot;
+    //l is an index for our vector. l=0,1,2,3 is phi,l=4,5,6 is V and l=7,8,9 is A
+    //std::cout << "bad Job: " ;
+    //computing phi squared
+    PetscScalar phisquare=0.;
+    for (PetscInt l=0; l<4; l++){
+        phisquare  = phisquare+ phi->f[l] * phi->f[l];
+    }
+
+    
+    for (PetscInt l=0; l<4; l++) {
+        PetscScalar ucentral= phi->f[l];
+        PetscScalar uxx= ( -2.0* ucentral + phixminus->f[l] + phixplus->f[l] )/(hx*hx);
+        PetscScalar uyy= ( -2.0* ucentral + phiyminus->f[l] + phiyplus->f[l] )/(hy*hy);
+        PetscScalar uzz= ( -2.0* ucentral + phizminus->f[l] + phizplus->f[l] )/(hz*hz);
+
+        phidot.f[l] = data.gamma*(uxx+uyy+uzz)-data.gamma*(data.mass+data.lambda*phisquare)*ucentral
+        +  ( l==0 ? data.gamma*data.H : 0. );
+        
+        //phidot[k][j][i].f[l] = data.gamma*(uxx+uyy+uzz)-data.gamma*(data.mass+data.lambda*phisquare)*ucentral+1/data.chi*phi[k][j][i].f[0]*phi[k][j][i].f[l+3]-1/data.chi*adotphi[l-1]+  PetscSqrtReal(2.* data.gamma / data.deltat) * gaussiannoise[k][j][i].f[l];
+            }
+
+    return (phidot);
+};
 
 
+PetscErrorCode FormFunctionFEuler( Vec U, void *ptr )
+{
+    global_data     *user=(global_data*) ptr;
+    model_data      data=user->model;
+    PetscInt        i,j,k,l,xstart,ystart,zstart,xdimension,ydimension,zdimension;
+    DM              da=user->da;
+
+
+    //define a local vector
+    Vec localU;
+
+    DMGetLocalVector(da,&localU);
+
+
+    //Get the Global dimension of the Grid
+    //Define the spaceing
+    //PetscReal hx=data.hX; //1.0/(PetscReal)(Mx-1);
+    //PetscReal hy=data.hX; //1.0/(PetscReal)(My-1);
+    //PetscReal hz=data.hX; //1.0/(PetscReal)(Mz-1);
+
+
+    //take the global vector U and distribute to the local vector localU
+    DMGlobalToLocalBegin(da,U,INSERT_VALUES,localU);
+    DMGlobalToLocalEnd(da,U,INSERT_VALUES,localU);
+
+
+
+    //From the vector define the pointer for the field u and the rhs f
+    o4_node ***phi;//, ***noise;
+    DMDAVecGetArray(da,localU,&phi);
+
+    o4_node ***phinew;//, ***noise;
+    DMDAVecGetArray(da,U,&phinew);
+    
+    o4_node ***gaussiannoise;
+    DMDAVecGetArrayRead(da,user->noise,&gaussiannoise);
+
+    //o4_node ***oldphi;
+    //DMDAVecGetArrayRead(da,user->previoussolution,&oldphi);
+
+    o4_node ***phidot;
+    DMDAVecGetArray(da,user->phidot,&phidot);
+
+
+    //Get The local coordinates
+    DMDAGetCorners(da,&xstart,&ystart,&zstart,&xdimension,&ydimension,&zdimension);
+
+    //This actually compute the right hand side
+    //PetscScalar uxx,uyy,uzz,ucentral,phisquare;
+    for (k=zstart; k<zstart+zdimension; k++){
+        for (j=ystart; j<ystart+ydimension; j++){
+            for (i=xstart; i<xstart+xdimension; i++) {
+                
+                o4_node derivative= localtimederivative(&phi[k][j][i], &phi[k][j][i-1], &phi[k][j][i+1], &phi[k][j-1][i], &phi[k][j+1][i], &phi[k-1][j][i], &phi[k+1][j][i],ptr);
+                for ( l=0; l<4; l++) {
+                    phidot[k][j][i].f[l] =
+                    derivative.f[l]
+                        +  PetscSqrtReal(2.* data.gamma / data.deltat) * gaussiannoise[k][j][i].f[l];
+
+                        //here you want to put the formula for the euler step F(phi)=0
+                        phinew[k][j][i].f[l] +=  data.deltat * phidot[k][j][i].f[l];
+                }
+            }
+        }
+    }
+    //We need to restore the vector in U and F
+    DMDAVecRestoreArray(da,localU,&phi);
+    
+    
+    DMDAVecRestoreArray(da,U,&phinew);
+    DMRestoreLocalVector(da,&localU);
+    
+    
+    DMDAVecRestoreArrayRead(da,user->noise,&gaussiannoise);
+    //DMDAVecRestoreArrayRead(da,user->previoussolution,&oldphi);
+
+    DMDAVecRestoreArray(da,user->phidot,&phidot);
+
+
+    return(0);
+
+
+}
 
 
 #endif
