@@ -148,15 +148,6 @@ PetscErrorCode FormFunction(SNES snes, Vec U, Vec F, void *ptr )
                 //l is an index for our vector. l=0,1,2,3 is phi,l=4,5,6 is V and l=7,8,9 is A
 
                 
-
-                //o4_node phicental=phi[k][j][i];
-                //o4_node phixminus=phi[k][j][i-1];
-                //o4_node phixplus=phi[k][j][i+1];
-                //o4_node phiyminus=phi[k][j-1][i];
-                //o4_node phiyplus=phi[k][j+1][i];
-                //o4_node phizminus=phi[k-1][j][i];
-                //o4_node phizplus=phi[k+1][j][i];
-                
                 
                 o4_node derivative = localtimederivative(&phi[k][j][i], &phi[k][j][i-1], &phi[k][j][i+1], &phi[k][j-1][i], &phi[k][j+1][i], &phi[k-1][j][i], &phi[k+1][j][i],ptr);
                 
@@ -171,8 +162,7 @@ PetscErrorCode FormFunction(SNES snes, Vec U, Vec F, void *ptr )
                             phidot[k][j][i].f[l]=derivative.f[l] +  PetscSqrtReal(2.* data.sigma/data.chi / data.deltat) * gaussiannoise[k][j][i].f[l];
                         }
                         
-                            
-                            
+                    
                         f[k][j][i].f[l]=-phi[k][j][i].f[l] + oldphi[k][j][i].f[l] + data.deltat * phidot[k][j][i].f[l];
                     }
             }
@@ -249,7 +239,6 @@ PetscErrorCode FormJacobian(SNES snes, Vec U, Mat J, Mat Jpre, void *ptr)
                     column[nc].i=i; column[nc].j=j;  column[nc].k=k+1;  column[nc].c=0;    value[nc++]=data.gamma*data.deltat*1.0/(hz*hz);
                     //The central element need a loop over the flavour index of the column (is a full matrix in the flavour index )
 
-
                     column[nc].i=i;  column[nc].j=j;   column[nc].k=k; column[nc].c=0;
                     value[nc++]=-1.+data.deltat*data.gamma*(-2.0/(hx*hx)-2.0/(hy*hy)-2.0/(hz*hz)-
                     data.mass-data.lambda*(phisquare+2.*phi[k][j][i].f[0] * phi[k][j][i].f[0]));
@@ -317,7 +306,8 @@ PetscErrorCode FormJacobian(SNES snes, Vec U, Mat J, Mat Jpre, void *ptr)
                              f1=l-1;
                              f2=s3-7;
                              f3=(-f2-f1)%3;
-                             column[nc].i=i;  column[nc].j=j;   column[nc].k=k; column[nc].c=s3; value[nc++]=-(f1-f2)*(f2-f3)*(f3-f1)/2*data.deltat/data.chi*(phi[k][j][i].f[1+f3]);
+                             PetscScalar epsilon=(PetscScalar) (f1-f2)*(f2-f3)*(f3-f1)/2;
+                             column[nc].i=i;  column[nc].j=j;   column[nc].k=k; column[nc].c=s3; value[nc++]=-epsilon*data.deltat/data.chi*(phi[k][j][i].f[1+f3]);
 									}
                         MatSetValuesStencil(Jpre,1,&row,nc,column,value,INSERT_VALUES );
                     }
@@ -389,11 +379,11 @@ PetscErrorCode FormJacobian(SNES snes, Vec U, Mat J, Mat Jpre, void *ptr)
                         row.i=i; row.j=j; row.k=k; row.c=s;
                     
                         for(PetscInt s3=1;s3<4;s3++){
-                            PetscInt f1,f2,f3,epsilon;
+                            PetscInt f1,f2,f3;
                             f1=s-7;
                             f2=s3-1;
                             f3=(-f2-f1)%3;
-                            epsilon=(f1-f2)*(f2-f3)*(f3-f1)/2;
+                            PetscScalar epsilon=(PetscScalar)(f1-f2)*(f2-f3)*(f3-f1)/2;
 
                          //dH_s /dphi_s
                             column[nc].i=i-1; column[nc].j=j;  column[nc].k=k; column[nc].c=s3;    value[nc++]=data.deltat*1.0/(hx*hx)*phi[k][j][i].f[f3+1]*epsilon;
@@ -427,6 +417,7 @@ PetscErrorCode FormJacobian(SNES snes, Vec U, Mat J, Mat Jpre, void *ptr)
                         value[nc++]=-1.+data.deltat*data.sigma/data.chi*(-2.0/(hx*hx)-2.0/(hy*hy)-2.0/(hz*hz));
                     
                         MatSetValuesStencil(Jpre,1,&row,nc,column,value,INSERT_VALUES );
+                    //std::cout << "nc=" << nc <<std::endl;
 
                         }
             }

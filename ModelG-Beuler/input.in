@@ -1,5 +1,5 @@
 #Magnetic field
-H = 0.01
+H = 1
 
 #Lattice size
 NX = 16
@@ -16,14 +16,14 @@ Ndof = 10
 
 
 #Times and timestep
-finaltime = 0.02
+finaltime = 1
 initialtime = 0
 deltat    = 0.01
 saveFreq = 0.1
 
 #Parameters
 mass = -10
-lambda  = 1.25
+lambda  = 4
 gamma  = 1
 sigma=1
 chi=1
