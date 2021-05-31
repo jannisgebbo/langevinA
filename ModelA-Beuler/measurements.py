@@ -39,7 +39,6 @@ class ConfResults:
         #self.wallXphi = np.asarray([np.asarray(r["wallX_phi_0"])[thTime:],np.asarray(r["wallX_phi_1"])[thTime:],np.asarray(r["wallX_phi_2"])[thTime:],np.asarray(r["wallX_phi_3"])[thTime:]])
         self.wallXphi0 = np.asarray(r["wallX_phi_0"])[self.thTime:]
         Nx = len(self.wallXphi0[0])
-        ks = [2 * np.pi * i /float(Nx) for i in range(Nx)]
         self.wallXphi0F = np.zeros(np.shape(self.wallXphi0), dtype=complex)
         for t in range(len(self.wallXphi0)):
             self.wallXphi0F[t] = np.fft.fft(self.wallXphi0[t])

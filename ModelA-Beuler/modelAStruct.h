@@ -124,7 +124,8 @@ struct global_data  {
      if(model.coldStart == false) loadFromDereksFile();
 
      //Setup the random number generation
-     rndm = gsl_rng_alloc(gsl_rng_default);
+     //rndm = gsl_rng_alloc(gsl_rng_default);
+     rndm = gsl_rng_alloc(gsl_rng_ranlxs2);
      gsl_rng_set(rndm, model.seed );
    }
 
@@ -216,7 +217,7 @@ struct global_data  {
 };
 
 o4_node localtimederivative(o4_node *phi, o4_node *phixminus, o4_node *phixplus, o4_node *phiyminus, o4_node *phiyplus, o4_node *phizminus, o4_node *phizplus, void *ptr){
-    
+
     global_data     *user=(global_data*) ptr;
     model_data      data=user->model;
     PetscReal hx=data.hX; //1.0/(PetscReal)(Mx-1);
@@ -231,7 +232,7 @@ o4_node localtimederivative(o4_node *phi, o4_node *phixminus, o4_node *phixplus,
         phisquare  = phisquare+ phi->f[l] * phi->f[l];
     }
 
-    
+
     for (PetscInt l=0; l<4; l++) {
         PetscScalar ucentral= phi->f[l];
         PetscScalar uxx= ( -2.0* ucentral + phixminus->f[l] + phixplus->f[l] )/(hx*hx);
@@ -240,7 +241,7 @@ o4_node localtimederivative(o4_node *phi, o4_node *phixminus, o4_node *phixplus,
 
         phidot.f[l] = data.gamma*(uxx+uyy+uzz)-data.gamma*(data.mass+data.lambda*phisquare)*ucentral
         +  ( l==0 ? data.gamma*data.H : 0. );
-        
+
         //phidot[k][j][i].f[l] = data.gamma*(uxx+uyy+uzz)-data.gamma*(data.mass+data.lambda*phisquare)*ucentral+1/data.chi*phi[k][j][i].f[0]*phi[k][j][i].f[l+3]-1/data.chi*adotphi[l-1]+  PetscSqrtReal(2.* data.gamma / data.deltat) * gaussiannoise[k][j][i].f[l];
             }
 
@@ -281,7 +282,7 @@ PetscErrorCode FormFunctionFEuler( Vec U, void *ptr )
 
     o4_node ***phinew;//, ***noise;
     DMDAVecGetArray(da,U,&phinew);
-    
+
     o4_node ***gaussiannoise;
     DMDAVecGetArrayRead(da,user->noise,&gaussiannoise);
 
@@ -300,7 +301,7 @@ PetscErrorCode FormFunctionFEuler( Vec U, void *ptr )
     for (k=zstart; k<zstart+zdimension; k++){
         for (j=ystart; j<ystart+ydimension; j++){
             for (i=xstart; i<xstart+xdimension; i++) {
-                
+
                 o4_node derivative= localtimederivative(&phi[k][j][i], &phi[k][j][i-1], &phi[k][j][i+1], &phi[k][j-1][i], &phi[k][j+1][i], &phi[k-1][j][i], &phi[k+1][j][i],ptr);
                 for ( l=0; l<4; l++) {
                     phidot[k][j][i].f[l] =
@@ -315,12 +316,12 @@ PetscErrorCode FormFunctionFEuler( Vec U, void *ptr )
     }
     //We need to restore the vector in U and F
     DMDAVecRestoreArray(da,localU,&phi);
-    
-    
+
+
     DMDAVecRestoreArray(da,U,&phinew);
     DMRestoreLocalVector(da,&localU);
-    
-    
+
+
     DMDAVecRestoreArrayRead(da,user->noise,&gaussiannoise);
     //DMDAVecRestoreArrayRead(da,user->previoussolution,&oldphi);
 

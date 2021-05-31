@@ -34,4 +34,4 @@ seed = 122335456
 output = outputN16dt001E
 
 #Beuler=1 Feuler=2
-evolverType=1
+evolverType=2
