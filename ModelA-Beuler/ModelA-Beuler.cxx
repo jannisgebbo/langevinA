@@ -41,7 +41,7 @@ int main(int argc, char **argv)
     //Read the data form command line
     global_data          user(par); // collection of variable
 
-    NoiseGenerator<std::ranlux48> noiseGen(3487652, user.da);
+    NoiseGenerator<std::ranlux48> noiseGen(user.model.seed, user.da);
 
     //initialize the measurments
     Measurer measurer(&user);
