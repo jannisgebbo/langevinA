@@ -18,7 +18,7 @@ Ndof = 4
 #Times and timestep
 finaltime =400
 initialtime = 0
-deltat    = 0.001
+deltat    = 0.005
 saveFreq = 0.1
 
 #Parameters
@@ -31,7 +31,7 @@ seed = 122335456
 
 
 #output tag
-output = outputN16dt001E
+output = outputN16dt0005FE
 
 #Beuler=1 Feuler=2
 evolverType=2

@@ -21,6 +21,7 @@
 //Measurer, where the Petsc are included
 
 #include "measurer.h"
+#include "noisegenerator.h"
 
 extern PetscErrorCode initialcondition(DM, Vec,void*);
 extern PetscErrorCode FormJacobian(SNES ,Vec ,Mat ,Mat ,void* );
@@ -40,15 +41,18 @@ int main(int argc, char **argv)
     //Read the data form command line
     global_data          user(par); // collection of variable
 
+    NoiseGenerator<std::ranlux48> noiseGen(3487652, user.da);
+
     //initialize the measurments
     Measurer measurer(&user);
 
 
     ierr = PetscObjectSetName((PetscObject) user.noise, "noise");CHKERRQ(ierr);
 
-    noiseGeneration(&user.noise,&user);
+    //noiseGeneration(&user.noise,&user);
+    noiseGen.fill(&user.noise,&user);
 
-    
+
     //Create the the non linear solver
     SNES           snes;
     // Create
@@ -80,7 +84,7 @@ int main(int argc, char **argv)
     //Thsi is the loop for the time step
     for (PetscReal time =user.model.initialtime; time<user.model.finaltime; time += user.model.deltat) {
         //generate the noise
-        noiseGeneration(&user.noise,&user);
+        noiseGen.fill(&user.noise,&user);
         //solve the non linear equation
         switch (user.model.evolverType) {
             case 1:
@@ -91,7 +95,7 @@ int main(int argc, char **argv)
                 //This is the FEuler
                 FormFunctionFEuler( user.solution, &user );
                 break;
-                
+
         }
         // mesure the solution
         if(steps % user.model.saveFreq == 0)  measurer.measure(&user.solution,&user.phidot);
@@ -235,7 +239,7 @@ PetscErrorCode FormJacobian(SNES snes, Vec U, Mat J, Mat Jpre, void *ptr)
             for (i=info.xs; i<info.xs+info.xm; i++) {
                 PetscScalar phisquare=0.;
                 for (l=0; l<data.Ndof; l++){
-                    phisquare  =phisquare+ phi[k][j][i].f[l] * phi[k][j][i].f[l];
+                    phisquare  =phisquare + phi[k][j][i].f[l] * phi[k][j][i].f[l];
                 }
                 for (l=0; l<data.Ndof; l++) {
                     //we define the column
@@ -329,7 +333,7 @@ PetscErrorCode initialcondition(DM da, Vec U, void* ptr)
 
 //Noise Genration
 
-PetscErrorCode noiseGeneration( Vec* U, void* ptr)
+/*PetscErrorCode noiseGeneration( Vec* U, void* ptr)
 {
     global_data     *user=(global_data*) ptr;
     model_data      data=user->model;
@@ -357,4 +361,4 @@ PetscErrorCode noiseGeneration( Vec* U, void* ptr)
     }
     DMDAVecRestoreArray(user->da,*U,&u);
     return(0);
-}
+}*/

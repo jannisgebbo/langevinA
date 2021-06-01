@@ -124,8 +124,7 @@ struct global_data  {
      if(model.coldStart == false) loadFromDereksFile();
 
      //Setup the random number generation
-     //rndm = gsl_rng_alloc(gsl_rng_default);
-     rndm = gsl_rng_alloc(gsl_rng_ranlxs2);
+     rndm = gsl_rng_alloc(gsl_rng_default);
      gsl_rng_set(rndm, model.seed );
    }
 
