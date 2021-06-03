@@ -2,14 +2,14 @@
 H = 0.01
 
 #Lattice size
-NX = 16
-NY = 16
-NZ = 16
+NX = 32
+NY = 32
+NZ = 32
 
 #Lattice length L = N dx
-LX = 15
-LY = 15
-LZ = 15
+LX = 31
+LY = 31
+LZ = 31
 
 #N in O(N)
 Ndof = 4
@@ -18,7 +18,7 @@ Ndof = 4
 #Times and timestep
 finaltime =400
 initialtime = 0
-deltat    = 0.005
+deltat    = 0.001
 saveFreq = 0.1
 
 #Parameters
@@ -31,7 +31,7 @@ seed = 122335456
 
 
 #output tag
-output = outputN16dt0005FE
+output = outputN16dt0001FE1Core
 
 #Beuler=1 Feuler=2
 evolverType=2
