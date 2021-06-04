@@ -170,7 +170,7 @@ struct global_data  {
     model.lambda = par.get<double>("lambda");
     model.gamma = par.get<double>("gamma");
     model.H = par.get<double>("H");
-    model.seed = par.getSeed("seed");
+    model.seed = (PetscInt)par.getSeed("seed");
     model.verboseMeas = par.get<bool>("verboseMeas",false);
     model.evolverType = par.get<int>("evolverType");
 

@@ -34,7 +34,7 @@ class ConfResults:
             self.wallXphiNormF[t] = np.fft.fft(self.wallXphiNorm[t])
             #self.wallXphiNormF[t] = self.manualFourier(self.wallXphiNorm[t])
     
-    def wallXFourier0(self):
+    def computeWallXFourier0(self):
         r = h5py.File(self.fn,'r')
         #self.wallXphi = np.asarray([np.asarray(r["wallX_phi_0"])[thTime:],np.asarray(r["wallX_phi_1"])[thTime:],np.asarray(r["wallX_phi_2"])[thTime:],np.asarray(r["wallX_phi_3"])[thTime:]])
         self.wallXphi0 = np.asarray(r["wallX_phi_0"])[self.thTime:]
@@ -92,24 +92,42 @@ class ConfResults:
     
 def bootstrap(arr, nSamples=100):
     arr = np.asarray(arr)
-    #random.seed()
-    #bootstrapArr = []
-    #for n in range(nSamples):
-    #    newArr = np.zeros(np.shape(arr), dtype=arr.dtype)
-    #    for l in range(len(arr)):
-    #        newArr[l] = arr[random.randrange(0,len(arr))]
-    #    bootstrapArr.append(np.mean(newArr,axis = 0))
-    #
-    #bootstrapArr = np.asarray(bootstrapArr)
+    random.seed()
+    bootstrapArr = []
+    for n in range(nSamples):
+        newArr = np.zeros(np.shape(arr), dtype=arr.dtype)
+        for l in range(len(arr)):
+            newArr[l] = arr[random.randrange(0,len(arr))]
+        bootstrapArr.append(np.mean(newArr,axis = 0))
     
-    #return (np.mean(bootstrapArr,axis = 0), np.std(bootstrapArr,axis = 0))
-    return (np.mean(arr,axis = 0), np.std(arr,axis = 0))
+    bootstrapArr = np.asarray(bootstrapArr)
+    
+    return (np.mean(bootstrapArr,axis = 0), np.std(bootstrapArr,axis = 0))
+    #return (np.mean(arr,axis = 0), np.std(arr,axis = 0))
     
 
 class EnsembleResults:
     def __init__(self,fn, nEnd, nStart=0):
         self.fnList = [fn +"_"+str(i)+".h5" for i in range(nStart,nEnd+1)]
         self.nConf = nEnd-nStart+1
+        
+     
+    def computeWallXFourier0(self, nTherm, nBoot, decim):
+        resTot = []
+        for fn in self.fnList:
+            res = ConfResults(fn, nTherm,decim)
+            print(fn, end="\r")
+            res.computeWallXFourier0()
+            resTot.append(res.wallXphi0F)
+        self.wallXFourier0, self.wallXFourier0Err  = bootstrap(resTot, nBoot)
+    def computeWallXFourierSquare0(self, nTherm, nBoot, decim):
+        resTot = []
+        for fn in self.fnList:
+            res = ConfResults(fn, nTherm,decim)
+            print(fn, end="\r")
+            res.computeWallXFourier0()
+            resTot.append(res.wallXphi0F * np.conj(res.wallXphi0F))
+        self.wallXFourierSquare0, self.wallXFourierSquare0Err  = bootstrap(resTot, nBoot)
     
     def corFourierPhi(self, nTherm, nBoot, decim):
         corrTot = []

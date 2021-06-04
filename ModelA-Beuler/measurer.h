@@ -32,7 +32,7 @@ public:
     if(rank == 0) {
       std::string name(user->filename + ".h5");
       PetscViewerHDF5Open(PETSC_COMM_SELF, name.c_str(), FILE_MODE_WRITE, &viewer);
-    
+
       PetscViewerSetFromOptions(viewer);
       PetscViewerHDF5SetTimestep(viewer, user->model.initialtime);
     }
@@ -99,7 +99,7 @@ public:
 
     void savesolution(Vec *solution)
     {
-        int rank = 0;
+        /*int rank = 0;
         MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
 
         //openHDF5(outputfileName, currentTime, rank);;
@@ -109,7 +109,7 @@ public:
             VecView(solution,viewer)
             PetscViewerHDF5IncrementTimestep(viewer);
           //currentTime++;//=dt;
-        }
+        }*/
     }
 
 private:
@@ -221,7 +221,7 @@ private:
       saveScalarsLike(OAverage, fld);
 
     }
-  
+
 
 
   void saveCorLike(std::vector<PetscScalar>& arr, std::string name)
