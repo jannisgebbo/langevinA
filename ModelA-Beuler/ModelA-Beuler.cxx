@@ -76,11 +76,11 @@ int main(int argc, char **argv) {
     // mesure the solution
     if (steps % model.data.saveFrequency == 0) {
       measurer.measure(&model.solution, &model.phidot);
+      // Print some information to not get bored during the running:
+      PetscPrintf(PETSC_COMM_WORLD, "Timestep %D: step size = %g, time = %g\n",
+                steps, (double)model.data.deltat, (double)time);
     }
 
-    //Print some information to not get bored during the running:
-   // PetscPrintf(PETSC_COMM_WORLD, "Timestep %D: step size = %g, time = %g\n",
-    //            steps, (double)model.data.deltat, (double)time);
     
     steps++;
   }
