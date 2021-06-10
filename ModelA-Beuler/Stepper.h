@@ -4,45 +4,48 @@
 #include "ModelA.h"
 
 class Stepper {
-   public:
-      virtual bool step(const double &dt) = 0;
-      virtual void finalize() = 0 ;
-      virtual ~Stepper() = default;
+public:
+  virtual bool step(const double &dt) = 0;
+  virtual void finalize() = 0;
+  virtual ~Stepper() = default;
 };
 
 class ForwardEuler : public Stepper {
-   public:
-      ForwardEuler(ModelA &in) : model(&in) {;}
-      bool step(const double &dt);
-      void finalize() {;}
-      ~ForwardEuler() {;}
+public:
+  ForwardEuler(ModelA &in) : model(&in) {
+    VecDuplicate(model->solution, &noise);
+  }
+  bool step(const double &dt);
+  void finalize() { VecDestroy(&noise); }
+  ~ForwardEuler() { ; }
 
-   private:
-      ModelA *model;
+private:
+  ModelA *model;
+  Vec noise;
 };
 
 class BackwardEuler : public Stepper {
-   public:
-      BackwardEuler(ModelA &in) ;
-      bool step(const double &dt);
-      void finalize() ;
-      ~BackwardEuler() {;}
+public:
+  BackwardEuler(ModelA &in);
+  bool step(const double &dt);
+  void finalize();
+  ~BackwardEuler() { ; }
 
-   private:
+private:
+  ModelA *model;
+  SNES Solver; // The solver that does the work
 
-     ModelA *model;
-     SNES Solver; // The solver that does the workj
+  Vec noise;
+  Vec auxsolution;
 
-     // The time step
-     double deltat ;
+  // The time step
+  double deltat;
 
-     // Evaluates the RHS function
-     static PetscErrorCode FormFunction(SNES snes, Vec U, Vec F, void *ptr) ;
-     // Evaluates the Jacobian function
-     static PetscErrorCode FormJacobian(SNES snes, Vec U, Mat J, Mat Jpre, void *ptr) ;
-
+  // Evaluates the RHS function
+  static PetscErrorCode FormFunction(SNES snes, Vec U, Vec F, void *ptr);
+  // Evaluates the Jacobian function
+  static PetscErrorCode FormJacobian(SNES snes, Vec U, Mat J, Mat Jpre,
+                                     void *ptr);
 };
 
-
 #endif
-

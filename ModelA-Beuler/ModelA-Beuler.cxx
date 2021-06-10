@@ -68,9 +68,6 @@ int main(int argc, char **argv) {
     // Copy the solution 
     VecCopy(model.solution, model.previoussolution);
 
-    // generate the noise
-    ModelARndm->fillVec(model.noise) ;
-
     step->step(model.data.deltat) ;
 
     // mesure the solution

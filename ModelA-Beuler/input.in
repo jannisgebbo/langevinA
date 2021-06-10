@@ -15,7 +15,7 @@ LZ = 32
 finaltime =400
 initialtime = 0
 deltat    = 0.001
-saveFrequency = 0.1
+saveFrequencyInTime = 0.1
 
 #Parameters
 mass = -4.8129999999999997

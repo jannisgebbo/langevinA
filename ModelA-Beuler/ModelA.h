@@ -167,14 +167,8 @@ public:
   // Solution
   Vec solution;
 
-  // Needed for backward time stime
-  Vec auxsolution;
-
   // Previous solution
   Vec previoussolution;
-
-  // Global vector with the stored noises
-  Vec noise;
 
   // Momentum used in backward step and eulerstep
   Vec phidot;
@@ -196,8 +190,6 @@ public:
     DMSetUp(domain);
 
     DMCreateGlobalVector(domain, &solution);
-    VecDuplicate(solution, &auxsolution);
-    VecDuplicate(solution, &noise);
     VecDuplicate(solution, &previoussolution);
     VecDuplicate(solution, &phidot);
 
@@ -213,8 +205,6 @@ public:
   void finalize() {
     MatDestroy(&jacobian);
     VecDestroy(&solution);
-    VecDestroy(&auxsolution);
-    VecDestroy(&noise);
     VecDestroy(&previoussolution);
     VecDestroy(&phidot);
     DMDestroy(&domain);

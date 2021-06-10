@@ -40,6 +40,8 @@ o4_node localtimederivative(o4_node *phi, o4_node *phixminus, o4_node *phixplus,
 
 bool ForwardEuler::step(const double &dt) {
 
+  ModelARndm->fillVec(noise);
+
   const ModelAData &data = model->data;
   PetscInt i, j, k, l, xstart, ystart, zstart, xdimension, ydimension,
       zdimension;
@@ -61,7 +63,7 @@ bool ForwardEuler::step(const double &dt) {
   DMDAVecGetArray(da, model->solution, &phinew);
 
   o4_node ***gaussiannoise;
-  DMDAVecGetArrayRead(da, model->noise, &gaussiannoise);
+  DMDAVecGetArrayRead(da, noise, &gaussiannoise);
 
   o4_node ***phidot;
   DMDAVecGetArray(da, model->phidot, &phidot);
@@ -99,7 +101,7 @@ bool ForwardEuler::step(const double &dt) {
   // Destroy the local vector
   DMRestoreLocalVector(da, &localU);
 
-  DMDAVecRestoreArrayRead(da, model->noise, &gaussiannoise);
+  DMDAVecRestoreArrayRead(da, noise, &gaussiannoise);
   // DMDAVecRestoreArrayRead(da,model->previoussolution,&oldphi);
 
   DMDAVecRestoreArray(da, model->phidot, &phidot);
@@ -109,17 +111,23 @@ bool ForwardEuler::step(const double &dt) {
 
 /////////////////////////////////////////////////////////////////////////
 
-BackwardEuler::BackwardEuler(ModelA &in) : model(&in) 
-{
+BackwardEuler::BackwardEuler(ModelA &in) : model(&in) {
+  VecDuplicate(model->solution, &auxsolution);
+  VecDuplicate(model->solution, &noise);
   SNESCreate(PETSC_COMM_WORLD, &Solver);
-  SNESSetFunction(Solver, model->auxsolution, FormFunction, this);
+  SNESSetFunction(Solver, auxsolution, FormFunction, this);
   SNESSetJacobian(Solver, model->jacobian, model->jacobian, FormJacobian, this);
   SNESSetFromOptions(Solver);
 }
-void BackwardEuler::finalize() { SNESDestroy(&Solver); }
+void BackwardEuler::finalize() {
+  SNESDestroy(&Solver);
+  VecDestroy(&noise);
+  VecDestroy(&auxsolution);
+}
 
 bool BackwardEuler::step(const double &dt) {
   deltat = dt;
+  ModelARndm->fillVec(noise);
   SNESSolve(Solver, NULL, model->solution);
   return true;
 }
@@ -127,8 +135,8 @@ bool BackwardEuler::step(const double &dt) {
 // Evaluate the rhs function for the nonlinear solver
 PetscErrorCode BackwardEuler::FormFunction(SNES snes, Vec U, Vec F, void *ptr) {
 
-  BackwardEuler *Stepper = static_cast<BackwardEuler *>(ptr);
-  ModelA *model = Stepper->model;
+  BackwardEuler *stepper = static_cast<BackwardEuler *>(ptr);
+  ModelA *model = stepper->model;
   const ModelAData &data = model->data;
   PetscInt i, j, k, l, xstart, ystart, zstart, xdimension, ydimension,
       zdimension;
@@ -155,7 +163,7 @@ PetscErrorCode BackwardEuler::FormFunction(SNES snes, Vec U, Vec F, void *ptr) {
   DMDAVecGetArray(da, F, &f);
 
   o4_node ***gaussiannoise;
-  DMDAVecGetArrayRead(da, model->noise, &gaussiannoise);
+  DMDAVecGetArrayRead(da, stepper->noise, &gaussiannoise);
 
   o4_node ***oldphi;
   DMDAVecGetArrayRead(da, model->previoussolution, &oldphi);
@@ -207,7 +215,7 @@ PetscErrorCode BackwardEuler::FormFunction(SNES snes, Vec U, Vec F, void *ptr) {
 
   DMDAVecRestoreArray(da, F, &f);
   DMRestoreLocalVector(da, &localU);
-  DMDAVecRestoreArrayRead(da, model->noise, &gaussiannoise);
+  DMDAVecRestoreArrayRead(da, stepper->noise, &gaussiannoise);
   DMDAVecRestoreArrayRead(da, model->previoussolution, &oldphi);
 
   DMDAVecRestoreArray(da, model->phidot, &phidot);
@@ -219,8 +227,8 @@ PetscErrorCode BackwardEuler::FormFunction(SNES snes, Vec U, Vec F, void *ptr) {
 PetscErrorCode BackwardEuler::FormJacobian(SNES snes, Vec U, Mat J, Mat Jpre,
                                            void *ptr) {
 
-  BackwardEuler *Stepper = static_cast<BackwardEuler *>(ptr);
-  ModelA *model = Stepper->model;
+  BackwardEuler *stepper = static_cast<BackwardEuler *>(ptr);
+  ModelA *model = stepper->model;
   DM da = model->domain;
   const ModelAData &data = model->data;
   DMDALocalInfo info;
