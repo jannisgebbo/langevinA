@@ -23,8 +23,8 @@ CC := $(shell pkg-config --variable=ccompiler $(PACKAGES))
 CXX := $(shell pkg-config --variable=cxxcompiler $(PACKAGES))
 FC := $(shell pkg-config --variable=fcompiler $(PACKAGES))
 CFLAGS_OTHER := $(shell pkg-config --cflags-only-other $(PACKAGES))
-CFLAGS := $(shell pkg-config --variable=cflags_extra $(PACKAGES)) $(CFLAGS_OTHER)
-CXXFLAGS := $(shell pkg-config --variable=cxxflags_extra $(PACKAGES)) $(CFLAGS_OTHER)
+CFLAGS := $(shell pkg-config --variable=cflags_extra $(PACKAGES)) $(CFLAGS_OTHER) 
+CXXFLAGS := $(shell pkg-config --variable=cxxflags_extra $(PACKAGES)) $(CFLAGS_OTHER) 
 FFLAGS := $(shell pkg-config --variable=fflags_extra $(PACKAGES))
 CPPFLAGS := $(shell pkg-config --cflags-only-I $(PACKAGES))
 LDFLAGS := $(shell pkg-config --libs-only-L --libs-only-other $(PACKAGES))
@@ -50,14 +50,29 @@ LDLIBS := $(shell pkg-config --libs-only-l $(PACKAGES)) -lm
 # (with a program statement appearing in a.F90 or main() appearing in the C or
 # C++ source).  This can be built by uncommenting the following two lines.
 
-ModelA-Beuler.exe : ModelA-Beuler.o
-	$(LINK.cc) -o $@ $^ $(LDLIBS)
 
+HEADRS = ModelA.h Stepper.h NoiseGenerator.h
+OBJS = ModelA-Beuler.o Stepper.o NoiseGenerator.o
+
+
+ModelA-Beuler.exe: $(OBJS)
+	$(LINK.cc) -o $@ $^ $(LDLIBS) -lstdc++
+
+ModelA-Beuler.o: ModelA-Beuler.cxx $(HEADRS)
+	$(COMPILE.cc) $(OUTPUT_OPTION) $<
+
+Stepper.o: Stepper.cxx $(HEADRS)
+	$(COMPILE.cc) $(OUTPUT_OPTION) $<
+
+NoiseGenerator.o: NoiseGenerator.cxx NoiseGenerator.h
+	$(COMPILE.cc) $(OUTPUT_OPTION) $<
+
+
+	
 # If the file c.cxx needs to link with a C++ standard library -lstdc++ , then
 # you'll need to add it explicitly.  It can go in the rule above or be added to
 # a target-specific variable by uncommenting the line below.
 #
-ModelA-Beuler.exe : LDLIBS +=  -lstdc++
 
 clean:
 	rm *.o

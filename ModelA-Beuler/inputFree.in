@@ -7,19 +7,15 @@ NY = 8
 NZ = 8
 
 #Lattice length L = N dx
-LX = 7
-LY = 7
-LZ = 7
-
-#N in O(N)
-Ndof = 4
-
+LX = 8
+LY = 8
+LZ = 8
 
 #Times and timestep
 finaltime =400
 initialtime = 0
 deltat    = 0.001
-saveFreq = 0.1
+saveFrequency = 0.1
 
 #Parameters
 mass = 0.25
@@ -31,7 +27,7 @@ gamma  = 1
 
 
 #output tag
-output = ./freeCase/test
+outputfiletag = ./freeCase/test
 
 #Beuler=1 Feuler=2
 evolverType=2
