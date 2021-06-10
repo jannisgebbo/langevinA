@@ -3,19 +3,19 @@ H = 0.01
 
 #Lattice size
 NX = 32
-NY = 32
-NZ = 32
+#NY = 32
+#NZ = 32
 
 #Lattice length L = N dx
-LX = 32
-LY = 32
-LZ = 32
+#LX = 32
+#LY = 32
+#LZ = 32
 
 #Times and timestep
 finaltime =400
 initialtime = 0
 deltat    = 0.001
-saveFrequency = 0.1
+saveFrequencyInTime = 0.1
 
 #Parameters
 mass = -4.8129999999999997
