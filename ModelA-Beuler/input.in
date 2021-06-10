@@ -29,4 +29,4 @@ seed = 122335456
 outputfiletag = outputN16dt0001FE1Core
 
 #Beuler=1 Feuler=2
-evolverType=2
+evolverType=1
