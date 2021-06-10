@@ -60,14 +60,16 @@ struct ModelAData {
   bool verboseMeasurements;
 
   ModelAData(FCN::ParameterParser &params) {
-    // Lattice
+    // Lattice. By default, NY=NX and NZ=NX.
     NX = params.get<int>("NX");
-    NY = params.get<int>("NY");
-    NZ = params.get<int>("NZ");
+    NY = params.get<int>("NY", NX);
+    NZ = params.get<int>("NZ", NX);
 
-    LX = params.get<double>("LX");
-    LY = params.get<double>("LY");
-    LZ = params.get<double>("LZ");
+    // By default, dx=dy=dz=1, namely LX=NX, LY=NY, LZ=NZ.
+
+    LX = params.get<double>("LX", NX);
+    LY = params.get<double>("LY", NY);
+    LZ = params.get<double>("LZ", NZ);
 
     // Time Stepping
     finaltime = params.get<double>("finaltime");
@@ -75,7 +77,7 @@ struct ModelAData {
     deltat = params.get<double>("deltat");
     evolverType = params.get<int>("evolverType");
 
-    // Action 
+    // Action
     mass = params.get<double>("mass");
     lambda = params.get<double>("lambda");
     gamma = params.get<double>("gamma");
@@ -123,7 +125,7 @@ struct ModelAData {
      PetscPrintf(PETSC_COMM_WORLD, "deltat  = %e\n", deltat);
      PetscPrintf(PETSC_COMM_WORLD, "evolverType = %d\n", evolverType);
 
-     // Action 
+     // Action
      PetscPrintf(PETSC_COMM_WORLD, "mass = %e\n", mass);
      PetscPrintf(PETSC_COMM_WORLD, "lambda = %e\n", lambda);
      PetscPrintf(PETSC_COMM_WORLD, "gamma = %e\n", gamma);
@@ -157,7 +159,7 @@ typedef struct {
 
 class ModelA {
 
-public:   
+public:
   // Plain old data describing model A
   ModelAData data;
 
@@ -234,7 +236,7 @@ public:
     if (!data.coldStart) {
        return loadFromDereksFile() ;
     }
-    
+
     // Compute the lattice spacing
     PetscReal hx = data.hX();
     PetscReal hy = data.hY();

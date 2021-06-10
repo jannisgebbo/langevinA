@@ -31,7 +31,7 @@ class ConfResults:
         ks = [2 * np.pi * i /float(Nx) for i in range(Nx)]
         self.wallXphiNormF = np.zeros(np.shape(self.wallXphiNorm), dtype=complex)
         for t in range(len(self.wallXphiNorm)):
-            self.wallXphiNormF[t] = np.fft.fft(self.wallXphiNorm[t])
+            self.wallXphiNormF[t] = np.fft.fft(self.wallXphiNorm[t]) / Nx
             #self.wallXphiNormF[t] = self.manualFourier(self.wallXphiNorm[t])
     
     def computeWallXFourier0(self):
@@ -41,7 +41,7 @@ class ConfResults:
         Nx = len(self.wallXphi0[0])
         self.wallXphi0F = np.zeros(np.shape(self.wallXphi0), dtype=complex)
         for t in range(len(self.wallXphi0)):
-            self.wallXphi0F[t] = np.fft.fft(self.wallXphi0[t])
+            self.wallXphi0F[t] = np.fft.fft(self.wallXphi0[t]) / Nx
             #self.wallXphiNormF[t] = self.manualFourier(self.wallXphiNorm[t])
             
     def correlator0(self):
@@ -61,19 +61,25 @@ class ConfResults:
                 
         return np.asarray(res)
         
-    def computeCttp(self, arr1, arr2, conn=False):
+    def computeCttp(self, arr1, arr2, conn=False, tMax=-1):
         Npoints = len(arr1)
-        Cttp = np.zeros(Npoints, dtype=type(arr1[0]))
-        for tt in range(Npoints): #tt is the time difference
+        if tMax==-1:
+            tMax=Npoints
+        Cttp = np.zeros(tMax, dtype=type(arr1[0]))
+
+        for tt in range(tMax): #tt is the time difference
             for t0 in range(0, Npoints - tt, self.decim): # t0 is the origin
                 Cttp[tt] += arr1[t0 + tt] * arr2[t0] 
                 if conn:
                   Cttp[tt] -= arr1[t0]*arr2[t0]
             Cttp[tt]/=float(Npoints - tt)
         return Cttp
-    
-    def computeCttpPhi(self):
-        self.CttpPhi = self.computeCttp(self.phiNorm, self.phiNorm)
+
+
+    def computeCttpPhi0(self,conn, tMax):
+        self.CttpPhi0 = self.computeCttp(self.phi[:,0], self.phi[:,0],conn,tMax)
+    def computeCttpPhiNorm(self):
+        self.CttpPhiNorm = self.computeCttp(self.phiNorm, self.phiNorm)
     def computeCttpPhidot(self):
         self.CttpPhidot = self.computeCttp(self.phidotNorm, self.phidotNorm)
     def computeCttpPhiPhidot(self):
@@ -105,6 +111,25 @@ def bootstrap(arr, nSamples=100):
     return (np.mean(bootstrapArr,axis = 0), np.std(bootstrapArr,axis = 0))
     #return (np.mean(arr,axis = 0), np.std(arr,axis = 0))
     
+def jackknife(arr, nBlock=10):
+    nSamples = int(len(arr) / nBlock)
+    arr = np.asarray(arr)
+    random.seed()
+    bootstrapArr = []
+    count = 0
+    thetaBar = np.mean(arr, axis=0)
+    sigma2 = np.zeros(np.shape(arr[0,:]), dtype=arr.dtype)
+    for n in range(nSamples):
+        newArr = np.concatenate((arr[:count], arr[count+nBlock:]))
+        bootstrapArr.append(np.mean(newArr,axis = 0))
+        count+=nBlock
+        sigma2 += (bootstrapArr[-1] - thetaBar)**2
+    
+    bootstrapArr = np.asarray(bootstrapArr)
+    
+    return (np.mean(bootstrapArr,axis = 0), (nSamples -1.0)/nSamples * np.sqrt(sigma2))
+    #return (np.mean(arr,axis = 0), np.std(arr,axis = 0))
+    
 
 class EnsembleResults:
     def __init__(self,fn, nEnd, nStart=0):
@@ -127,7 +152,7 @@ class EnsembleResults:
             print(fn, end="\r")
             res.computeWallXFourier0()
             resTot.append(res.wallXphi0F * np.conj(res.wallXphi0F))
-        self.wallXFourierSquare0, self.wallXFourierSquare0Err  = bootstrap(resTot, nBoot)
+        self.wallXFourierSquare0, self.wallXFourierSquare0Err  = jackknife(resTot, nBoot)
     
     def corFourierPhi(self, nTherm, nBoot, decim):
         corrTot = []
