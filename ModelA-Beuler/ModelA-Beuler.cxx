@@ -28,7 +28,8 @@ extern PetscErrorCode FormJacobian(SNES ,Vec ,Mat ,Mat ,void* );
 extern PetscErrorCode FormFunction(SNES ,Vec ,Vec ,void*);
 extern PetscErrorCode noiseGeneration(Vec* , void* ptr);
 
-
+// Hack so that initialcondition can use the same random numbers
+NoiseGenerator<std::ranlux48> *generator_ptr ;
 
 int main(int argc, char **argv)
 {
@@ -42,15 +43,16 @@ int main(int argc, char **argv)
     global_data          user(par); // collection of variable
 
     NoiseGenerator<std::ranlux48> noiseGen(user.model.seed, user.da);
+    // Hack so that initialcondition can use the same random numbers
+    generator_ptr = &noiseGen;
 
     //initialize the measurments
     Measurer measurer(&user);
-
+    //Now the intial condition
+    if (user.model.coldStart == true ) initialcondition(user.da,user.solution,&user);
+    measurer.measure(&user.solution,&user.phidot);
 
     ierr = PetscObjectSetName((PetscObject) user.noise, "noise");CHKERRQ(ierr);
-
-    //noiseGeneration(&user.noise,&user);
-    noiseGen.fill(&user.noise,&user);
 
 
     //Create the the non linear solver
@@ -73,18 +75,16 @@ int main(int argc, char **argv)
     }
 
 
-    //Now the intial condition
-    if (user.model.coldStart == true ) initialcondition(user.da,user.solution,&user);
-    //Copy the iniail condition
-    VecCopy(user.solution,user.previoussolution);
-    //mesure the intial observable
-    measurer.measure(&user.solution,&user.phidot);
-
     PetscInt            steps=1;
     //Thsi is the loop for the time step
     for (PetscReal time =user.model.initialtime; time<user.model.finaltime; time += user.model.deltat) {
+
+        //copy the solution in the previous time step
+        VecCopy(user.solution,user.previoussolution);
+
         //generate the noise
         noiseGen.fill(&user.noise,&user);
+
         //solve the non linear equation
         switch (user.model.evolverType) {
             case 1:
@@ -97,15 +97,14 @@ int main(int argc, char **argv)
                 break;
 
         }
-        // mesure the solution
-        if(steps % user.model.saveFreq == 0)  measurer.measure(&user.solution,&user.phidot);
 
+        // measure the solution
+        if(steps % user.model.saveFreq == 0)  measurer.measure(&user.solution,&user.phidot);
         //print some information to not get bored during the running
         PetscPrintf(PETSC_COMM_WORLD,"Timestep %D: step size = %g, time = %g\n",steps,(double) user.model.deltat ,(double)time);
-        //copi the solution in the previous time step
-        VecCopy(user.solution,user.previoussolution);
         //advance the step
         steps ++;
+        
     }
 
     //Destroy Everything
@@ -315,11 +314,11 @@ PetscErrorCode initialcondition(DM da, Vec U, void* ptr)
                 PetscReal x=i*hx;
                 PetscReal r = PetscSqrtReal((x-.5)*(x-.5)+(y-.5)*(y-.5)+(z-.5)*(z-.5));
                 for (l=0; l<data.Ndof; l++) {
-                  if(!data.zeroStart){
-                    if (r<1.) u[k][j][i].f[l]=gsl_ran_gaussian(user->rndm,1.);//PetscExpReal(-(1+1.*(PetscReal)l)*r*r*r);
-                    else u[k][j][i].f[l]=0.0;
-                  }
-                  else  u[k][j][i].f[l]=0.0;
+                  if(!data.zeroStart) {
+                     u[k][j][i].f[l]=generator_ptr->generate();
+                  } else {
+                     u[k][j][i].f[l]=0.0;
+                  } 
                 }
                 // u[j][i]=PetscSinReal(2.*10.*M_PI*x)*PetscSinReal(5.*M_PI*y);
             }

@@ -72,7 +72,7 @@ PetscErrorCode fill( Vec* U, void* ptr)
     return(0);
 }
 
-
+  double generate() { return normDist(rng); }
 private:
 
   //std::vector<std::vector<std::vector<std::vector<RNGType>>>> rngs;
