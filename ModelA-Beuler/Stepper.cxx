@@ -228,7 +228,7 @@ PetscErrorCode BackwardEuler::FormFunction(SNES snes, Vec U, Vec F, void *ptr) {
 
   return (0);
 }
-// Form the Jacobian
+// Form the Jacobian with Petsc Interface
 PetscErrorCode BackwardEuler::FormJacobian(SNES snes, Vec U, Mat J, Mat Jpre,
                                            void *ptr) {
   BackwardEuler *stepper = static_cast<BackwardEuler *>(ptr);
@@ -236,7 +236,7 @@ PetscErrorCode BackwardEuler::FormJacobian(SNES snes, Vec U, Mat J, Mat Jpre,
   return FormJacobianGeneric(snes, U, J, Jpre, stepper->deltat, model);
 }
 
-// Form the Jacobian
+// Form the Jacobian the Jabian generic interface
 PetscErrorCode BackwardEuler::FormJacobianGeneric(SNES snes, Vec U, Mat J,
                                                   Mat Jpre, const double &dt,
                                                   ModelA *model) {
