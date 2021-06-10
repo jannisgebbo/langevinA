@@ -16,11 +16,11 @@ o4_node localtimederivative(o4_node *phi, o4_node *phixminus, o4_node *phixplus,
   // l is an index for our vector. l=0,1,2,3 is phi,l=4,5,6 is V and l=7,8,9 is
   // A std::cout << "bad Job: " ; computing phi squared
   PetscScalar phisquare = 0.;
-  for (PetscInt l = 0; l < 4; l++) {
+  for (PetscInt l = 0; l < ModelAData::Ndof; l++) {
     phisquare = phisquare + phi->f[l] * phi->f[l];
   }
 
-  for (PetscInt l = 0; l < 4; l++) {
+  for (PetscInt l = 0; l < ModelAData::Ndof; l++) {
     PetscScalar ucentral = phi->f[l];
     PetscScalar uxx =
         (-2.0 * ucentral + phixminus->f[l] + phixplus->f[l]) / (hx * hx);
@@ -112,14 +112,20 @@ bool ForwardEuler::step(const double &dt) {
 /////////////////////////////////////////////////////////////////////////
 
 BackwardEuler::BackwardEuler(ModelA &in) : model(&in) {
+
   VecDuplicate(model->solution, &auxsolution);
   VecDuplicate(model->solution, &noise);
+  // Set the Jacobian matrix
+  DMSetMatType(model->domain, MATAIJ);
+  DMCreateMatrix(model->domain, &jacobian);
+
   SNESCreate(PETSC_COMM_WORLD, &Solver);
   SNESSetFunction(Solver, auxsolution, FormFunction, this);
-  SNESSetJacobian(Solver, model->jacobian, model->jacobian, FormJacobian, this);
+  SNESSetJacobian(Solver, jacobian, jacobian, FormJacobian, this);
   SNESSetFromOptions(Solver);
 }
 void BackwardEuler::finalize() {
+  MatDestroy(&jacobian);
   SNESDestroy(&Solver);
   VecDestroy(&noise);
   VecDestroy(&auxsolution);
@@ -149,16 +155,16 @@ PetscErrorCode BackwardEuler::FormFunction(SNES snes, Vec U, Vec F, void *ptr) {
 
   // Get the Global dimension of the Grid
   // Define the spaceing
-  PetscReal hx = data.hX(); // 1.0/(PetscReal)(Mx-1);
-  PetscReal hy = data.hY(); // 1.0/(PetscReal)(My-1);
-  PetscReal hz = data.hZ(); // 1.0/(PetscReal)(Mz-1);
+  PetscReal hx = data.hX();
+  PetscReal hy = data.hY();
+  PetscReal hz = data.hZ();
 
   // take the global vector U and distribute to the local vector localU
   DMGlobalToLocalBegin(da, U, INSERT_VALUES, localU);
   DMGlobalToLocalEnd(da, U, INSERT_VALUES, localU);
 
   // From the vector define the pointer for the field u and the rhs f
-  o4_node ***phi, ***f; //, ***noise;
+  o4_node ***phi, ***f;
   DMDAVecGetArrayRead(da, localU, &phi);
   DMDAVecGetArray(da, F, &f);
 
@@ -200,12 +206,12 @@ PetscErrorCode BackwardEuler::FormFunction(SNES snes, Vec U, Vec F, void *ptr) {
               data.gamma * (uxx + uyy + uzz) -
               data.gamma * (data.mass + data.lambda * phisquare) * ucentral +
               (l == 0 ? data.gamma * data.H : 0.) +
-              PetscSqrtReal(2. * data.gamma / data.deltat) *
+              PetscSqrtReal(2. * data.gamma / stepper->deltat) *
                   gaussiannoise[k][j][i].f[l];
 
           // here you want to put the formula for the euler step F(phi)=0
           f[k][j][i].f[l] = -phi[k][j][i].f[l] + oldphi[k][j][i].f[l] +
-                            data.deltat * phidot[k][j][i].f[l];
+                            stepper->deltat * phidot[k][j][i].f[l];
         }
       }
     }
@@ -222,13 +228,19 @@ PetscErrorCode BackwardEuler::FormFunction(SNES snes, Vec U, Vec F, void *ptr) {
 
   return (0);
 }
-
 // Form the Jacobian
 PetscErrorCode BackwardEuler::FormJacobian(SNES snes, Vec U, Mat J, Mat Jpre,
                                            void *ptr) {
-
   BackwardEuler *stepper = static_cast<BackwardEuler *>(ptr);
   ModelA *model = stepper->model;
+  return FormJacobianGeneric(snes, U, J, Jpre, stepper->deltat, model);
+}
+
+// Form the Jacobian
+PetscErrorCode BackwardEuler::FormJacobianGeneric(SNES snes, Vec U, Mat J,
+                                                  Mat Jpre, const double &dt,
+                                                  ModelA *model) {
+
   DM da = model->domain;
   const ModelAData &data = model->data;
   DMDALocalInfo info;
@@ -251,14 +263,15 @@ PetscErrorCode BackwardEuler::FormJacobian(SNES snes, Vec U, Mat J, Mat Jpre,
   PetscReal hy = data.hY();
   PetscReal hz = data.hZ();
 
+  const double &gamma = data.gamma;
   for (k = info.zs; k < info.zs + info.zm; k++) {
     for (j = info.ys; j < info.ys + info.ym; j++) {
       for (i = info.xs; i < info.xs + info.xm; i++) {
         PetscScalar phisquare = 0.;
-        for (l = 0; l < data.Ndof; l++) {
+        for (l = 0; l < ModelAData::Ndof; l++) {
           phisquare = phisquare + phi[k][j][i].f[l] * phi[k][j][i].f[l];
         }
-        for (l = 0; l < data.Ndof; l++) {
+        for (l = 0; l < ModelAData::Ndof; l++) {
           // we define the column
           PetscInt nc = 0;
           MatStencil row, column[10];
@@ -275,44 +288,44 @@ PetscErrorCode BackwardEuler::FormJacobian(SNES snes, Vec U, Mat J, Mat Jpre,
           column[nc].j = j;
           column[nc].k = k;
           column[nc].c = l;
-          value[nc++] = data.deltat * 1.0 / (hx * hx);
+          value[nc++] = dt * gamma / (hx * hx);
           column[nc].i = i + 1;
           column[nc].j = j;
           column[nc].k = k;
           column[nc].c = l;
-          value[nc++] = data.deltat * 1.0 / (hx * hx);
+          value[nc++] = dt * gamma / (hx * hx);
           // y direction
           column[nc].i = i;
           column[nc].j = j - 1;
           column[nc].k = k;
           column[nc].c = l;
-          value[nc++] = data.deltat * 1.0 / (hy * hy);
+          value[nc++] = dt * gamma / (hy * hy);
           column[nc].i = i;
           column[nc].j = j + 1;
           column[nc].k = k;
           column[nc].c = l;
-          value[nc++] = data.deltat * 1.0 / (hy * hy);
+          value[nc++] = dt * gamma / (hy * hy);
           // z direction
           column[nc].i = i;
           column[nc].j = j;
           column[nc].k = k - 1;
           column[nc].c = l;
-          value[nc++] = data.deltat * 1.0 / (hz * hz);
+          value[nc++] = dt * gamma / (hz * hz);
           column[nc].i = i;
           column[nc].j = j;
           column[nc].k = k + 1;
           column[nc].c = l;
-          value[nc++] = data.deltat * 1.0 / (hz * hz);
+          value[nc++] = dt * gamma / (hz * hz);
           // The central element need a loop over the flavour index of the
           // column (is a full matrix in the flavour index )
-          for (PetscInt m = 0; m < data.Ndof; m++) {
+          for (PetscInt m = 0; m < ModelAData::Ndof; m++) {
             if (m == l) {
               column[nc].i = i;
               column[nc].j = j;
               column[nc].k = k;
               column[nc].c = l;
               value[nc++] =
-                  -1. + data.deltat * data.gamma *
+                  -1. + dt * data.gamma *
                             (-2.0 / (hy * hy) - 2.0 / (hx * hx) -
                              2.0 / (hz * hz) - data.mass -
                              data.lambda * (phisquare + 2. * phi[k][j][i].f[l] *
@@ -323,7 +336,7 @@ PetscErrorCode BackwardEuler::FormJacobian(SNES snes, Vec U, Mat J, Mat Jpre,
               column[nc].k = k;
               column[nc].c = m;
               value[nc++] =
-                  data.deltat * data.gamma *
+                  dt * data.gamma *
                   (-2. * data.lambda * phi[k][j][i].f[l] * phi[k][j][i].f[m]);
             }
           }

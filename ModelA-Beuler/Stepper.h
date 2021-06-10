@@ -35,6 +35,7 @@ private:
   ModelA *model;
   SNES Solver; // The solver that does the work
 
+  Mat jacobian;
   Vec noise;
   Vec auxsolution;
 
@@ -43,9 +44,13 @@ private:
 
   // Evaluates the RHS function
   static PetscErrorCode FormFunction(SNES snes, Vec U, Vec F, void *ptr);
-  // Evaluates the Jacobian function
+  // Evaluates the Jacobian function. This is just a stub with the petsc
+  // interface which calls the version below
   static PetscErrorCode FormJacobian(SNES snes, Vec U, Mat J, Mat Jpre,
                                      void *ptr);
+  // Evaluates the Jacobian function
+  static PetscErrorCode FormJacobianGeneric(SNES snes, Vec U, Mat J, Mat Jpre,
+                                            const double &dt, ModelA *model);
 };
 
 #endif

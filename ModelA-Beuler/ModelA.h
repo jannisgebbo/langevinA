@@ -1,14 +1,14 @@
 #ifndef MODELASTRUCT
 #define MODELASTRUCT
 
+#include "NoiseGenerator.h"
+#include "parameterparser/parameterparser.h"
 #include <fstream>
 #include <petscdm.h>
 #include <petscdmda.h>
 #include <petscsys.h>
 #include <petscts.h>
 #include <petscviewerhdf5.h>
-#include "parameterparser/parameterparser.h"
-#include "NoiseGenerator.h"
 
 struct ModelAData {
   // Lattice dimension
@@ -85,7 +85,6 @@ struct ModelAData {
 
     seed = (PetscInt)params.getSeed("seed");
 
-
     // Control initialization
     initFile = params.get<std::string>("initFile", "x");
     if (initFile == "x") {
@@ -104,50 +103,56 @@ struct ModelAData {
     // Printout
     int rank = 0;
     MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
-    if (rank==0) {
-       print();
+    if (rank == 0) {
+      print();
     }
   }
 
   //! Print out ModelAData for subsequent reading
   void print() {
-     // Lattice
-     PetscPrintf(PETSC_COMM_WORLD, "NX = %d\n", NX);
-     PetscPrintf(PETSC_COMM_WORLD, "NY = %d\n", NY);
-     PetscPrintf(PETSC_COMM_WORLD, "NZ = %d\n", NZ);
-     PetscPrintf(PETSC_COMM_WORLD, "LX = %e\n", LX);
-     PetscPrintf(PETSC_COMM_WORLD, "LY = %e\n", LY);
-     PetscPrintf(PETSC_COMM_WORLD, "LZ = %e\n", LZ);
+    // Lattice
+    PetscPrintf(PETSC_COMM_WORLD, "NX = %d\n", NX);
+    PetscPrintf(PETSC_COMM_WORLD, "NY = %d\n", NY);
+    PetscPrintf(PETSC_COMM_WORLD, "NZ = %d\n", NZ);
+    PetscPrintf(PETSC_COMM_WORLD, "LX = %e\n", LX);
+    PetscPrintf(PETSC_COMM_WORLD, "LY = %e\n", LY);
+    PetscPrintf(PETSC_COMM_WORLD, "LZ = %e\n", LZ);
 
-     // Time Stepping
-     PetscPrintf(PETSC_COMM_WORLD, "finaltime = %e\n", finaltime);
-     PetscPrintf(PETSC_COMM_WORLD, "initialtime = %e\n", initialtime);
-     PetscPrintf(PETSC_COMM_WORLD, "deltat  = %e\n", deltat);
-     PetscPrintf(PETSC_COMM_WORLD, "evolverType = %d\n", evolverType);
+    // Time Stepping
+    PetscPrintf(PETSC_COMM_WORLD, "finaltime = %e\n", finaltime);
+    PetscPrintf(PETSC_COMM_WORLD, "initialtime = %e\n", initialtime);
+    PetscPrintf(PETSC_COMM_WORLD, "deltat  = %e\n", deltat);
+    PetscPrintf(PETSC_COMM_WORLD, "evolverType = %d\n", evolverType);
 
-     // Action
-     PetscPrintf(PETSC_COMM_WORLD, "mass = %e\n", mass);
-     PetscPrintf(PETSC_COMM_WORLD, "lambda = %e\n", lambda);
-     PetscPrintf(PETSC_COMM_WORLD, "gamma = %e\n", gamma);
-     PetscPrintf(PETSC_COMM_WORLD, "H = %e\n", H);
+    // Action
+    PetscPrintf(PETSC_COMM_WORLD, "mass = %e\n", mass);
+    PetscPrintf(PETSC_COMM_WORLD, "lambda = %e\n", lambda);
+    PetscPrintf(PETSC_COMM_WORLD, "gamma = %e\n", gamma);
+    PetscPrintf(PETSC_COMM_WORLD, "H = %e\n", H);
 
-     PetscPrintf(PETSC_COMM_WORLD, "seed = %d\n", seed);
+    PetscPrintf(PETSC_COMM_WORLD, "seed = %d\n", seed);
 
-     //Initialization
-     PetscPrintf(PETSC_COMM_WORLD, "# Choose initFile=x to set coldStart to true\n");
-     PetscPrintf(PETSC_COMM_WORLD, "# Expected value of coldStart = %s\n", (coldStart ? "true" : "false"));
-     PetscPrintf(PETSC_COMM_WORLD, "initFile = %s\n", initFile.c_str());
+    // Initialization
+    PetscPrintf(PETSC_COMM_WORLD,
+                "# Choose initFile=x to set coldStart to true\n");
+    PetscPrintf(PETSC_COMM_WORLD, "# Expected value of coldStart = %s\n",
+                (coldStart ? "true" : "false"));
+    PetscPrintf(PETSC_COMM_WORLD, "initFile = %s\n", initFile.c_str());
 
-     PetscPrintf(PETSC_COMM_WORLD, "# Uncomment zero start to set the initial value to zero\n");
-     PetscPrintf(PETSC_COMM_WORLD, "# zeroStart = %s\n", (zeroStart ? "true" : "false"));
+    PetscPrintf(PETSC_COMM_WORLD,
+                "# Uncomment zero start to set the initial value to zero\n");
+    PetscPrintf(PETSC_COMM_WORLD, "# zeroStart = %s\n",
+                (zeroStart ? "true" : "false"));
 
-
-     // Outputs
-     PetscPrintf(PETSC_COMM_WORLD, "outputfiletag = %s\n", outputfiletag.c_str());
-     PetscPrintf(PETSC_COMM_WORLD, "saveFrequencyInTime = %e\n", saveFrequencyInTime);
-     PetscPrintf(PETSC_COMM_WORLD, "# saveFrequency = %d\n", saveFrequency);
-     PetscPrintf(PETSC_COMM_WORLD, "# Uncomment to print out every time step\n");
-     PetscPrintf(PETSC_COMM_WORLD, "# verboseMeasurements = %s\n", (verboseMeasurements? "true" : "false"));
+    // Outputs
+    PetscPrintf(PETSC_COMM_WORLD, "outputfiletag = %s\n",
+                outputfiletag.c_str());
+    PetscPrintf(PETSC_COMM_WORLD, "saveFrequencyInTime = %e\n",
+                saveFrequencyInTime);
+    PetscPrintf(PETSC_COMM_WORLD, "# saveFrequency = %d\n", saveFrequency);
+    PetscPrintf(PETSC_COMM_WORLD, "# Uncomment to print out every time step\n");
+    PetscPrintf(PETSC_COMM_WORLD, "# verboseMeasurements = %s\n",
+                (verboseMeasurements ? "true" : "false"));
   }
 };
 
@@ -175,9 +180,6 @@ public:
   // Momentum used in backward step and eulerstep
   Vec phidot;
 
-  // Jacobian
-  Mat jacobian;
-
   //! Construct the grid and initialize the fields according to
   //! the configuration parameters in the input ModelAData structure
   ModelA(const ModelAData &in) : data(in) {
@@ -195,20 +197,14 @@ public:
     VecDuplicate(solution, &previoussolution);
     VecDuplicate(solution, &phidot);
 
-    // Set the Jacobian matrix
-    DMSetMatType(domain, MATAIJ);
-    DMCreateMatrix(domain, &jacobian);
-
     // Setup the random number generation
-    ModelARndm = std::make_unique<NoiseGenerator>(data.seed) ;
-
+    ModelARndm = std::make_unique<NoiseGenerator>(data.seed);
   }
 
   void finalize() {
-    MatDestroy(&jacobian);
-    VecDestroy(&solution);
-    VecDestroy(&previoussolution);
     VecDestroy(&phidot);
+    VecDestroy(&previoussolution);
+    VecDestroy(&solution);
     DMDestroy(&domain);
   }
 
@@ -216,8 +212,8 @@ public:
   //! This is a helper function for initialize
   PetscErrorCode loadFromDereksFile() {
     PetscViewer initViewer;
-    PetscViewerHDF5Open(PETSC_COMM_WORLD, data.initFile.c_str(),
-                        FILE_MODE_READ, &initViewer);
+    PetscViewerHDF5Open(PETSC_COMM_WORLD, data.initFile.c_str(), FILE_MODE_READ,
+                        &initViewer);
     PetscViewerSetFromOptions(initViewer);
     PetscObjectSetName((PetscObject)solution, "final_phi");
     PetscErrorCode ierr = VecLoad(solution, initViewer);
@@ -234,7 +230,7 @@ public:
 
     // Read in from a file
     if (!data.coldStart) {
-       return loadFromDereksFile() ;
+      return loadFromDereksFile();
     }
 
     // Compute the lattice spacing
@@ -273,8 +269,6 @@ public:
     DMDAVecRestoreArray(domain, solution, &u);
     return (0);
   }
-
 };
-
 
 #endif
