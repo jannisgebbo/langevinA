@@ -1,25 +1,26 @@
 #Magnetic field
-H = 0.01
+H = 0.0
 
 #Lattice size
-NX = 32
+NX = 16
 
 #Times and timestep
-finaltime =16
-initialtime = 0
-deltat    = 0.01
+finaltime =400
+initialtime = 0.0
+deltat    =0.5 
 saveFrequencyInTime = 0.1
 
 #Parameters
-mass = -4.8129999999999997
-lambda  = 4
+mass = 0.0625
+lambda  = 0
 gamma  = 1
 
 # Set to 0 or don't pass to have a random seed
 seed = 122335456
 
-#output tag
-outputfiletag = testrun 
 
-#Beuler=1 Feuler=2 SemiImplicit=3
-evolverType=3
+#output tag
+outputfiletag = noisetest
+
+#Beuler=1 Feuler=2
+evolverType=1

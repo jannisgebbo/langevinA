@@ -40,5 +40,8 @@ private:
   std::normal_distribution<double> normalDistribution;
 
 };
+
+//! Global random number generator which is initialized when
+//! ModelA is created.
 extern std::unique_ptr<NoiseGenerator> ModelARndm;
 #endif

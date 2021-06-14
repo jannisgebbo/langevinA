@@ -59,6 +59,9 @@ int main(int argc, char **argv) {
   case 2:
     step = std::make_unique<ForwardEuler>(model) ;
     break;
+  case 3:
+    step = std::make_unique<SemiImplicitBEuler>(model) ;
+    break;
   }
 
   PetscInt steps = 1;
@@ -78,7 +81,6 @@ int main(int argc, char **argv) {
                 steps, (double)model.data.deltat, (double)time);
     }
 
-    
     steps++;
   }
 
@@ -88,5 +90,8 @@ int main(int argc, char **argv) {
   model.finalize() ;
   return PetscFinalize();
 }
+
+
+
 
 

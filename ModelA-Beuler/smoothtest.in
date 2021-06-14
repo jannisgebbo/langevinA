@@ -5,13 +5,13 @@ H = 0.01
 NX = 32
 
 #Times and timestep
-finaltime =16
+finaltime = 20
 initialtime = 0
-deltat    = 0.01
-saveFrequencyInTime = 0.1
+deltat    = 0.1
+saveFrequencyInTime = 1.0
 
 #Parameters
-mass = -4.8129999999999997
+mass = -4.813
 lambda  = 4
 gamma  = 1
 
@@ -19,7 +19,8 @@ gamma  = 1
 seed = 122335456
 
 #output tag
-outputfiletag = testrun 
+outputfiletag = smoothtest
 
-#Beuler=1 Feuler=2 SemiImplicit=3
+#Beuler=1 Feuler=2
 evolverType=3
+

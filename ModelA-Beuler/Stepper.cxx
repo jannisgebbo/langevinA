@@ -40,7 +40,11 @@ o4_node localtimederivative(o4_node *phi, o4_node *phixminus, o4_node *phixplus,
 
 bool ForwardEuler::step(const double &dt) {
 
-  ModelARndm->fillVec(noise);
+  if (withNoise) {
+    ModelARndm->fillVec(noise);
+  } else {
+    VecZeroEntries(noise);
+  }
 
   const ModelAData &data = model->data;
   PetscInt i, j, k, l, xstart, ystart, zstart, xdimension, ydimension,
@@ -111,7 +115,7 @@ bool ForwardEuler::step(const double &dt) {
 
 /////////////////////////////////////////////////////////////////////////
 
-BackwardEuler::BackwardEuler(ModelA &in) : model(&in) {
+BackwardEuler::BackwardEuler(ModelA &in, bool wnoise) : model(&in), withNoise(wnoise) {
 
   VecDuplicate(model->solution, &auxsolution);
   VecDuplicate(model->solution, &noise);
@@ -133,7 +137,11 @@ void BackwardEuler::finalize() {
 
 bool BackwardEuler::step(const double &dt) {
   deltat = dt;
-  ModelARndm->fillVec(noise);
+  if (withNoise) {
+    ModelARndm->fillVec(noise);
+  } else {
+    VecZeroEntries(noise);
+  }
   SNESSolve(Solver, NULL, model->solution);
   return true;
 }
@@ -355,5 +363,172 @@ PetscErrorCode BackwardEuler::FormJacobianGeneric(SNES snes, Vec U, Mat J,
   DMDAVecRestoreArrayRead(da, localU, &phi);
   DMRestoreLocalVector(da, &localU);
 
+  return (0);
+}
+
+/////////////////////////////////////////////////////////////////////////
+
+SemiImplicitBEuler::SemiImplicitBEuler(ModelA &in, bool wnoise) : model(&in), withNoise(wnoise) {
+  VecDuplicate(model->solution, &rhs);
+  VecDuplicate(model->solution, &noise);
+  DMCreateMatrix(model->domain, &J);
+
+  double hx = model->data.hX();
+  double hy = model->data.hY();
+  double hz = model->data.hZ();
+  Form3PointLaplacian(model->domain, J, hx, hy, hz);
+
+  MatConvert(J, MATSAME, MAT_INITIAL_MATRIX, &A);
+  KSPCreate(PETSC_COMM_WORLD, &ksp);
+}
+
+void SemiImplicitBEuler::finalize() {
+  KSPDestroy(&ksp);
+  MatDestroy(&A);
+  MatDestroy(&J);
+  VecDestroy(&noise);
+  VecDestroy(&rhs);
+}
+
+bool SemiImplicitBEuler::step(const double &dt) {
+
+  if (withNoise) {
+    ModelARndm->fillVec(noise);
+  } else {
+    VecZeroEntries(noise);
+  }
+  // Compute the RHS of the equation to be solved
+
+  o4_node ***bI;
+  DMDAVecGetArray(model->domain, rhs, &bI);
+
+  o4_node ***phiI;
+  DMDAVecGetArray(model->domain, model->solution, &phiI);
+
+  o4_node ***xiI;
+  DMDAVecGetArray(model->domain, noise, &xiI);
+
+  PetscInt i, j, k, l, xstart, ystart, zstart, xdimension, ydimension,
+      zdimension;
+
+  DMDAGetCorners(model->domain, &xstart, &ystart, &zstart, &xdimension,
+                 &ydimension, &zdimension);
+
+  const ModelAData &data = model->data;
+  double dtg = dt * data.gamma;
+  double m2 = data.mass;
+  double lambda = data.lambda;
+  double H[ModelAData::Ndof] = {data.H, 0, 0, 0} ;
+
+  for (k = zstart; k < zstart + zdimension; k++) {
+    for (j = ystart; j < ystart + ydimension; j++) {
+      for (i = xstart; i < xstart + xdimension; i++) {
+
+        o4_node &phi = phiI[k][j][i];
+        o4_node &b = bI[k][j][i];
+        o4_node &xi = xiI[k][j][i];
+
+        double phi2 = 0.;
+        for (l = 0; l < ModelAData::Ndof; l++) {
+          phi2 += phi.f[l] * phi.f[l];
+        }
+
+        for (l = 0; l < ModelAData::Ndof; l++) {
+          b.f[l] = phi.f[l] / dtg - (m2 * phi.f[l] + lambda * phi2 * phi.f[l]) 
+             + H[l] + xi.f[l] * sqrt(2. / dtg);
+        }
+      }
+    }
+  }
+  DMDAVecRestoreArray(model->domain, noise, &xiI);
+  DMDAVecRestoreArray(model->domain, model->solution, &phiI);
+  DMDAVecRestoreArray(model->domain, rhs, &bI);
+
+  // Construct the matrix for the equation to be solved
+  MatCopy(J, A, SAME_NONZERO_PATTERN);
+  MatShift(A, 1. / dtg);
+
+  // Actually solve
+  KSPSetOperators(ksp, A, A);
+  KSPSetFromOptions(ksp);
+  KSPSolve(ksp, rhs, model->solution);
+
+  return true;
+}
+
+// Form the Jacobian the Jabian generic interface
+PetscErrorCode SemiImplicitBEuler::Form3PointLaplacian(DM da, Mat J,
+                                                       const double &hx,
+                                                       const double &hy,
+                                                       const double &hz) {
+  // Get the local information and store in info
+  DMDALocalInfo info;
+  DMDAGetLocalInfo(da, &info);
+  PetscInt i, j, k, l;
+  for (k = info.zs; k < info.zs + info.zm; k++) {
+    for (j = info.ys; j < info.ys + info.ym; j++) {
+      for (i = info.xs; i < info.xs + info.xm; i++) {
+        for (l = 0; l < ModelAData::Ndof; l++) {
+          // we define the column
+          PetscInt nc = 0;
+          MatStencil row, column[10];
+          PetscScalar value[10];
+          // here we insert the position of the row
+          row.i = i;
+          row.j = j;
+          row.k = k;
+          row.c = l;
+          // here we define de position of the non-vansih column for the given
+          // row in total there are 7*4 entries and nc is the total number of
+          // column per row x direction
+          column[nc].i = i - 1;
+          column[nc].j = j;
+          column[nc].k = k;
+          column[nc].c = l;
+          value[nc++] = -1. / (hx * hx);
+          column[nc].i = i + 1;
+          column[nc].j = j;
+          column[nc].k = k;
+          column[nc].c = l;
+          value[nc++] = -1. / (hx * hx);
+          // y direction
+          column[nc].i = i;
+          column[nc].j = j - 1;
+          column[nc].k = k;
+          column[nc].c = l;
+          value[nc++] = -1. / (hy * hy);
+          column[nc].i = i;
+          column[nc].j = j + 1;
+          column[nc].k = k;
+          column[nc].c = l;
+          value[nc++] = -1. / (hy * hy);
+          // z direction
+          column[nc].i = i;
+          column[nc].j = j;
+          column[nc].k = k - 1;
+          column[nc].c = l;
+          value[nc++] = -1. / (hz * hz);
+          column[nc].i = i;
+          column[nc].j = j;
+          column[nc].k = k + 1;
+          column[nc].c = l;
+          value[nc++] = -1. / (hz * hz);
+
+          // The central element need a loop over the flavour index of the
+          // column (is a full matrix in the flavour index )
+          column[nc].i = i;
+          column[nc].j = j;
+          column[nc].k = k;
+          column[nc].c = l;
+          value[nc++] = 2.0 / (hx * hx) + 2.0 / (hy * hy) + 2.0 / (hz * hz);
+
+          // here we set the matrix
+          MatSetValuesStencil(J, 1, &row, nc, column, value, INSERT_VALUES);
+        }
+      }
+    }
+  }
+  MatAssemblyBegin(J, MAT_FINAL_ASSEMBLY);
+  MatAssemblyEnd(J, MAT_FINAL_ASSEMBLY);
   return (0);
 }

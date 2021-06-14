@@ -225,8 +225,9 @@ public:
 
   //! Initialize the vector solution. If coldStart is false
   //! then read in the data from Derek's file. Otherwise fill with
-  //! random numbers, or if zeroStart is true set to zero
-  PetscErrorCode initialize() {
+  //! random numbers, or if zeroStart is true set to zero. Finally
+  //! if a function is provided, f(x,y,z,l,params), this function will be used
+  PetscErrorCode initialize(double (*func)(const double &x, const double &y, const double &z, const int &l, void *params)=0, void *params=0) {
 
     // Read in from a file
     if (!data.coldStart) {
@@ -260,7 +261,11 @@ public:
             if (data.zeroStart) {
               u[k][j][i].f[l] = 0.0;
             } else {
-              u[k][j][i].f[l] = ModelARndm->normal();
+              if (func) {
+                u[k][j][i].f[l] = func(x,y,z,l,params);
+              } else {
+                u[k][j][i].f[l] = ModelARndm->normal();
+              }
             }
           }
         }

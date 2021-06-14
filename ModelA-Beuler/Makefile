@@ -51,11 +51,10 @@ LDLIBS := $(shell pkg-config --libs-only-l $(PACKAGES)) -lm
 # C++ source).  This can be built by uncommenting the following two lines.
 
 
-HEADRS = ModelA.h Stepper.h NoiseGenerator.h
-OBJS = ModelA-Beuler.o Stepper.o NoiseGenerator.o
+HEADRS = ModelA.h Stepper.h NoiseGenerator.h measurer.h plotter.h
+OBJS = Stepper.o NoiseGenerator.o
 
-
-ModelA-Beuler.exe: $(OBJS)
+ModelA-Beuler.exe: ModelA-Beuler.o $(OBJS)
 	$(LINK.cc) -o $@ $^ $(LDLIBS) -lstdc++
 
 ModelA-Beuler.o: ModelA-Beuler.cxx $(HEADRS)
@@ -67,7 +66,11 @@ Stepper.o: Stepper.cxx $(HEADRS)
 NoiseGenerator.o: NoiseGenerator.cxx NoiseGenerator.h
 	$(COMPILE.cc) $(OUTPUT_OPTION) $<
 
+smoothtest.exe: smoothtest.o $(OBJS)
+	$(LINK.cc) -o $@ $^ $(LDLIBS) -lstdc++
 
+noisetest.exe: noisetest.o $(OBJS)
+	$(LINK.cc) -o $@ $^ $(LDLIBS) -lstdc++
 	
 # If the file c.cxx needs to link with a C++ standard library -lstdc++ , then
 # you'll need to add it explicitly.  It can go in the rule above or be added to
