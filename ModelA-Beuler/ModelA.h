@@ -9,6 +9,7 @@
 #include <petscsys.h>
 #include <petscts.h>
 #include <petscviewerhdf5.h>
+#include "make_unique.h"
 
 struct ModelAData {
   // Lattice dimension
@@ -198,7 +199,7 @@ public:
     VecDuplicate(solution, &phidot);
 
     // Setup the random number generation
-    ModelARndm = std::make_unique<NoiseGenerator>(data.seed);
+    ModelARndm = make_unique<NoiseGenerator>(data.seed);
   }
 
   void finalize() {

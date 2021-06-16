@@ -29,7 +29,7 @@ FFLAGS := $(shell pkg-config --variable=fflags_extra $(PACKAGES))
 CPPFLAGS := $(shell pkg-config --cflags-only-I $(PACKAGES))
 LDFLAGS := $(shell pkg-config --libs-only-L --libs-only-other $(PACKAGES))
 LDFLAGS += $(patsubst -L%, $(shell pkg-config --variable=ldflag_rpath $(PACKAGES))%, $(shell pkg-config --libs-only-L $(PACKAGES)))
-LDLIBS := $(shell pkg-config --libs-only-l $(PACKAGES)) -lm
+LDLIBS := $(shell pkg-config --libs-only-l $(PACKAGES)) -lm -lstdc+++
 
 
 # Many suffixes are covered by implicit rules, but you may need to write custom rules

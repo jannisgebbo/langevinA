@@ -103,7 +103,7 @@ namespace FCN {
           return tmp;
         }
 
-        const auto& getParams() const
+        const std::unordered_map<std::string, std::string> &getParams() const
         {
           return params;
         }

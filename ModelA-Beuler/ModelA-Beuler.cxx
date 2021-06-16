@@ -8,6 +8,7 @@
 #include <iostream>
 #include <vector>
 
+#include "make_unique.h"
 #include "Stepper.h"
 #include "NoiseGenerator.h"
 #include "ModelA.h"
@@ -54,13 +55,13 @@ int main(int argc, char **argv) {
 
   switch (model.data.evolverType) {
   case 1:
-    step = std::make_unique<BackwardEuler>(model) ;
+    step = make_unique<BackwardEuler>(model) ;
     break;
   case 2:
-    step = std::make_unique<ForwardEuler>(model) ;
+    step = make_unique<ForwardEuler>(model) ;
     break;
   case 3:
-    step = std::make_unique<SemiImplicitBEuler>(model) ;
+    step = make_unique<SemiImplicitBEuler>(model) ;
     break;
   }
 
