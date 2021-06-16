@@ -1,121 +1,119 @@
 #include "Stepper.h"
 #include "ModelA.h"
+#include <cstdio>
 
-//! Helper function for the forward euler step
-o4_node localtimederivative(o4_node *phi, o4_node *phixminus, o4_node *phixplus,
-                            o4_node *phiyminus, o4_node *phiyplus,
-                            o4_node *phizminus, o4_node *phizplus, void *ptr) {
-
-  ModelA *model = (ModelA *)ptr;
-  const ModelAData &data = model->data;
-  PetscReal hx = data.hX();
-  PetscReal hy = data.hY();
-  PetscReal hz = data.hZ();
-  o4_node phidot;
-
-  // l is an index for our vector. l=0,1,2,3 is phi,l=4,5,6 is V and l=7,8,9 is
-  // A std::cout << "bad Job: " ; computing phi squared
-  PetscScalar phisquare = 0.;
-  for (PetscInt l = 0; l < ModelAData::Ndof; l++) {
-    phisquare = phisquare + phi->f[l] * phi->f[l];
-  }
-
-  for (PetscInt l = 0; l < ModelAData::Ndof; l++) {
-    PetscScalar ucentral = phi->f[l];
-    PetscScalar uxx =
-        (-2.0 * ucentral + phixminus->f[l] + phixplus->f[l]) / (hx * hx);
-    PetscScalar uyy =
-        (-2.0 * ucentral + phiyminus->f[l] + phiyplus->f[l]) / (hy * hy);
-    PetscScalar uzz =
-        (-2.0 * ucentral + phizminus->f[l] + phizplus->f[l]) / (hz * hz);
-
-    phidot.f[l] =
-        data.gamma * (uxx + uyy + uzz) -
-        data.gamma * (data.mass + data.lambda * phisquare) * ucentral +
-        (l == 0 ? data.gamma * data.H : 0.);
-  }
-
-  return (phidot);
-};
+ForwardEuler::ForwardEuler(ModelA &in, bool wnoise)
+    : model(&in), withNoise(wnoise) {
+  VecDuplicate(model->solution, &noise);
+}
+void ForwardEuler::finalize() { VecDestroy(&noise); }
 
 bool ForwardEuler::step(const double &dt) {
 
+  PetscLogEvent random, matrix, loop, create;
+  PetscLogEventRegister("FillRandomVec", 0, &random);
+  PetscLogEventRegister("PotentialEval", 0, &loop);
+  PetscLogEventRegister("CreationAndMPI", 0, &create);
+
+  /////////////////////////////////////////////////////////////////////////
+  PetscLogEventBegin(random, 0, 0, 0, 0);
   if (withNoise) {
     ModelARndm->fillVec(noise);
   } else {
     VecZeroEntries(noise);
   }
+  PetscLogEventEnd(random, 0, 0, 0, 0);
+  /////////////////////////////////////////////////////////////////////////
 
-  const ModelAData &data = model->data;
-  PetscInt i, j, k, l, xstart, ystart, zstart, xdimension, ydimension,
-      zdimension;
+  /////////////////////////////////////////////////////////////////////////
+  PetscLogEventBegin(create, 0, 0, 0, 0);
   DM da = model->domain;
-
-  // define and allocate a local vector
+  // Get a local vector with ghost cells
   Vec localU;
   DMGetLocalVector(da, &localU);
 
-  // take the global vector solution and distribute to the local vector localU
-  DMGlobalToLocalBegin(da, model->solution, INSERT_VALUES, localU);
-  DMGlobalToLocalEnd(da, model->solution, INSERT_VALUES, localU);
+  // Fill in the ghost celss with mpicalls
+  DMGlobalToLocalBegin(da, model->previoussolution, INSERT_VALUES, localU);
+  DMGlobalToLocalEnd(da, model->previoussolution, INSERT_VALUES, localU);
 
-  // From the vector define the pointer for the field u and the rhs f
   o4_node ***phi;
-  DMDAVecGetArray(da, localU, &phi);
-
-  o4_node ***phinew;
-  DMDAVecGetArray(da, model->solution, &phinew);
+  DMDAVecGetArrayRead(da, localU, &phi);
 
   o4_node ***gaussiannoise;
   DMDAVecGetArrayRead(da, noise, &gaussiannoise);
 
+  o4_node ***phinew;
+  DMDAVecGetArray(da, model->solution, &phinew);
+
   o4_node ***phidot;
   DMDAVecGetArray(da, model->phidot, &phidot);
+  PetscLogEventEnd(create, 0, 0, 0, 0);
+
+  /////////////////////////////////////////////////////////////////////////
+
+  PetscLogEventBegin(loop, 0, 0, 0, 0);
 
   // Get The local coordinates
+  const ModelAData &data = model->data;
+  PetscInt i, j, k, l, xstart, ystart, zstart, xdimension, ydimension,
+      zdimension;
   DMDAGetCorners(da, &xstart, &ystart, &zstart, &xdimension, &ydimension,
                  &zdimension);
 
-  // This actually compute the right hand side
-  // PetscScalar uxx,uyy,uzz,ucentral,phisquare;
+  // Parameters for loop
+  const PetscReal dtg = data.gamma * dt;
+  const PetscReal xdtg = sqrt(2. / dtg);
+  const PetscReal &m2 = data.mass;
+  const PetscReal &lambda = data.lambda;
+  const PetscReal H[4] = {data.H, 0., 0., 0.};
+  const PetscReal axx = pow(1. / data.hX(), 2);
+  const PetscReal ayy = pow(1. / data.hY(), 2);
+  const PetscReal azz = pow(1. / data.hZ(), 2);
+
+  // Loop over central elements
   for (k = zstart; k < zstart + zdimension; k++) {
     for (j = ystart; j < ystart + ydimension; j++) {
       for (i = xstart; i < xstart + xdimension; i++) {
-
-        o4_node derivative = localtimederivative(
-            &phi[k][j][i], &phi[k][j][i - 1], &phi[k][j][i + 1],
-            &phi[k][j - 1][i], &phi[k][j + 1][i], &phi[k - 1][j][i],
-            &phi[k + 1][j][i], model);
+        const PetscReal(&f)[4] = phi[k][j][i].f;
+        const PetscReal(&xi)[4] = gaussiannoise[k][j][i].f;
+        const PetscReal &phi2 =
+            f[0] * f[0] + f[1] * f[1] + f[2] * f[2] + f[3] * f[3];
 
         for (l = 0; l < ModelAData::Ndof; l++) {
-          phidot[k][j][i].f[l] =
-              derivative.f[l] +
-              PetscSqrtReal(2. * data.gamma / dt) * gaussiannoise[k][j][i].f[l];
+          const PetscReal uxx =
+              phi[k][j][i + 1].f[l] + phi[k][j][i - 1].f[l] - 2. * f[l];
+          const PetscReal uyy =
+              phi[k][j + 1][i].f[l] + phi[k][j - 1][i].f[l] - 2. * f[l];
+          const PetscReal uzz =
+              phi[k + 1][j][i].f[l] + phi[k - 1][j][i].f[l] - 2. * f[l];
+          const PetscReal lap = axx * uxx + ayy * uyy + azz * uzz;
 
-          // here you want to put the formula for the euler step F(phi)=0
-          phinew[k][j][i].f[l] += dt * phidot[k][j][i].f[l];
+          phidot[k][j][i].f[l] =
+              lap - (m2 * f[l] + lambda * phi2 * f[l]) + H[l] + xdtg * xi[l];
+
+          phinew[k][j][i].f[l] = f[l] + dtg * phidot[k][j][i].f[l];
         }
       }
     }
   }
-  // We need to restore the vector in U and F
-  DMDAVecRestoreArray(da, localU, &phi);
-  DMDAVecRestoreArray(da, model->solution, &phinew);
+  PetscLogEventEnd(loop, 0, 0, 0, 0);
 
-  // Destroy the local vector
-  DMRestoreLocalVector(da, &localU);
-
-  DMDAVecRestoreArrayRead(da, noise, &gaussiannoise);
-  // DMDAVecRestoreArrayRead(da,model->previoussolution,&oldphi);
+  /////////////////////////////////////////////////////////////////////////
 
   DMDAVecRestoreArray(da, model->phidot, &phidot);
+  DMDAVecRestoreArray(da, model->solution, &phinew);
+
+  DMDAVecRestoreArrayRead(da, noise, &gaussiannoise);
+  DMDAVecRestoreArrayRead(da, localU, &phi);
+  DMRestoreLocalVector(da, &localU);
 
   return true;
 }
 
 /////////////////////////////////////////////////////////////////////////
 
-BackwardEuler::BackwardEuler(ModelA &in, bool wnoise) : model(&in), withNoise(wnoise) {
+BackwardEuler::BackwardEuler(ModelA &in, bool wnoise)
+    : model(&in), withNoise(wnoise) {
 
   VecDuplicate(model->solution, &auxsolution);
   VecDuplicate(model->solution, &noise);
@@ -156,9 +154,8 @@ PetscErrorCode BackwardEuler::FormFunction(SNES snes, Vec U, Vec F, void *ptr) {
       zdimension;
   DM da = model->domain;
 
-  // define a local vector
+  // define a local vector with boundary cells
   Vec localU;
-
   DMGetLocalVector(da, &localU);
 
   // Get the Global dimension of the Grid
@@ -368,7 +365,8 @@ PetscErrorCode BackwardEuler::FormJacobianGeneric(SNES snes, Vec U, Mat J,
 
 /////////////////////////////////////////////////////////////////////////
 
-SemiImplicitBEuler::SemiImplicitBEuler(ModelA &in, bool wnoise) : model(&in), withNoise(wnoise) {
+SemiImplicitBEuler::SemiImplicitBEuler(ModelA &in, bool wnoise)
+    : model(&in), withNoise(wnoise) {
   VecDuplicate(model->solution, &rhs);
   VecDuplicate(model->solution, &noise);
   DMCreateMatrix(model->domain, &J);
@@ -418,7 +416,7 @@ bool SemiImplicitBEuler::step(const double &dt) {
   double dtg = dt * data.gamma;
   double m2 = data.mass;
   double lambda = data.lambda;
-  double H[ModelAData::Ndof] = {data.H, 0, 0, 0} ;
+  double H[ModelAData::Ndof] = {data.H, 0, 0, 0};
 
   for (k = zstart; k < zstart + zdimension; k++) {
     for (j = ystart; j < ystart + ydimension; j++) {
@@ -434,8 +432,8 @@ bool SemiImplicitBEuler::step(const double &dt) {
         }
 
         for (l = 0; l < ModelAData::Ndof; l++) {
-          b.f[l] = phi.f[l] / dtg - (m2 * phi.f[l] + lambda * phi2 * phi.f[l]) 
-             + H[l] + xi.f[l] * sqrt(2. / dtg);
+          b.f[l] = phi.f[l] / dtg - (m2 * phi.f[l] + lambda * phi2 * phi.f[l]) +
+                   H[l] + xi.f[l] * sqrt(2. / dtg);
         }
       }
     }

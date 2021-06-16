@@ -12,11 +12,9 @@ public:
 
 class ForwardEuler : public Stepper {
 public:
-  ForwardEuler(ModelA &in, bool wnoise=true) : model(&in), withNoise(wnoise) {
-    VecDuplicate(model->solution, &noise);
-  }
+  ForwardEuler(ModelA &in, bool wnoise = true);
   bool step(const double &dt);
-  void finalize() { VecDestroy(&noise); }
+  void finalize();
   ~ForwardEuler() { ; }
 
 private:
@@ -29,7 +27,7 @@ private:
 
 class BackwardEuler : public Stepper {
 public:
-  BackwardEuler(ModelA &in, bool wnoise=true);
+  BackwardEuler(ModelA &in, bool wnoise = true);
   bool step(const double &dt);
   void finalize();
   ~BackwardEuler() { ; }
@@ -84,7 +82,7 @@ private:
 // On a technical note the matrix A can be created using MatConvert.
 class SemiImplicitBEuler : public Stepper {
 public:
-  SemiImplicitBEuler(ModelA &in, bool wnoise=true);
+  SemiImplicitBEuler(ModelA &in, bool wnoise = true);
   bool step(const double &dt);
   void finalize();
   ~SemiImplicitBEuler() { ; }

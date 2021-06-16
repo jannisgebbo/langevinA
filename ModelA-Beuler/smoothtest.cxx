@@ -69,9 +69,8 @@ int main(int argc, char **argv) {
   // Thsi is the loop for the time step
   for (PetscReal time = model.data.initialtime; time < model.data.finaltime;
        time += model.data.deltat) {
-    // Copy the solution
     VecCopy(model.solution, model.previoussolution);
-    step->step(model.data.deltat) ;
+    step->step(model.data.deltat);
     steps++;
   }
 

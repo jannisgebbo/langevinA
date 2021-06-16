@@ -1,7 +1,7 @@
 import random
 import h5py
 import numpy as np
-
+from numpy import linalg as LA
 
 class ConfResults:
     def __init__(self,fn, thTime , decim):
@@ -13,16 +13,17 @@ class ConfResults:
         r = h5py.File(self.fn,'r')
         self.phi = np.asarray(r["phi"])[self.thTime:]
         self.phidot = np.asarray(r["phidot"])[self.thTime:]
-        self.phiNorm = self.phi[:,-1]
-        self.phidotNorm = self.phidot[:,-1]
+        self.phiNorm = self.phi[:,4]
+        self.phidotNorm = self.phidot[:,4]
     
     def computeMag(self, direc = 0):
         self.readAv()
-        self.mag, self.magErr = bootstrap(self.phi[:,direc],100) 
+        self.mag, self.magErr = bootstrap(self.phi[:,direc],100)
+
     def computePhiDot(self, direc = 0):
         self.readAv()
-        self.avPhiDot, self.errPhiDot = bootstrap(self.phidot[:,direc],100) 
-        
+        self.avPhiDot, self.errPhiDot = bootstrap(self.phidot[:,direc],100)
+
     def wallXFourierNorm(self):
         r = h5py.File(self.fn,'r')
         #self.wallXphi = np.asarray([np.asarray(r["wallX_phi_0"])[thTime:],np.asarray(r["wallX_phi_1"])[thTime:],np.asarray(r["wallX_phi_2"])[thTime:],np.asarray(r["wallX_phi_3"])[thTime:]])

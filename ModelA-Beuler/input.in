@@ -5,7 +5,7 @@ H = 0.01
 NX = 32
 
 #Times and timestep
-finaltime =16
+finaltime =2
 initialtime = 0
 deltat    = 0.01
 saveFrequencyInTime = 0.1
@@ -22,4 +22,4 @@ seed = 122335456
 outputfiletag = testrun 
 
 #Beuler=1 Feuler=2 SemiImplicit=3
-evolverType=3
+evolverType=2
