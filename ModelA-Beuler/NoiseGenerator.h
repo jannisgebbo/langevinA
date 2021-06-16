@@ -9,6 +9,7 @@
 
 #ifdef NOISEGENERATOR_STDCPP
 #include <random>
+#include "xoroshiro128plus.h"
 #endif
 #ifdef NOISEGENERATOR_GSL
 #include <gsl/gsl_randist.h>
@@ -26,8 +27,9 @@ public:
     gsl_rng_set(rng, baseSeed + rank);
 #endif
 #ifdef NOISEGENERATOR_STDCPP
-    std::seed_seq seq{baseSeed, rank};
-    rng.seed(seq);
+    //std::seed_seq seq{baseSeed, rank};
+    //rng.seed(seq);
+    rng.seed(baseSeed+rank);
 #endif
   }
 
@@ -71,6 +73,7 @@ private:
   // std
   // typedef std::ranlux48 RNGType;
   typedef std::mt19937_64 RNGType;
+  //typedef xoroshiro128plus RNGType;
   RNGType rng;
   std::normal_distribution<PetscReal> normalDistribution;
 #endif
