@@ -29,8 +29,9 @@ FFLAGS := $(shell pkg-config --variable=fflags_extra $(PACKAGES))
 CPPFLAGS := $(shell pkg-config --cflags-only-I $(PACKAGES))
 LDFLAGS := $(shell pkg-config --libs-only-L --libs-only-other $(PACKAGES))
 LDFLAGS += $(patsubst -L%, $(shell pkg-config --variable=ldflag_rpath $(PACKAGES))%, $(shell pkg-config --libs-only-L $(PACKAGES)))
-LDLIBS := $(shell pkg-config --libs-only-l $(PACKAGES)) -lm -lstdc+++
+LDLIBS := $(shell pkg-config --libs-only-l $(PACKAGES)) -lm 
 
+#CXXFLAGS += -DMODELA_NO_HDF5 -DMODELA_NO_MAKE_UNIQUE
 
 # Many suffixes are covered by implicit rules, but you may need to write custom rules
 # such as these if you use suffixes that do not have implicit rules.
@@ -52,7 +53,7 @@ LDLIBS := $(shell pkg-config --libs-only-l $(PACKAGES)) -lm -lstdc+++
 
 
 HEADRS = ModelA.h Stepper.h NoiseGenerator.h measurer.h plotter.h
-OBJS = Stepper.o NoiseGenerator.o
+OBJS = measurer.o Stepper.o NoiseGenerator.o
 
 ModelA-Beuler.exe: ModelA-Beuler.o $(OBJS)
 	$(LINK.cc) -o $@ $^ $(LDLIBS) -lstdc++
@@ -61,6 +62,9 @@ ModelA-Beuler.o: ModelA-Beuler.cxx $(HEADRS)
 	$(COMPILE.cc) $(OUTPUT_OPTION) $<
 
 Stepper.o: Stepper.cxx $(HEADRS)
+	$(COMPILE.cc) $(OUTPUT_OPTION) $<
+
+measurer.o: measurer.cxx $(HEADRS)
 	$(COMPILE.cc) $(OUTPUT_OPTION) $<
 
 NoiseGenerator.o: NoiseGenerator.cxx NoiseGenerator.h

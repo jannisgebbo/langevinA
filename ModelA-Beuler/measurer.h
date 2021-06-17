@@ -2,6 +2,54 @@
 #define MEASURER
 
 #include "ModelA.h"
+#include "make_unique.h"
+
+class Measurer;
+
+// Interface for output of measurements
+class measurer_output {
+public:
+  virtual ~measurer_output() { ; }
+  virtual void update() = 0;
+  virtual void save(const std::string &what) = 0;
+};
+
+#ifndef MODELA_NO_HDF5
+class measurer_output_hdf5 : public measurer_output {
+public:
+  measurer_output_hdf5(Measurer *in);
+  ~measurer_output_hdf5();
+  virtual void update();
+  virtual void save(const std::string &what);
+
+private:
+  Measurer *measure;
+  PetscViewer viewer;
+  bool verbosity;
+
+  // These temporary local petsc vectors are to simplify the using petsc
+  // routines for writing to HDF5. See the routines saveCorLike and
+  // saveScalarsLike
+  Vec vecSaverCors;
+  Vec vecSaverScalars;
+
+  void saveScalarsLike(std::vector<PetscScalar> &arr, const std::string &name);
+  void saveCorLike(std::vector<PetscScalar> &arr, const std::string &name);
+};
+#endif
+
+// Minimal output of scalar array
+class measurer_output_txt : public measurer_output {
+public:
+  measurer_output_txt(Measurer *in);
+  ~measurer_output_txt();
+  virtual void update() { ; }
+  virtual void save(const std::string &what);
+
+private:
+  Measurer *measure;
+  PetscViewer averages_asciiviewer;
+};
 
 class Measurer {
 public:
@@ -16,41 +64,26 @@ public:
           "Nx, Ny, and Nz must be equal for the correlation analysis to work");
     }
 
-    // Create temporary petsc arrays for holding scalars
-    VecCreateSeq(PETSC_COMM_SELF, NScalars, &vecSaverScalars);
-    VecCreateSeq(PETSC_COMM_SELF, N, &vecSaverCors);
-
-    // Set the parameters controlling the output
-    verbosity = model->data.verboseMeasurements;
-    outputfileName = model->data.outputfiletag + ".h5";
-
-    // //These would be used for plotting. But this is not being used.
-    //
-    // currentTime = model->data.initialtime;
-    // dt = model->data.deltat;
-
     // Create the viewer
     int rank = 0;
     MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
     if (rank == 0) {
-      std::string name(model->data.outputfiletag + ".h5");
-      PetscViewerHDF5Open(PETSC_COMM_SELF, name.c_str(), FILE_MODE_WRITE,
-                          &viewer);
-
-      PetscViewerSetFromOptions(viewer);
-      PetscViewerHDF5SetTimestep(viewer, model->data.initialtime);
+#ifndef MODELA_NO_HDF5
+      measurer_out = make_unique<measurer_output_hdf5>(this);
+#else
+      measurer_out = make_unique<measurer_output_txt>(this);
+#endif
     }
   }
 
   virtual ~Measurer() {}
 
   void finalize() {
-    VecDestroy(&vecSaverCors);
-    VecDestroy(&vecSaverScalars);
     int rank = 0;
     MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
-    if (rank == 0)
-      PetscViewerDestroy(&viewer);
+    if (rank == 0) {
+      measurer_out.reset();
+    }
   }
 
   void measure(Vec *solution, Vec *momenta) {
@@ -61,44 +94,15 @@ public:
     computeSliceAverage(solution);
     if (rank == 0) {
       computeDerivedObs();
-      save("phi");
+      measurer_out->save("phi");
     }
     computeSliceAverage(momenta);
     if (rank == 0) {
       computeDerivedObs();
-      save("phidot");
-      PetscViewerHDF5IncrementTimestep(viewer);
+      measurer_out->save("phidot");
+      measurer_out->update();
     }
   }
-
-  /* // Used at one point for plotting the solution
-  void openHDF5(std::string name, PetscReal time, int rank)
-  {
-    if(rank == 0) {
-      PetscViewerHDF5Open(PETSC_COMM_SELF, name.c_str(), FILE_MODE_APPEND,
-  &viewer); PetscViewerSetFromOptions(viewer);
-      PetscViewerHDF5SetTimestep(viewer, time);
-    }
-  }
-
-  void closeHDF5(int rank){
-    if(rank == 0) PetscViewerDestroy(&viewer);
-  }
-
-
-  void savesolution(Vec *solution) {
-    int rank = 0;
-    MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
-
-    //openHDF5(outputfileName, currentTime, rank);;
-
-    if(rank == 0){
-        PetscObjectSetName((PetscObject) solution, "solution")
-        VecView(solution,viewer)
-        PetscViewerHDF5IncrementTimestep(viewer);
-      //currentTime++;//=dt;
-    }
-  } */
 
 private:
   void computeSliceAverage(Vec *solution) {
@@ -212,58 +216,6 @@ private:
     OAverage.at(NObs + 1) = M2 * M2;
   }
 
-  void save(std::string fld) {
-    std::string tmp;
-    for (PetscInt i = 0; i < NObs; ++i) {
-      tmp = fld + "_" + std::to_string(i);
-      saveCorLike(sliceAveragesX[i], "wallX_" + tmp);
-      if (verbosity)
-        saveCorLike(sliceAveragesY[i], "wallY_" + tmp);
-      if (verbosity)
-        saveCorLike(sliceAveragesZ[i], "wallZ_" + tmp);
-      if (verbosity)
-        saveCorLike(isotropicWallToWallCii[i], "Cii_" + tmp);
-    }
-    saveScalarsLike(OAverage, fld);
-  }
-
-  // Save instance of a correlator like object into a hdf5 file
-  void saveCorLike(std::vector<PetscScalar> &arr, std::string name) {
-
-    // For indexing the Petsc objects where these will be saved
-    std::vector<PetscInt> vecCorsIndex;
-    for (PetscInt i = 0; i < N; ++i) {
-      vecCorsIndex.emplace_back(i);
-    }
-
-    PetscObjectSetName((PetscObject)vecSaverCors, name.c_str());
-    VecSetValues(vecSaverCors, N, vecCorsIndex.data(), arr.data(),
-                 INSERT_VALUES);
-
-    VecAssemblyBegin(vecSaverCors);
-    VecAssemblyEnd(vecSaverCors);
-    VecView(vecSaverCors, viewer);
-  }
-
-  // Save instance of scalars like object into a hdf5 file
-  void saveScalarsLike(std::vector<PetscScalar> &arr, std::string name) {
-
-    // for indixing the petsc vectors where these will be saved
-    std::vector<PetscInt> vecScalarsIndex;
-    for (PetscInt i = 0; i < NScalars; ++i) {
-      vecScalarsIndex.emplace_back(i);
-    }
-
-    PetscObjectSetName((PetscObject)vecSaverScalars, name.c_str());
-
-    VecSetValues(vecSaverScalars, NScalars, vecScalarsIndex.data(), arr.data(),
-                 INSERT_VALUES);
-
-    VecAssemblyBegin(vecSaverScalars);
-    VecAssemblyEnd(vecSaverScalars);
-    VecView(vecSaverScalars, viewer);
-  }
-
   ModelA *model;
   PetscInt N;
 
@@ -290,21 +242,9 @@ private:
   static const PetscInt NScalars = NObs + 2;
   std::vector<PetscScalar> OAverage;
 
-  // Controling the output
-  PetscViewer viewer;
-  bool verbosity;
-  std::string outputfileName;
-
-  // These variables are for plotting but aren't being used.
-  //
-  // PetscReal dt;
-  // PetscInt currentTime;
-
-  // These temporary local petsc vectors are to simplify the using petsc
-  // routines for writing to HDF5. See the routines saveCorLike and
-  // saveScalarsLike
-  Vec vecSaverCors;
-  Vec vecSaverScalars;
+  friend class measurer_output_hdf5;
+  friend class measurer_output_txt;
+  std::unique_ptr<measurer_output> measurer_out;
 };
 
 #endif

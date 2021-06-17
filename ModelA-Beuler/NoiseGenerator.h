@@ -30,6 +30,7 @@ public:
     //std::seed_seq seq{baseSeed, rank};
     //rng.seed(seq);
     rng.seed(baseSeed+rank);
+//    intDistribution = std::uniform_int_distribution<PetscInt>(0,1) ;
 #endif
   }
 
@@ -62,6 +63,7 @@ public:
 #endif
 #ifdef NOISEGENERATOR_STDCPP
     return normalDistribution(rng);
+    //return 2.0*intDistribution(rng)-1.0;
 #endif
   }
 
@@ -76,6 +78,7 @@ private:
   //typedef xoroshiro128plus RNGType;
   RNGType rng;
   std::normal_distribution<PetscReal> normalDistribution;
+//  std::uniform_int_distribution<PetscInt> intDistribution;
 #endif
 };
 

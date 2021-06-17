@@ -8,7 +8,9 @@
 #include <petscdmda.h>
 #include <petscsys.h>
 #include <petscts.h>
+#ifndef MODELA_NO_HDF5
 #include <petscviewerhdf5.h>
+#endif
 #include "make_unique.h"
 
 struct ModelAData {
@@ -212,6 +214,7 @@ public:
   //! Reads in a stored initial condition from Derek's file.
   //! This is a helper function for initialize
   PetscErrorCode loadFromDereksFile() {
+#ifndef MODELA_NO_HDF5
     PetscViewer initViewer;
     PetscViewerHDF5Open(PETSC_COMM_WORLD, data.initFile.c_str(), FILE_MODE_READ,
                         &initViewer);
@@ -222,6 +225,10 @@ public:
     PetscObjectSetName((PetscObject)solution, "o4fields");
     PetscViewerDestroy(&initViewer);
     return ierr;
+#else
+    PetscPrintf(PETSC_COMM_WORLD,"loadFromDereksFile: Unable to load from file without HDF5 support\n") ;
+    return 0;
+#endif
   }
 
   //! Initialize the vector solution. If coldStart is false
