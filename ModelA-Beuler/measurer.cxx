@@ -87,7 +87,7 @@ void measurer_output_hdf5::saveCorLike(std::vector<PetscScalar> &arr,
 PetscErrorCode PetscViewerASCIIOpenMode(MPI_Comm comm, const char *name,
                                         PetscFileMode mode,
                                         PetscViewer *viewer) {
-  PetscViewerCreate(PETSC_COMM_WORLD, viewer);
+  PetscViewerCreate(PETSC_COMM_SELF, viewer);
   PetscViewerSetType(*viewer, PETSCVIEWERASCII);
   PetscViewerFileSetMode(*viewer, mode);
   PetscViewerFileSetName(*viewer, name);
@@ -98,7 +98,7 @@ measurer_output_txt::measurer_output_txt(Measurer *in) : measure(in) {
 
   std::string name(measure->model->data.outputfiletag + "_averages.txt");
   PetscInt ierr = PetscViewerASCIIOpenMode(
-      PETSC_COMM_WORLD, name.c_str(), FILE_MODE_WRITE, &averages_asciiviewer);
+      PETSC_COMM_SELF, name.c_str(), FILE_MODE_WRITE, &averages_asciiviewer);
   CHKERRV(ierr);
 }
 
