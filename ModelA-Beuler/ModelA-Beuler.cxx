@@ -1,4 +1,3 @@
-#include <memory>
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
@@ -6,12 +5,13 @@
 #include <gsl/gsl_randist.h>
 #include <gsl/gsl_rng.h>
 #include <iostream>
+#include <memory>
 #include <vector>
 
-#include "make_unique.h"
-#include "Stepper.h"
-#include "NoiseGenerator.h"
 #include "ModelA.h"
+#include "NoiseGenerator.h"
+#include "Stepper.h"
+#include "make_unique.h"
 
 // Homemade parser
 #include "parameterparser/parameterparser.h"
@@ -41,62 +41,60 @@ int main(int argc, char **argv) {
   if (quit) {
     return PetscFinalize();
   }
-  
+
   // allocate the grid and initialize
   ModelA model(inputdata);
-  model.initialize() ;
+  model.initialize();
 
   // initialize the measurments and measure the initial condition
   Measurer measurer(&model);
   measurer.measure(&model.solution, &model.phidot);
 
   // Initialize the stepper
-  std::unique_ptr<Stepper> step ; 
+  std::unique_ptr<Stepper> step;
 
   switch (model.data.evolverType) {
   case 1:
-    step = make_unique<BackwardEuler>(model) ;
+    step = make_unique<BackwardEuler>(model);
     break;
   case 2:
-    step = make_unique<ForwardEuler>(model) ;
+    step = make_unique<ForwardEuler>(model);
     break;
   case 3:
-    step = make_unique<SemiImplicitBEuler>(model) ;
+    step = make_unique<SemiImplicitBEuler>(model);
+    break;
+  case 4:
+    step = make_unique<EulerLangevinHB>(model);
     break;
   }
 
   PetscInt steps = 1;
   PetscLogEvent measurements;
-  PetscLogEventRegister("Measurements", 0,  &measurements) ;
+  PetscLogEventRegister("Measurements", 0, &measurements);
   // Thsi is the loop for the time step
   for (PetscReal time = model.data.initialtime; time < model.data.finaltime;
        time += model.data.deltat) {
-    // Copy the solution 
+    // Copy the solution
     VecCopy(model.solution, model.previoussolution);
 
-    step->step(model.data.deltat) ;
+    step->step(model.data.deltat);
 
     // measure the solution
-    PetscLogEventBegin(measurements, 0, 0, 0, 0) ;
+    PetscLogEventBegin(measurements, 0, 0, 0, 0);
     if (steps % model.data.saveFrequency == 0) {
       measurer.measure(&model.solution, &model.phidot);
       // Print some information to not get bored during the running:
       PetscPrintf(PETSC_COMM_WORLD, "Timestep %D: step size = %g, time = %g\n",
-                steps, (double)model.data.deltat, (double)time);
+                  steps, (double)model.data.deltat, (double)time);
     }
-    PetscLogEventEnd(measurements, 0, 0, 0, 0) ;
+    PetscLogEventEnd(measurements, 0, 0, 0, 0);
 
     steps++;
   }
 
   // Destroy everything
-  step->finalize() ;
+  step->finalize();
   measurer.finalize();
-  model.finalize() ;
+  model.finalize();
   return PetscFinalize();
 }
-
-
-
-
-

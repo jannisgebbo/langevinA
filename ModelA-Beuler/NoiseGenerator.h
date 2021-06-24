@@ -30,7 +30,6 @@ public:
     //std::seed_seq seq{baseSeed, rank};
     //rng.seed(seq);
     rng.seed(baseSeed+rank);
-//    intDistribution = std::uniform_int_distribution<PetscInt>(0,1) ;
 #endif
   }
 
@@ -57,13 +56,20 @@ public:
   }
 
   PetscReal normal() {
-
 #ifdef NOISEGENERATOR_GSL
     return gsl_ran_gaussian(rng, 1.);
 #endif
 #ifdef NOISEGENERATOR_STDCPP
     return normalDistribution(rng);
-    //return 2.0*intDistribution(rng)-1.0;
+#endif
+  }
+
+  PetscReal uniform() {
+#ifdef NOISEGENERATOR_GSL
+    return gsl_rng_uniform(rng);
+#endif
+#ifdef NOISEGENERATOR_STDCPP
+    return uniformDistribution(rng);
 #endif
   }
 
@@ -72,13 +78,12 @@ private:
   gsl_rng *rng;
 #endif
 #ifdef NOISEGENERATOR_STDCPP
-  // std
-  // typedef std::ranlux48 RNGType;
-  typedef std::mt19937_64 RNGType;
+  //typedef std::ranlux48 RNGType;
   //typedef xoroshiro128plus RNGType;
+  typedef std::mt19937_64 RNGType;
   RNGType rng;
   std::normal_distribution<PetscReal> normalDistribution;
-//  std::uniform_int_distribution<PetscInt> intDistribution;
+  std::uniform_real_distribution<PetscReal> uniformDistribution;
 #endif
 };
 

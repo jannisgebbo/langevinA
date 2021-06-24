@@ -101,4 +101,85 @@ private:
   KSP ksp;
 };
 
+//! Helper class to monitor the jumps in phi at each time step, and to
+//! record the number of successful steps
+class o4_stepper_monitor {
+public:
+  long int down_counts; // number of steps downwards
+  long int up_counts;   // number of upward trial steps
+  long int up_yes;      // number of accepted upward steps
+  long int up_no;       // number of rejected upward steps
+  double down_dS;       // The change in action summed over downward steps
+  double up_dS;         // The change in action summed over downward steps
+
+public:
+  o4_stepper_monitor() {
+    down_counts = 0;
+    up_counts = 0;
+    up_yes = 0;
+    up_no = 0;
+    down_dS = 0;
+    up_dS = 0;
+  }
+  void increment_up_yes(const double &deltaS) {
+    up_counts++;
+    up_yes++;
+    up_dS += deltaS;
+  }
+  void increment_up_no(const double &deltaS) {
+    up_counts++;
+    up_no++;
+    up_dS += 0.;
+  }
+  void increment_down(const double &deltaS) {
+    down_counts++;
+    down_dS += deltaS;
+  }
+
+  void print(FILE *fh) {
+
+    double tot = down_counts + up_counts;
+    double prob = up_yes / tot;
+    double mean_dS = up_dS / up_yes;
+    fprintf(fh, "==== Statistics of Heat Bath Type Steps ====\n");
+    fprintf(fh,
+            "dS >0: accepts = %ld; probability of up accept = %f; mean dS=%f\n",
+            up_yes, prob, mean_dS);
+
+    prob = up_no / tot;
+    fprintf(fh,
+            "dS =0: rejects = %ld; probability of up reject = %f; mean dS=%f\n",
+            up_no, prob, 0.);
+
+    prob = down_counts / tot;
+    mean_dS = down_dS / down_counts;
+    fprintf(fh,
+            "dS <0: counts  = %ld; probability of down steps= %f; mean dS=%f\n",
+            down_counts, prob, mean_dS);
+
+    prob = up_counts / tot;
+    mean_dS = up_dS / up_counts;
+    fprintf(fh,
+            "dS>=0: counts  = %ld; probability of non-neg.  = %f; mean dS=%f\n",
+            up_counts, prob, mean_dS);
+    fprintf(fh, "============================================\n");
+  }
+};
+
+// Try the heat bath step
+class EulerLangevinHB : public Stepper {
+public:
+  EulerLangevinHB(ModelA &in);
+  bool step(const double &dt);
+  void finalize();
+  ~EulerLangevinHB() { ; }
+
+private:
+  ModelA *model;
+  o4_stepper_monitor monitor;
+
+  Vec phi_local;
+  Vec dphi_local;
+};
+
 #endif
