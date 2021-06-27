@@ -535,23 +535,13 @@ PetscErrorCode SemiImplicitBEuler::Form3PointLaplacian(DM da, Mat J,
 
 EulerLangevinHB::EulerLangevinHB(ModelA &in) : model(&in) {
   DMCreateLocalVector(model->domain, &phi_local);
-  DMCreateLocalVector(model->domain, &dphi_local);
 }
 
 bool EulerLangevinHB::step(const double &dt) {
 
-  // take the global vector U and distribute to the local vector localU
-  DMGlobalToLocalBegin(model->domain, model->solution, INSERT_VALUES,
-                       phi_local);
-  DMGlobalToLocalEnd(model->domain, model->solution, INSERT_VALUES, phi_local);
-
   // Get pointer to local array
   o4_node ***phi;
   DMDAVecGetArray(model->domain, phi_local, &phi);
-
-  // Get pointer to local array
-  o4_node ***dphi;
-  DMDAVecGetArray(model->domain, dphi_local, &dphi);
 
   // Get the ranges
   PetscInt ixs, iys, izs, nx, ny, nz;
@@ -560,90 +550,89 @@ bool EulerLangevinHB::step(const double &dt) {
   o4_node heff = {};
   o4_node phi_o = {};
   o4_node phi_n = {};
-  o4_node zero_node = {};
 
   const double &Lambda2 = 0.5 * (2. * 3. + model->data.mass); // mass term
   const double &lambda = model->data.lambda;
   const double &H = model->data.H;
   const PetscReal rdtg = sqrt(2. * dt * model->data.gamma);
+  const int &NX = model->data.NX;
+  const int &NY = model->data.NY;
 
-  for (int k = izs; k < izs + nz; k++) {
-    for (int j = iys; j < iys + ny; j++) {
-      for (int i = ixs; i < ixs + nx; i++) {
+  // Checkerboard order ieo = even and odd sites
+  for (int ieo = 0; ieo < 2; ieo++) {
+    // take the global vector U and distribute to the local vector localU
+    DMGlobalToLocalBegin(model->domain, model->solution, INSERT_VALUES,
+                         phi_local);
+    DMGlobalToLocalEnd(model->domain, model->solution, INSERT_VALUES,
+                       phi_local);
 
-        PetscScalar hphi_o = 0.; // old and new h*phi
-        PetscScalar hphi_n = 0.; // old and new h*phi
-        PetscScalar s_o = 0.;    // old sum of phi**2
-        PetscScalar s_n = 0.;    // new sum of phi**2
+    for (int k = izs; k < izs + nz; k++) {
+      for (int j = iys; j < iys + ny; j++) {
+        for (int i = ixs; i < ixs + nx; i++) {
+          if ((k  + j  + i) % 2 != ieo) {
+            continue;
+          }
 
-        o4_node &dphiI = dphi[k][j][i];
+          PetscScalar hphi_o = 0.; // old and new h*phi
+          PetscScalar hphi_n = 0.; // old and new h*phi
+          PetscScalar s_o = 0.;    // old sum of phi**2
+          PetscScalar s_n = 0.;    // new sum of phi**2
 
-        for (int l = 0; l < ModelAData::Ndof; l++) {
-          heff.f[l] = (phi[k][j][i + 1].f[l] + phi[k][j][i - 1].f[l]) +
-                      (phi[k][j + 1][i].f[l] + phi[k][j - 1][i].f[l]) +
-                      (phi[k + 1][j][i].f[l] + phi[k - 1][j][i].f[l]);
+          for (int l = 0; l < ModelAData::Ndof; l++) {
+            heff.f[l] = (phi[k][j][i + 1].f[l] + phi[k][j][i - 1].f[l]) +
+                        (phi[k][j + 1][i].f[l] + phi[k][j - 1][i].f[l]) +
+                        (phi[k + 1][j][i].f[l] + phi[k - 1][j][i].f[l]);
 
-          phi_o.f[l] = phi[k][j][i].f[l];
-          dphiI.f[l] = rdtg * ModelARndm->normal();
-          phi_n.f[l] = phi_o.f[l] + dphiI.f[l];
+            phi_o.f[l] = phi[k][j][i].f[l];
+            phi_n.f[l] = phi_o.f[l] + rdtg * ModelARndm->normal();
 
-          s_o += pow(phi_o.f[l], 2);
-          s_n += pow(phi_n.f[l], 2);
+            s_o += pow(phi_o.f[l], 2);
+            s_n += pow(phi_n.f[l], 2);
 
-          hphi_o += heff.f[l] * phi_o.f[l];
-          hphi_n += heff.f[l] * phi_n.f[l];
-        }
-        hphi_o += (H * phi_o.f[0]); // Take care of the true H
-        hphi_n += (H * phi_n.f[0]);
+            hphi_o += heff.f[l] * phi_o.f[l];
+            hphi_n += heff.f[l] * phi_n.f[l];
+          }
+          hphi_o += (H * phi_o.f[0]); // Take care of the true H
+          hphi_n += (H * phi_n.f[0]);
 
-        double dS = -(hphi_n - hphi_o) + Lambda2 * (s_n - s_o) +
-                    lambda / 4. * (s_n * s_n - s_o * s_o);
+          double dS = -(hphi_n - hphi_o) + Lambda2 * (s_n - s_o) +
+                      lambda / 4. * (s_n * s_n - s_o * s_o);
 
-        // Downward step
-        if (dS < 0) {
-          monitor.increment_down(dS);
-          continue;
-        }
-
-        // Process upward step
-        double r = ModelARndm->uniform();
-        if (r < exp(-dS)) {
-          monitor.increment_up_yes(dS);
-          continue;
-        } else {
-          // dphi is rejected set it to zero.
-          monitor.increment_up_no(dS);
-          dphiI = zero_node;
-          continue;
+          // Downward step
+          if (dS < 0) {
+            phi[k][j][i] = phi_n;
+            monitor.increment_down(dS);
+            continue;
+          }
+          // Process upward step
+          double r = ModelARndm->uniform();
+          if (r < exp(-dS)) {
+            // keep the upward step w. probl exp(-dS)
+            phi[k][j][i] = phi_n;
+            monitor.increment_up_yes(dS);
+            continue;
+          } else {
+            // dphi is rejected. Set the action change dS=0
+            monitor.increment_up_no(0.);
+            continue;
+          }
         }
       }
     }
-  }
-
-  for (int k = izs; k < izs + nz; k++) {
-    for (int j = iys; j < iys + ny; j++) {
-      for (int i = ixs; i < ixs + nx; i++) {
-        for (int l = 0; l < ModelAData::Ndof; l++) {
-          phi[k][j][i].f[l] += dphi[k][j][i].f[l];
-        }
-      }
-    }
+    // Copy back the local updates to the global vector
+    DMLocalToGlobalBegin(model->domain, phi_local, INSERT_VALUES,
+                         model->solution);
+    DMLocalToGlobalEnd(model->domain, phi_local, INSERT_VALUES,
+                       model->solution);
   }
 
   // Retstore the array
   DMDAVecRestoreArray(model->domain, phi_local, &phi);
-  DMDAVecRestoreArray(model->domain, dphi_local, &dphi);
-
-  // Copy back the local updates to the global vector
-  DMLocalToGlobalBegin(model->domain, phi_local, INSERT_VALUES,
-                       model->solution);
-  DMLocalToGlobalEnd(model->domain, phi_local, INSERT_VALUES, model->solution);
 
   return true;
 }
 void EulerLangevinHB::finalize() {
   VecDestroy(&phi_local);
-  VecDestroy(&dphi_local);
 
   int rank;
   MPI_Comm_rank(PETSC_COMM_WORLD, &rank);

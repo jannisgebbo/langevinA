@@ -1,0 +1,27 @@
+#Magnetic field
+H = 0.01
+
+#Lattice size
+NX = 32
+
+#Times and timestep
+finaltime =2000
+initialtime = 0
+deltat    = 0.05
+saveFrequencyInTime = 1.
+
+#Parameters
+mass = -4.8129999999999997
+lambda  = 4
+gamma  = 1
+
+# Set to 0 or don't pass to have a random seed
+seed = 122335456
+
+#output tag
+outputfiletag = heatbathtest
+
+#Beuler=1 Feuler=2 SemiImplicit=3 EulerLangevinHB=4
+evolverType=4
+
+zeroStart = true

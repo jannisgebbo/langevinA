@@ -162,6 +162,16 @@ public:
     fprintf(fh,
             "dS>=0: counts  = %ld; probability of non-neg.  = %f; mean dS=%f\n",
             up_counts, prob, mean_dS);
+
+    prob = up_yes / static_cast<double>(up_counts);
+    mean_dS = up_dS / up_counts;
+    fprintf(fh,
+            "dS>=0: counts  = %ld; probability of accepting when up  = %f; mean dS=%f\n",
+            up_yes, prob, mean_dS);
+    prob = up_no / static_cast<double>(up_counts);
+    fprintf(fh,
+            "dS>=0: counts  = %ld; probability of rejecting when up  = %f; mean dS=%f\n",
+            up_no, prob, mean_dS);
     fprintf(fh, "============================================\n");
   }
 };
@@ -179,7 +189,6 @@ private:
   o4_stepper_monitor monitor;
 
   Vec phi_local;
-  Vec dphi_local;
 };
 
 #endif
