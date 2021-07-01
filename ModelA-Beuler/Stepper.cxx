@@ -215,8 +215,11 @@ PetscErrorCode BackwardEuler::FormFunction(SNES snes, Vec U, Vec F, void *ptr) {
                             stepper->deltat * phidotI.f[l];
         }
         // We are not updating the currents here
-        for (l = 0; l < data.Nq; l++) {
-          f[k][j][i].q[l] = -phi[k][j][i].q[l] + oldphi[k][j][i].q[l];
+        for (l = 0; l < data.NA; l++) {
+          f[k][j][i].A[l] = -phi[k][j][i].A[l] + oldphi[k][j][i].A[l];
+        }
+        for (l = 0; l < data.NV; l++) {
+          f[k][j][i].V[l] = -phi[k][j][i].V[l] + oldphi[k][j][i].V[l];
         }
       }
     }
@@ -348,7 +351,28 @@ PetscErrorCode BackwardEuler::FormJacobianGeneric(SNES snes, Vec U, Mat J,
         }
 
         // Put the minus the identity for non-evolved components
-        for (l = 0; l < ModelAData::Nq; l++) {
+        for (l = 0; l < ModelAData::NV; l++) {
+          PetscInt nc = 0; // number of non-zero entries
+          MatStencil row = {};
+          MatStencil column[1] = {};
+          PetscScalar value[1];
+          // here we insert the position of the row
+          row.i = i;
+          row.j = j;
+          row.k = k;
+          row.c = l + ModelAData::Nphi;
+          column[nc].i = i;
+          column[nc].j = j;
+          column[nc].k = k;
+          column[nc].c = row.c;
+          value[nc++] = -1.;
+
+          // here we set the matrix
+          MatSetValuesStencil(Jpre, 1, &row, nc, column, value, INSERT_VALUES);
+        }
+
+        // Put the minus the identity for non-evolved components
+        for (l = 0; l < ModelAData::NV; l++) {
           PetscInt nc = 0; // number of non-zero entries
           MatStencil row = {};
           MatStencil column[1] = {};
@@ -454,9 +478,13 @@ bool SemiImplicitBEuler::step(const double &dt) {
           b.f[l] = phi.f[l] / dtg - (m2 * phi.f[l] + lambda * phi2 * phi.f[l]) +
                    H[l] + xi.f[l] * sqrt(2. / dtg);
         }
-        for (l = 0; l < ModelAData::Nq; l++) {
-          b.q[l] = phi.q[l] / dtg;
+        for (l = 0; l < ModelAData::NA; l++) {
+          b.A[l] = phi.A[l] / dtg;
         }
+        for (l = 0; l < ModelAData::NV; l++) {
+          b.V[l] = phi.V[l] / dtg;
+        }
+
       }
     }
   }

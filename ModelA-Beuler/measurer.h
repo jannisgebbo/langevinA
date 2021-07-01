@@ -144,10 +144,15 @@ private:
             norm += pow(fld[k][j][i].f[l], 2);
           }
           norm = sqrt(norm);
-          for (int l = 0; l < ModelAData::Nq; l++) {
-            sliceAveragesLocalX[l][i] += fld[k][j][i].q[l];
-            sliceAveragesLocalY[l][j] += fld[k][j][i].q[l];
-            sliceAveragesLocalZ[l][k] += fld[k][j][i].q[l];
+          for (int l = 0; l < ModelAData::NA; l++) {
+            sliceAveragesLocalX[l][i] += fld[k][j][i].A[l];
+            sliceAveragesLocalY[l][j] += fld[k][j][i].A[l];
+            sliceAveragesLocalZ[l][k] += fld[k][j][i].A[l];
+          }
+          for (int l = 0; l < ModelAData::NV; l++) {
+            sliceAveragesLocalX[l][i] += fld[k][j][i].V[l];
+            sliceAveragesLocalY[l][j] += fld[k][j][i].V[l];
+            sliceAveragesLocalZ[l][k] += fld[k][j][i].V[l];
           }
           sliceAveragesLocalX.back()[i] += norm;
           sliceAveragesLocalY.back()[j] += norm;
@@ -220,7 +225,7 @@ private:
   PetscInt N;
 
   // Arrays of size Nobs contain X=(phi[1..Nphi], q[1...Nq], phi2)
-  static const PetscInt NObs = ModelAData::Nphi + ModelAData::Nq + 1;
+  static const PetscInt NObs = ModelAData::Nphi + ModelAData::NA + ModelAData::NV + 1;
 
   std::vector<std::vector<PetscScalar>>
       sliceAveragesX; // First dimension is NObs, last dimension slice

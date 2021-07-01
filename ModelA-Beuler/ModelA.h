@@ -31,7 +31,8 @@ struct ModelAData {
 
   // Number of fields
   static const PetscInt Nphi = 4;
-  static const PetscInt Nq = 6;
+  static const PetscInt NA = 3;
+  static const PetscInt NV = 3;
 
   // Options controlling the time stepping:
   PetscReal finaltime = 20.;
@@ -164,7 +165,8 @@ struct ModelAData {
 
 typedef struct {
   PetscScalar f[ModelAData::Nphi];
-  PetscScalar q[ModelAData::Nq];
+  PetscScalar A[ModelAData::NA];
+  PetscScalar V[ModelAData::NV];
 } G_node;
 
 class ModelA {
@@ -187,7 +189,7 @@ public:
   ModelA(const ModelAData &in) : data(in) {
 
     PetscInt stencil_width = 1;
-    PetscInt Ndof = ModelAData::Nphi + ModelAData::Nq;
+    PetscInt Ndof = ModelAData::Nphi + ModelAData::NA + ModelAData::NV;
     DMDACreate3d(PETSC_COMM_WORLD, DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC,
                  DM_BOUNDARY_PERIODIC, DMDA_STENCIL_STAR, data.NX, data.NY,
                  data.NZ, PETSC_DECIDE, PETSC_DECIDE, PETSC_DECIDE, Ndof,
@@ -282,14 +284,25 @@ public:
               }
             }
           }
-          for (l = 0; l < ModelAData::Nq; l++) {
+          for (l = 0; l < ModelAData::NA; l++) {
             if (data.zeroStart) {
-              u[k][j][i].q[l] = 0.0;
+              u[k][j][i].A[l] = 0.0;
             } else {
               if (func) {
-                u[k][j][i].q[l] = func(x, y, z, l, 1, params);
+                u[k][j][i].A[l] = func(x, y, z, l, 1, params);
               } else {
-                u[k][j][i].q[l] = 0.0
+                u[k][j][i].A[l] = 0.0;
+              }
+            }
+          }
+          for (l = 0; l < ModelAData::NV; l++) {
+            if (data.zeroStart) {
+              u[k][j][i].V[l] = 0.0;
+            } else {
+              if (func) {
+                u[k][j][i].V[l] = func(x, y, z, l, 1, params);
+              } else {
+                u[k][j][i].V[l] = 0.0;
               }
             }
           }
