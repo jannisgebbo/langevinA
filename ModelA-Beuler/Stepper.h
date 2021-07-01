@@ -10,6 +10,20 @@ public:
   virtual ~Stepper() = default;
 };
 
+class IdealLFStepper : public Stepper {
+public:
+  IdealLFStepper(ModelA &in);
+
+  bool step(const double &dt) override;
+  virtual bool diffusive_step(const double &dt) = 0;
+  virtual bool ideal_step(const double &dt);
+  //virtual void finalize() = 0;
+  virtual ~IdealLFStepper()  {}
+
+private:
+  ModelA* model;
+};
+
 class ForwardEuler : public Stepper {
 public:
   ForwardEuler(ModelA &in, bool wnoise = true);
