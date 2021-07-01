@@ -12,17 +12,12 @@ class ConfResults:
     def readAv(self):
         r = h5py.File(self.fn,'r')
         self.phi = np.asarray(r["phi"])[self.thTime:]
-        self.phidot = np.asarray(r["phidot"])[self.thTime:]
         self.phiNorm = self.phi[:,4]
-        self.phidotNorm = self.phidot[:,4]
     
     def computeMag(self, direc = 0):
         self.readAv()
         self.mag, self.magErr = bootstrap(self.phi[:,direc],100)
 
-    def computePhiDot(self, direc = 0):
-        self.readAv()
-        self.avPhiDot, self.errPhiDot = bootstrap(self.phidot[:,direc],100)
 
     def wallXFourierNorm(self):
         r = h5py.File(self.fn,'r')
@@ -81,11 +76,7 @@ class ConfResults:
         self.CttpPhi0 = self.computeCttp(self.phi[:,0], self.phi[:,0],conn,tMax)
     def computeCttpPhiNorm(self):
         self.CttpPhiNorm = self.computeCttp(self.phiNorm, self.phiNorm)
-    def computeCttpPhidot(self):
-        self.CttpPhidot = self.computeCttp(self.phidotNorm, self.phidotNorm)
-    def computeCttpPhiPhidot(self):
-        self.CttpPhiPhidot = self.computeCttp(self.phiNorm, self.phidotNorm)
-    
+
     # For testing purposes
     def manualFourier(self, arr):
         Nx = len(arr)

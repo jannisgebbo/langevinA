@@ -30,7 +30,8 @@ struct ModelAData {
   PetscReal hZ() const { return LZ / NZ; }
 
   // Number of fields
-  static const PetscInt Ndof = 4;
+  static const PetscInt Nphi = 4;
+  static const PetscInt Nq = 6;
 
   // Options controlling the time stepping:
   PetscReal finaltime = 20.;
@@ -162,8 +163,9 @@ struct ModelAData {
 /////////////////////////////////////////////////////////////////////////
 
 typedef struct {
-  PetscScalar f[ModelAData::Ndof];
-} o4_node;
+  PetscScalar f[ModelAData::Nphi];
+  PetscScalar q[ModelAData::Nq];
+} G_node;
 
 class ModelA {
 
@@ -180,32 +182,28 @@ public:
   // Previous solution
   Vec previoussolution;
 
-  // Momentum used in backward step and eulerstep
-  Vec phidot;
-
   //! Construct the grid and initialize the fields according to
   //! the configuration parameters in the input ModelAData structure
   ModelA(const ModelAData &in) : data(in) {
 
     PetscInt stencil_width = 1;
+    PetscInt Ndof = ModelAData::Nphi + ModelAData::Nq;
     DMDACreate3d(PETSC_COMM_WORLD, DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC,
                  DM_BOUNDARY_PERIODIC, DMDA_STENCIL_STAR, data.NX, data.NY,
-                 data.NZ, PETSC_DECIDE, PETSC_DECIDE, PETSC_DECIDE,
-                 ModelAData::Ndof, stencil_width, NULL, NULL, NULL, &domain);
+                 data.NZ, PETSC_DECIDE, PETSC_DECIDE, PETSC_DECIDE, Ndof,
+                 stencil_width, NULL, NULL, NULL, &domain);
 
     DMSetFromOptions(domain);
     DMSetUp(domain);
 
     DMCreateGlobalVector(domain, &solution);
     VecDuplicate(solution, &previoussolution);
-    VecDuplicate(solution, &phidot);
 
     // Setup the random number generation
     ModelARndm = make_unique<NoiseGenerator>(data.seed);
   }
 
   void finalize() {
-    VecDestroy(&phidot);
     VecDestroy(&previoussolution);
     VecDestroy(&solution);
     DMDestroy(&domain);
@@ -226,16 +224,24 @@ public:
     PetscViewerDestroy(&initViewer);
     return ierr;
 #else
-    PetscPrintf(PETSC_COMM_WORLD,"loadFromDereksFile: Unable to load from file without HDF5 support\n") ;
+    PetscPrintf(
+        PETSC_COMM_WORLD,
+        "loadFromDereksFile: Unable to load from file without HDF5 support\n");
     return 0;
 #endif
   }
 
-  //! Initialize the vector solution. If coldStart is false
-  //! then read in the data from Derek's file. Otherwise fill with
-  //! random numbers, or if zeroStart is true set to zero. Finally
-  //! if a function is provided, f(x,y,z,l,params), this function will be used
-  PetscErrorCode initialize(double (*func)(const double &x, const double &y, const double &z, const int &l, void *params)=0, void *params=0) {
+  // Initialize the vector solution. If coldStart is false ! then read in the
+  // data from Derek's file. Otherwise fill with  random numbers, or if
+  // zeroStart is true set to zero. Finally  if a function is provided,
+  // f(x,y,z,l,fieldtype, params), this function will be used.  If fieldtype is
+  // 0 then we are filling the phi[l].  If fieldtype is 1 then we are filling
+  // the charges  q[l]
+  PetscErrorCode initialize(double (*func)(const double &x, const double &y,
+                                           const double &z, const int &l,
+                                           const int &fieldtype,
+                                           void *params) = 0,
+                            void *params = 0) {
 
     // Read in from a file
     if (!data.coldStart) {
@@ -248,7 +254,7 @@ public:
     PetscReal hz = data.hZ();
 
     // This Get a pointer to do the calculation
-    o4_node ***u;
+    G_node ***u;
     DMDAVecGetArray(domain, solution, &u);
 
     // Get the Local Corner od the vector
@@ -265,14 +271,25 @@ public:
         PetscReal y = j * hy;
         for (i = xstart; i < xstart + xdimension; i++) {
           PetscReal x = i * hx;
-          for (l = 0; l < ModelAData::Ndof; l++) {
+          for (l = 0; l < ModelAData::Nphi; l++) {
             if (data.zeroStart) {
               u[k][j][i].f[l] = 0.0;
             } else {
               if (func) {
-                u[k][j][i].f[l] = func(x,y,z,l,params);
+                u[k][j][i].f[l] = func(x, y, z, l, 0, params);
               } else {
                 u[k][j][i].f[l] = ModelARndm->normal();
+              }
+            }
+          }
+          for (l = 0; l < ModelAData::Nq; l++) {
+            if (data.zeroStart) {
+              u[k][j][i].q[l] = 0.0;
+            } else {
+              if (func) {
+                u[k][j][i].q[l] = func(x, y, z, l, 1, params);
+              } else {
+                u[k][j][i].q[l] = 0.0
               }
             }
           }

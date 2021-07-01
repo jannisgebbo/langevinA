@@ -17,13 +17,18 @@ struct smoothtest_data {
 };
 
 double smoothtest_fcn(const double &x, const double &y, const double &z,
-                      const int &l, void *params) {
-  smoothtest_data *data = (smoothtest_data *)params;
-  double sigma2 = pow(data->sigma + l * 0.2, 2);
-  double N = data->N / 2;
-  return exp(-(pow(x - N + 0.5, 2) + pow(y - N - 1.0, 2) + pow(z - N + 2, 2)) /
-             (2 * sigma2)) /
-         pow(2.0 * M_PI * sigma2, 3. / 2.);
+                      const int &l, const int &fieldtype, void *params) {
+  if (fieldtype == 0) {
+    smoothtest_data *data = (smoothtest_data *)params;
+    double sigma2 = pow(data->sigma + l * 0.2, 2);
+    double N = data->N / 2;
+    return exp(-(pow(x - N + 0.5, 2) + pow(y - N - 1.0, 2) +
+                 pow(z - N + 2, 2)) /
+               (2 * sigma2)) /
+           pow(2.0 * M_PI * sigma2, 3. / 2.);
+  } else {
+    return 0.;
+  }
 }
 
 int main(int argc, char **argv) {

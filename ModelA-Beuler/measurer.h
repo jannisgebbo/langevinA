@@ -86,7 +86,7 @@ public:
     }
   }
 
-  void measure(Vec *solution, Vec *momenta) {
+  void measure(Vec *solution) {
 
     int rank = 0;
     MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
@@ -95,11 +95,6 @@ public:
     if (rank == 0) {
       computeDerivedObs();
       measurer_out->save("phi");
-    }
-    computeSliceAverage(momenta);
-    if (rank == 0) {
-      computeDerivedObs();
-      measurer_out->save("phidot");
       measurer_out->update();
     }
   }
@@ -116,7 +111,7 @@ private:
     DMGlobalToLocalEnd(da, *solution, INSERT_VALUES, localU);
 
     // From the vector define the pointer for the field phi
-    o4_node ***fld;
+    G_node ***fld;
     DMDAVecGetArrayRead(da, localU, &fld);
 
     // Set up the slize averages initialized to zero in c++11
@@ -142,13 +137,18 @@ private:
       for (int j = iys; j < iys + ny; j++) {
         for (int i = ixs; i < ixs + nx; i++) {
           norm = 0.0;
-          for (int l = 0; l < ModelAData::Ndof; l++) {
+          for (int l = 0; l < ModelAData::Nphi; l++) {
             sliceAveragesLocalX[l][i] += fld[k][j][i].f[l];
             sliceAveragesLocalY[l][j] += fld[k][j][i].f[l];
             sliceAveragesLocalZ[l][k] += fld[k][j][i].f[l];
             norm += pow(fld[k][j][i].f[l], 2);
           }
           norm = sqrt(norm);
+          for (int l = 0; l < ModelAData::Nq; l++) {
+            sliceAveragesLocalX[l][i] += fld[k][j][i].q[l];
+            sliceAveragesLocalY[l][j] += fld[k][j][i].q[l];
+            sliceAveragesLocalZ[l][k] += fld[k][j][i].q[l];
+          }
           sliceAveragesLocalX.back()[i] += norm;
           sliceAveragesLocalY.back()[j] += norm;
           sliceAveragesLocalZ.back()[k] += norm;
@@ -209,7 +209,7 @@ private:
     // Append the magnetization M2 and (M**2)^2 to the scalar observable
     // vector this could be done offline
     PetscReal M2 = 0.;
-    for (int l = 0; l < ModelAData::Ndof; l++) {
+    for (int l = 0; l < ModelAData::Nphi; l++) {
       M2 += pow(OAverage[l], 2);
     }
     OAverage.at(NObs) = M2;
@@ -219,8 +219,8 @@ private:
   ModelA *model;
   PetscInt N;
 
-  // Arrays of size Nobs contain X=(phi[0], phi[1], phi[2], phi[3], phi2)
-  static const PetscInt NObs = ModelAData::Ndof + 1;
+  // Arrays of size Nobs contain X=(phi[1..Nphi], q[1...Nq], phi2)
+  static const PetscInt NObs = ModelAData::Nphi + ModelAData::Nq + 1;
 
   std::vector<std::vector<PetscScalar>>
       sliceAveragesX; // First dimension is NObs, last dimension slice

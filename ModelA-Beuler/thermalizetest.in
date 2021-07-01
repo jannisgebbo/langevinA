@@ -5,13 +5,13 @@ H = 0.01
 NX = 32
 
 #Times and timestep
-finaltime = 2
+finaltime =80
 initialtime = 0
 deltat    = 0.01
-saveFrequencyInTime = 1.0
+saveFrequencyInTime = 1.
 
 #Parameters
-mass = -4.813
+mass = -4.8129999999999997
 lambda  = 4
 gamma  = 1
 
@@ -19,8 +19,9 @@ gamma  = 1
 seed = 122335456
 
 #output tag
-outputfiletag = smoothtest
+outputfiletag = thermalizetest
 
-#Beuler=1 Feuler=2
-evolverType=3
+#Beuler=1 Feuler=2 SemiImplicit=3 EulerLangevinHB=4
+evolverType=4
 
+zeroStart = true

@@ -48,7 +48,7 @@ int main(int argc, char **argv) {
 
   // initialize the measurments and measure the initial condition
   Measurer measurer(&model);
-  measurer.measure(&model.solution, &model.phidot);
+  measurer.measure(&model.solution);
 
   // Initialize the stepper
   std::unique_ptr<Stepper> step;
@@ -82,7 +82,7 @@ int main(int argc, char **argv) {
     // measure the solution
     PetscLogEventBegin(measurements, 0, 0, 0, 0);
     if (steps % model.data.saveFrequency == 0) {
-      measurer.measure(&model.solution, &model.phidot);
+      measurer.measure(&model.solution);
       // Print some information to not get bored during the running:
       PetscPrintf(PETSC_COMM_WORLD, "Timestep %D: step size = %g, time = %g\n",
                   steps, (double)model.data.deltat, (double)time);

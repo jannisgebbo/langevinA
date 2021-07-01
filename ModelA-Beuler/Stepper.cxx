@@ -36,17 +36,15 @@ bool ForwardEuler::step(const double &dt) {
   DMGlobalToLocalBegin(da, model->previoussolution, INSERT_VALUES, localU);
   DMGlobalToLocalEnd(da, model->previoussolution, INSERT_VALUES, localU);
 
-  o4_node ***phi;
+  G_node ***phi;
   DMDAVecGetArrayRead(da, localU, &phi);
 
-  o4_node ***gaussiannoise;
+  G_node ***gaussiannoise;
   DMDAVecGetArrayRead(da, noise, &gaussiannoise);
 
-  o4_node ***phinew;
+  G_node ***phinew;
   DMDAVecGetArray(da, model->solution, &phinew);
 
-  o4_node ***phidot;
-  DMDAVecGetArray(da, model->phidot, &phidot);
   PetscLogEventEnd(create, 0, 0, 0, 0);
 
   /////////////////////////////////////////////////////////////////////////
@@ -69,6 +67,7 @@ bool ForwardEuler::step(const double &dt) {
   const PetscReal axx = pow(1. / data.hX(), 2);
   const PetscReal ayy = pow(1. / data.hY(), 2);
   const PetscReal azz = pow(1. / data.hZ(), 2);
+  G_node phidotI = {};
 
   // Loop over central elements
   for (k = zstart; k < zstart + zdimension; k++) {
@@ -79,7 +78,7 @@ bool ForwardEuler::step(const double &dt) {
         const PetscReal &phi2 =
             f[0] * f[0] + f[1] * f[1] + f[2] * f[2] + f[3] * f[3];
 
-        for (l = 0; l < ModelAData::Ndof; l++) {
+        for (l = 0; l < ModelAData::Nphi; l++) {
           const PetscReal uxx =
               phi[k][j][i + 1].f[l] + phi[k][j][i - 1].f[l] - 2. * f[l];
           const PetscReal uyy =
@@ -88,10 +87,10 @@ bool ForwardEuler::step(const double &dt) {
               phi[k + 1][j][i].f[l] + phi[k - 1][j][i].f[l] - 2. * f[l];
           const PetscReal lap = axx * uxx + ayy * uyy + azz * uzz;
 
-          phidot[k][j][i].f[l] =
+          phidotI.f[l] =
               lap - (m2 * f[l] + lambda * phi2 * f[l]) + H[l] + xdtg * xi[l];
 
-          phinew[k][j][i].f[l] = f[l] + dtg * phidot[k][j][i].f[l];
+          phinew[k][j][i].f[l] = f[l] + dtg * phidotI.f[l];
         }
       }
     }
@@ -100,7 +99,6 @@ bool ForwardEuler::step(const double &dt) {
 
   /////////////////////////////////////////////////////////////////////////
 
-  DMDAVecRestoreArray(da, model->phidot, &phidot);
   DMDAVecRestoreArray(da, model->solution, &phinew);
 
   DMDAVecRestoreArrayRead(da, noise, &gaussiannoise);
@@ -169,18 +167,15 @@ PetscErrorCode BackwardEuler::FormFunction(SNES snes, Vec U, Vec F, void *ptr) {
   DMGlobalToLocalEnd(da, U, INSERT_VALUES, localU);
 
   // From the vector define the pointer for the field u and the rhs f
-  o4_node ***phi, ***f;
+  G_node ***phi, ***f;
   DMDAVecGetArrayRead(da, localU, &phi);
   DMDAVecGetArray(da, F, &f);
 
-  o4_node ***gaussiannoise;
+  G_node ***gaussiannoise;
   DMDAVecGetArrayRead(da, stepper->noise, &gaussiannoise);
 
-  o4_node ***oldphi;
+  G_node ***oldphi;
   DMDAVecGetArrayRead(da, model->previoussolution, &oldphi);
-
-  o4_node ***phidot;
-  DMDAVecGetArray(da, model->phidot, &phidot);
 
   // Get the local coordinates
   DMDAGetCorners(da, &xstart, &ystart, &zstart, &xdimension, &ydimension,
@@ -188,14 +183,15 @@ PetscErrorCode BackwardEuler::FormFunction(SNES snes, Vec U, Vec F, void *ptr) {
 
   // This actually computes the right hand side
   PetscScalar uxx, uyy, uzz, ucentral, phisquare;
+  G_node phidotI = {};
   for (k = zstart; k < zstart + zdimension; k++) {
     for (j = ystart; j < ystart + ydimension; j++) {
       for (i = xstart; i < xstart + xdimension; i++) {
         phisquare = 0.;
-        for (l = 0; l < data.Ndof; l++) {
+        for (l = 0; l < data.Nphi; l++) {
           phisquare = phisquare + phi[k][j][i].f[l] * phi[k][j][i].f[l];
         }
-        for (l = 0; l < data.Ndof; l++) {
+        for (l = 0; l < data.Nphi; l++) {
           ucentral = phi[k][j][i].f[l];
           uxx = (-2.0 * ucentral + phi[k][j][i - 1].f[l] +
                  phi[k][j][i + 1].f[l]) /
@@ -207,7 +203,7 @@ PetscErrorCode BackwardEuler::FormFunction(SNES snes, Vec U, Vec F, void *ptr) {
                  phi[k + 1][j][i].f[l]) /
                 (hz * hz);
 
-          phidot[k][j][i].f[l] =
+          phidotI.f[l] =
               data.gamma * (uxx + uyy + uzz) -
               data.gamma * (data.mass + data.lambda * phisquare) * ucentral +
               (l == 0 ? data.gamma * data.H : 0.) +
@@ -216,7 +212,11 @@ PetscErrorCode BackwardEuler::FormFunction(SNES snes, Vec U, Vec F, void *ptr) {
 
           // here you want to put the formula for the euler step F(phi)=0
           f[k][j][i].f[l] = -phi[k][j][i].f[l] + oldphi[k][j][i].f[l] +
-                            stepper->deltat * phidot[k][j][i].f[l];
+                            stepper->deltat * phidotI.f[l];
+        }
+        // We are not updating the currents here
+        for (l = 0; l < data.Nq; l++) {
+          f[k][j][i].q[l] = -phi[k][j][i].q[l] + oldphi[k][j][i].q[l];
         }
       }
     }
@@ -228,8 +228,6 @@ PetscErrorCode BackwardEuler::FormFunction(SNES snes, Vec U, Vec F, void *ptr) {
   DMRestoreLocalVector(da, &localU);
   DMDAVecRestoreArrayRead(da, stepper->noise, &gaussiannoise);
   DMDAVecRestoreArrayRead(da, model->previoussolution, &oldphi);
-
-  DMDAVecRestoreArray(da, model->phidot, &phidot);
 
   return (0);
 }
@@ -260,7 +258,7 @@ PetscErrorCode BackwardEuler::FormJacobianGeneric(SNES snes, Vec U, Mat J,
   DMGlobalToLocalEnd(da, U, INSERT_VALUES, localU);
 
   // From the vector define the pointer for the field phi
-  o4_node ***phi;
+  G_node ***phi;
   DMDAVecGetArrayRead(da, localU, &phi);
 
   // Define the spacing
@@ -273,10 +271,10 @@ PetscErrorCode BackwardEuler::FormJacobianGeneric(SNES snes, Vec U, Mat J,
     for (j = info.ys; j < info.ys + info.ym; j++) {
       for (i = info.xs; i < info.xs + info.xm; i++) {
         PetscScalar phisquare = 0.;
-        for (l = 0; l < ModelAData::Ndof; l++) {
+        for (l = 0; l < ModelAData::Nphi; l++) {
           phisquare = phisquare + phi[k][j][i].f[l] * phi[k][j][i].f[l];
         }
-        for (l = 0; l < ModelAData::Ndof; l++) {
+        for (l = 0; l < ModelAData::Nphi; l++) {
           // we define the column
           PetscInt nc = 0;
           MatStencil row, column[10];
@@ -323,7 +321,7 @@ PetscErrorCode BackwardEuler::FormJacobianGeneric(SNES snes, Vec U, Mat J,
           value[nc++] = dt * gamma / (hz * hz);
           // The central element need a loop over the flavour index of the
           // column (is a full matrix in the flavour index )
-          for (PetscInt m = 0; m < ModelAData::Ndof; m++) {
+          for (PetscInt m = 0; m < ModelAData::Nphi; m++) {
             if (m == l) {
               column[nc].i = i;
               column[nc].j = j;
@@ -345,6 +343,27 @@ PetscErrorCode BackwardEuler::FormJacobianGeneric(SNES snes, Vec U, Mat J,
                   (-2. * data.lambda * phi[k][j][i].f[l] * phi[k][j][i].f[m]);
             }
           }
+          // here we set the matrix
+          MatSetValuesStencil(Jpre, 1, &row, nc, column, value, INSERT_VALUES);
+        }
+
+        // Put the minus the identity for non-evolved components
+        for (l = 0; l < ModelAData::Nq; l++) {
+          PetscInt nc = 0; // number of non-zero entries
+          MatStencil row = {};
+          MatStencil column[1] = {};
+          PetscScalar value[1];
+          // here we insert the position of the row
+          row.i = i;
+          row.j = j;
+          row.k = k;
+          row.c = l + ModelAData::Nphi;
+          column[nc].i = i;
+          column[nc].j = j;
+          column[nc].k = k;
+          column[nc].c = row.c;
+          value[nc++] = -1.;
+
           // here we set the matrix
           MatSetValuesStencil(Jpre, 1, &row, nc, column, value, INSERT_VALUES);
         }
@@ -397,13 +416,13 @@ bool SemiImplicitBEuler::step(const double &dt) {
   }
   // Compute the RHS of the equation to be solved
 
-  o4_node ***bI;
+  G_node ***bI;
   DMDAVecGetArray(model->domain, rhs, &bI);
 
-  o4_node ***phiI;
+  G_node ***phiI;
   DMDAVecGetArray(model->domain, model->solution, &phiI);
 
-  o4_node ***xiI;
+  G_node ***xiI;
   DMDAVecGetArray(model->domain, noise, &xiI);
 
   PetscInt i, j, k, l, xstart, ystart, zstart, xdimension, ydimension,
@@ -416,24 +435,27 @@ bool SemiImplicitBEuler::step(const double &dt) {
   double dtg = dt * data.gamma;
   double m2 = data.mass;
   double lambda = data.lambda;
-  double H[ModelAData::Ndof] = {data.H, 0, 0, 0};
+  double H[ModelAData::Nphi] = {data.H, 0, 0, 0};
 
   for (k = zstart; k < zstart + zdimension; k++) {
     for (j = ystart; j < ystart + ydimension; j++) {
       for (i = xstart; i < xstart + xdimension; i++) {
 
-        o4_node &phi = phiI[k][j][i];
-        o4_node &b = bI[k][j][i];
-        o4_node &xi = xiI[k][j][i];
+        G_node &phi = phiI[k][j][i];
+        G_node &b = bI[k][j][i];
+        G_node &xi = xiI[k][j][i];
 
         double phi2 = 0.;
-        for (l = 0; l < ModelAData::Ndof; l++) {
+        for (l = 0; l < ModelAData::Nphi; l++) {
           phi2 += phi.f[l] * phi.f[l];
         }
 
-        for (l = 0; l < ModelAData::Ndof; l++) {
+        for (l = 0; l < ModelAData::Nphi; l++) {
           b.f[l] = phi.f[l] / dtg - (m2 * phi.f[l] + lambda * phi2 * phi.f[l]) +
                    H[l] + xi.f[l] * sqrt(2. / dtg);
+        }
+        for (l = 0; l < ModelAData::Nq; l++) {
+          b.q[l] = phi.q[l] / dtg;
         }
       }
     }
@@ -466,7 +488,7 @@ PetscErrorCode SemiImplicitBEuler::Form3PointLaplacian(DM da, Mat J,
   for (k = info.zs; k < info.zs + info.zm; k++) {
     for (j = info.ys; j < info.ys + info.ym; j++) {
       for (i = info.xs; i < info.xs + info.xm; i++) {
-        for (l = 0; l < ModelAData::Ndof; l++) {
+        for (l = 0; l < ModelAData::Nphi; l++) {
           // we define the column
           PetscInt nc = 0;
           MatStencil row, column[10];
@@ -540,16 +562,16 @@ EulerLangevinHB::EulerLangevinHB(ModelA &in) : model(&in) {
 bool EulerLangevinHB::step(const double &dt) {
 
   // Get pointer to local array
-  o4_node ***phi;
+  G_node ***phi;
   DMDAVecGetArray(model->domain, phi_local, &phi);
 
   // Get the ranges
   PetscInt ixs, iys, izs, nx, ny, nz;
   DMDAGetCorners(model->domain, &ixs, &iys, &izs, &nx, &ny, &nz);
 
-  o4_node heff = {};
-  o4_node phi_o = {};
-  o4_node phi_n = {};
+  G_node heff = {};
+  G_node phi_o = {};
+  G_node phi_n = {};
 
   const double &Lambda2 = 0.5 * (2. * 3. + model->data.mass); // mass term
   const double &lambda = model->data.lambda;
@@ -569,7 +591,7 @@ bool EulerLangevinHB::step(const double &dt) {
     for (int k = izs; k < izs + nz; k++) {
       for (int j = iys; j < iys + ny; j++) {
         for (int i = ixs; i < ixs + nx; i++) {
-          if ((k  + j  + i) % 2 != ieo) {
+          if ((k + j + i) % 2 != ieo) {
             continue;
           }
 
@@ -578,7 +600,7 @@ bool EulerLangevinHB::step(const double &dt) {
           PetscScalar s_o = 0.;    // old sum of phi**2
           PetscScalar s_n = 0.;    // new sum of phi**2
 
-          for (int l = 0; l < ModelAData::Ndof; l++) {
+          for (int l = 0; l < ModelAData::Nphi; l++) {
             heff.f[l] = (phi[k][j][i + 1].f[l] + phi[k][j][i - 1].f[l]) +
                         (phi[k][j + 1][i].f[l] + phi[k][j - 1][i].f[l]) +
                         (phi[k + 1][j][i].f[l] + phi[k - 1][j][i].f[l]);
