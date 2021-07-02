@@ -811,11 +811,7 @@ bool EulerLangevinHB::step(const double &dt) {
         }
       }
     }
-    // Copy back the local updates to the global vector
-    /*DMLocalToGlobalBegin(model->domain, phi_local, INSERT_VALUES,
-                         model->solution);
-    DMLocalToGlobalEnd(model->domain, phi_local, INSERT_VALUES,
-                       model->solution);*/
+    
   }
 
   // Retstore the array

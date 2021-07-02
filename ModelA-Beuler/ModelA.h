@@ -300,7 +300,7 @@ public:
               u[k][j][i].V[l] = 0.0;
             } else {
               if (func) {
-                u[k][j][i].V[l] = func(x, y, z, l, 1, params);
+                u[k][j][i].V[l] = func(x, y, z, l, 2, params);
               } else {
                 u[k][j][i].V[l] = 0.0;
               }
