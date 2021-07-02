@@ -593,6 +593,9 @@ bool EulerLangevinHB::step(const double &dt) {
   G_node ***phi;
   DMDAVecGetArray(model->domain, phi_local, &phi);
 
+  G_node ***phinew;
+  DMDAVecGetArray(model->domain, model->solution, &phinew);
+
   // Get the ranges
   PetscInt ixs, iys, izs, nx, ny, nz;
   DMDAGetCorners(model->domain, &ixs, &iys, &izs, &nx, &ny, &nz);
@@ -650,7 +653,7 @@ bool EulerLangevinHB::step(const double &dt) {
 
           // Downward step
           if (dS < 0) {
-            phi[k][j][i] = phi_n;
+            phinew[k][j][i] = phi_n;
             monitor.increment_down(dS);
             continue;
           }
@@ -658,7 +661,7 @@ bool EulerLangevinHB::step(const double &dt) {
           double r = ModelARndm->uniform();
           if (r < exp(-dS)) {
             // keep the upward step w. probl exp(-dS)
-            phi[k][j][i] = phi_n;
+            phinew[k][j][i] = phi_n;
             monitor.increment_up_yes(dS);
             continue;
           } else {
@@ -670,14 +673,17 @@ bool EulerLangevinHB::step(const double &dt) {
       }
     }
     // Copy back the local updates to the global vector
-    DMLocalToGlobalBegin(model->domain, phi_local, INSERT_VALUES,
+    /*DMLocalToGlobalBegin(model->domain, phi_local, INSERT_VALUES,
                          model->solution);
     DMLocalToGlobalEnd(model->domain, phi_local, INSERT_VALUES,
-                       model->solution);
+                       model->solution);*/
   }
 
   // Retstore the array
   DMDAVecRestoreArray(model->domain, phi_local, &phi);
+  DMDAVecRestoreArray(model->domain, model->solution, &phinew);
+
+
 
   return true;
 }
