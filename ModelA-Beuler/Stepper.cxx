@@ -1,6 +1,7 @@
 #include "Stepper.h"
 #include "ModelA.h"
 #include <cstdio>
+#include "O4AlgebraHelper.h"
 
 
 IdealLFStepper::IdealLFStepper(ModelA &in): model(&in){}
@@ -108,7 +109,9 @@ bool IdealLFStepper::ideal_step(const double& dt){
             phi[k][j][i].V[l] += dt * (advxx + advyy + advzz);
         }
 
-  //Then we rotate phi by n.
+      //Then we rotate phi by n.
+      O4AlgebraHelper::O4Rotation(phi[k][j][i].V, phi[k][j][i].A, phi[k][j][i].f);
+
 
     }
   }
@@ -122,6 +125,21 @@ bool IdealLFStepper::ideal_step(const double& dt){
 }
 
 ///////////////////////////////////////////////////////////////////////////
+
+ForwardEulerSplit::ForwardEulerSplit(ModelA &in, bool wnoise)
+    : IdealLFStepper(in), withNoise(wnoise) {
+  VecDuplicate(model->solution, &noise);
+}
+void ForwardEulerSplit::finalize() { VecDestroy(&noise); }
+
+bool ForwardEulerSplit::diffusive_step(const double& dt)
+{
+
+}
+
+///////////////////////////////////////////////////////////////////////////
+
+
 
 ForwardEuler::ForwardEuler(ModelA &in, bool wnoise)
     : model(&in), withNoise(wnoise) {

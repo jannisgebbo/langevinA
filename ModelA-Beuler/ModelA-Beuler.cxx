@@ -66,6 +66,9 @@ int main(int argc, char **argv) {
   case 4:
     step = make_unique<EulerLangevinHB>(model);
     break;
+  case 5:
+    step = make_unique<ForwardEulerSplit>(model);
+    break;
   }
 
   PetscInt steps = 1;

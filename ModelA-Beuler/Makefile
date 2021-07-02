@@ -53,7 +53,7 @@ LDLIBS := $(shell pkg-config --libs-only-l $(PACKAGES)) -lm
 
 
 HEADRS = ModelA.h Stepper.h NoiseGenerator.h measurer.h plotter.h O4AlgebraHelper.h
-OBJS = measurer.o Stepper.o NoiseGenerator.o O4AlgebraHelper.o
+OBJS = measurer.o Stepper.o NoiseGenerator.o 
 
 ModelA-Beuler.exe: ModelA-Beuler.o $(OBJS)
 	$(LINK.cc) -o $@ $^ $(LDLIBS) -lstdc++
@@ -70,8 +70,6 @@ measurer.o: measurer.cxx $(HEADRS)
 NoiseGenerator.o: NoiseGenerator.cxx NoiseGenerator.h
 	$(COMPILE.cc) $(OUTPUT_OPTION) $<
 
-O4AlgebraHelper.o: O4AlgebraHelper.cxx O4AlgebraHelper.h
-	$(COMPILE.cc) $(OUTPUT_OPTION) $<
 
 smoothtest.exe: smoothtest.o $(OBJS)
 	$(LINK.cc) -o $@ $^ $(LDLIBS) -lstdc++
