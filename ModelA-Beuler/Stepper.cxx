@@ -1,21 +1,17 @@
 #include "Stepper.h"
 #include "ModelA.h"
-#include <cstdio>
 #include "O4AlgebraHelper.h"
+#include <cstdio>
 
+IdealLFStepper::IdealLFStepper(ModelA &in) : model(&in) {}
 
-IdealLFStepper::IdealLFStepper(ModelA &in): model(&in){}
-
-
-bool IdealLFStepper::step(const double& dt){
+bool IdealLFStepper::step(const double &dt) {
   ideal_step(dt);
   diffusive_step(dt);
   return true;
 }
 
-
-
-bool IdealLFStepper::ideal_step(const double& dt){
+bool IdealLFStepper::ideal_step(const double &dt) {
 
   DM da = model->domain;
   // Get a local vector with ghost cells
@@ -28,10 +24,8 @@ bool IdealLFStepper::ideal_step(const double& dt){
 
   const ModelAData &data = model->data;
 
-
   G_node ***phi;
   DMDAVecGetArrayRead(da, localU, &phi);
-
 
   const PetscReal H[4] = {data.H, 0., 0., 0.};
   const PetscReal axx = pow(1. / data.hX(), 2);
@@ -49,74 +43,75 @@ bool IdealLFStepper::ideal_step(const double& dt){
   for (k = zstart; k < zstart + zdimension; k++) {
     for (j = ystart; j < ystart + ydimension; j++) {
       for (i = xstart; i < xstart + xdimension; i++) {
-        //First evolve the momenta nab
+        // First evolve the momenta nab
 
-        G_node& centralPhi = phi[k][j][i];
-        G_node& phixplus = phi[k][j][i + 1];
-        G_node& phixminus = phi[k][j][i - 1];
-        G_node& phiyplus= phi[k][j + 1][i];
-        G_node& phiyminus = phi[k][j - 1][i];
-        G_node& phizplus = phi[k + 1][j][i];
-        G_node& phizminus = phi[k - 1][j][i];
+        G_node &centralPhi = phi[k][j][i];
+        G_node &phixplus = phi[k][j][i + 1];
+        G_node &phixminus = phi[k][j][i - 1];
+        G_node &phiyplus = phi[k][j + 1][i];
+        G_node &phiyminus = phi[k][j - 1][i];
+        G_node &phizplus = phi[k + 1][j][i];
+        G_node &phizminus = phi[k - 1][j][i];
 
+        for (PetscInt l = 0; l < ModelAData::NA; l++) {
+          advxx = (-phixplus.f[0] * centralPhi.f[l + 1] +
+                   centralPhi.f[0] * phixplus.f[l + 1] +
+                   centralPhi.f[0] * phixminus.f[l + 1] -
+                   phixminus.f[0] * centralPhi.f[l + 1]) *
+                  axx;
 
-        for (PetscInt l=0; l<ModelAData::NA; l++) {
-            advxx=(-phixplus.f[0]*centralPhi.f[l + 1]
-                             +centralPhi.f[0]*phixplus.f[l + 1]
-                             +centralPhi.f[0]*phixminus.f[l + 1]
-                             -phixminus.f[0]*centralPhi.f[l + 1]) * axx;
+          advyy = (-phiyplus.f[0] * centralPhi.f[l + 1] +
+                   centralPhi.f[0] * phiyplus.f[l + 1] +
+                   centralPhi.f[0] * phiyminus.f[l + 1] -
+                   phiyminus.f[0] * centralPhi.f[l + 1]) *
+                  ayy;
 
+          advzz = (-phizplus.f[0] * centralPhi.f[l + 1] +
+                   centralPhi.f[0] * phizplus.f[l + 1] +
+                   centralPhi.f[0] * phizminus.f[l + 1] -
+                   phizminus.f[0] * centralPhi.f[l + 1]) *
+                  azz;
 
-            advyy=(-phiyplus.f[0]*centralPhi.f[l + 1]
-                             +centralPhi.f[0]*phiyplus.f[l + 1]
-                             +centralPhi.f[0]*phiyminus.f[l + 1]
-                             -phiyminus.f[0]*centralPhi.f[l + 1]) * ayy;
-
-
-            advzz=(-phizplus.f[0]*centralPhi.f[l + 1]
-                             +centralPhi.f[0]*phizplus.f[l + 1]
-                             +centralPhi.f[0]*phizminus.f[l + 1]
-                             -phizminus.f[0]*centralPhi.f[l + 1]) * azz;
-
-            phi[k][j][i].A[l] +=  dt * (advxx + advyy + advzz
-            - H[0] * centralPhi.f[l + 1]);
+          phi[k][j][i].A[l] +=
+              dt * (advxx + advyy + advzz - H[0] * centralPhi.f[l + 1]);
         }
 
-        for (PetscInt s=0 ; s<ModelAData::NV; s++) {
+        for (PetscInt s = 0; s < ModelAData::NV; s++) {
 
-            s1=(s+1)%3;
-            s2=(s+2)%3;
-            epsilon=((PetscScalar) (s-s1)*(s1-s2)*(s2-s))/2.;
-                //advection term with epsilon
-            advxx=epsilon*(phixplus.f[1+s2]*centralPhi.f[1+s1]
-                                                 -centralPhi.f[1+s2]*phixminus.f[1+s1]
-                                                 -phixplus.f[1+s1]*centralPhi.f[1+s2]
-                                                   +centralPhi.f[1+s1]*phixminus.f[1+s2]) * axx;
+          s1 = (s + 1) % 3;
+          s2 = (s + 2) % 3;
+          epsilon = ((PetscScalar)(s - s1) * (s1 - s2) * (s2 - s)) / 2.;
+          // advection term with epsilon
+          advxx = epsilon *
+                  (phixplus.f[1 + s2] * centralPhi.f[1 + s1] -
+                   centralPhi.f[1 + s2] * phixminus.f[1 + s1] -
+                   phixplus.f[1 + s1] * centralPhi.f[1 + s2] +
+                   centralPhi.f[1 + s1] * phixminus.f[1 + s2]) *
+                  axx;
 
+          advyy = epsilon *
+                  (phiyplus.f[1 + s2] * centralPhi.f[1 + s1] -
+                   centralPhi.f[1 + s2] * phiyminus.f[1 + s1] -
+                   phiyplus.f[1 + s1] * centralPhi.f[1 + s2] +
+                   centralPhi.f[1 + s1] * phiyminus.f[1 + s2]) *
+                  ayy;
 
-            advyy=epsilon*(phiyplus.f[1+s2]*centralPhi.f[1+s1]
-                                                 -centralPhi.f[1+s2]*phiyminus.f[1+s1]
-                                                 -phiyplus.f[1+s1]*centralPhi.f[1+s2]
-                                                   +centralPhi.f[1+s1]*phiyminus.f[1+s2]) * ayy;
+          advzz = epsilon *
+                  (phizplus.f[1 + s2] * centralPhi.f[1 + s1] -
+                   centralPhi.f[1 + s2] * phizminus.f[1 + s1] -
+                   phizplus.f[1 + s1] * centralPhi.f[1 + s2] +
+                   centralPhi.f[1 + s1] * phizminus.f[1 + s2]) *
+                  azz;
 
-
-            advzz=epsilon*(phizplus.f[1+s2]*centralPhi.f[1+s1]
-                                                 -centralPhi.f[1+s2]*phizminus.f[1+s1]
-                                                 -phizplus.f[1+s1]*centralPhi.f[1+s2]
-                                                   +centralPhi.f[1+s1]*phizminus.f[1+s2]) * azz;
-
-
-            phi[k][j][i].V[l] += dt * (advxx + advyy + advzz);
+          phi[k][j][i].V[l] += dt * (advxx + advyy + advzz);
         }
 
-      //Then we rotate phi by n.
-      O4AlgebraHelper::O4Rotation(phi[k][j][i].V, phi[k][j][i].A, phi[k][j][i].f);
-
-
+        // Then we rotate phi by n.
+        O4AlgebraHelper::O4Rotation(phi[k][j][i].V, phi[k][j][i].A,
+                                    phi[k][j][i].f);
+      }
     }
   }
-}
-
 
   DMDAVecRestoreArrayRead(da, localU, &phi);
   DMRestoreLocalVector(da, &localU);
@@ -132,14 +127,9 @@ ForwardEulerSplit::ForwardEulerSplit(ModelA &in, bool wnoise)
 }
 void ForwardEulerSplit::finalize() { VecDestroy(&noise); }
 
-bool ForwardEulerSplit::diffusive_step(const double& dt)
-{
-
-}
+bool ForwardEulerSplit::diffusive_step(const double &dt) {}
 
 ///////////////////////////////////////////////////////////////////////////
-
-
 
 ForwardEuler::ForwardEuler(ModelA &in, bool wnoise)
     : model(&in), withNoise(wnoise) {
@@ -818,8 +808,6 @@ bool EulerLangevinHB::step(const double &dt) {
   // Retstore the array
   DMDAVecRestoreArray(model->domain, phi_local, &phi);
   DMDAVecRestoreArray(model->domain, model->solution, &phinew);
-
-
 
   return true;
 }
