@@ -351,7 +351,7 @@ PetscErrorCode BackwardEuler::FormJacobianGeneric(SNES snes, Vec U, Mat J,
         }
 
         // Put the minus the identity for non-evolved components
-        for (l = 0; l < ModelAData::NV; l++) {
+        for (l = 0; l < ModelAData::NA; l++) {
           PetscInt nc = 0; // number of non-zero entries
           MatStencil row = {};
           MatStencil column[1] = {};
@@ -381,7 +381,7 @@ PetscErrorCode BackwardEuler::FormJacobianGeneric(SNES snes, Vec U, Mat J,
           row.i = i;
           row.j = j;
           row.k = k;
-          row.c = l + ModelAData::Nphi;
+          row.c = l + ModelAData::Nphi + ModelAData::NA;
           column[nc].i = i;
           column[nc].j = j;
           column[nc].k = k;
@@ -484,7 +484,6 @@ bool SemiImplicitBEuler::step(const double &dt) {
         for (l = 0; l < ModelAData::NV; l++) {
           b.V[l] = phi.V[l] / dtg;
         }
-
       }
     }
   }
@@ -592,6 +591,9 @@ bool EulerLangevinHB::step(const double &dt) {
   // Get pointer to local array
   G_node ***phi;
   DMDAVecGetArray(model->domain, phi_local, &phi);
+  // Get pointer to local array
+  G_node ***phinew;
+  DMDAVecGetArray(model->domain, model->solution, &phinew);
 
   // Get the ranges
   PetscInt ixs, iys, izs, nx, ny, nz;
@@ -650,7 +652,7 @@ bool EulerLangevinHB::step(const double &dt) {
 
           // Downward step
           if (dS < 0) {
-            phi[k][j][i] = phi_n;
+            phinew[k][j][i] = phi_n;
             monitor.increment_down(dS);
             continue;
           }
@@ -658,7 +660,7 @@ bool EulerLangevinHB::step(const double &dt) {
           double r = ModelARndm->uniform();
           if (r < exp(-dS)) {
             // keep the upward step w. probl exp(-dS)
-            phi[k][j][i] = phi_n;
+            phinew[k][j][i] = phi_n;
             monitor.increment_up_yes(dS);
             continue;
           } else {
@@ -669,11 +671,6 @@ bool EulerLangevinHB::step(const double &dt) {
         }
       }
     }
-    // Copy back the local updates to the global vector
-    DMLocalToGlobalBegin(model->domain, phi_local, INSERT_VALUES,
-                         model->solution);
-    DMLocalToGlobalEnd(model->domain, phi_local, INSERT_VALUES,
-                       model->solution);
   }
 
   // Retstore the array
@@ -688,5 +685,126 @@ void EulerLangevinHB::finalize() {
   MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
   if (rank == 0) {
     monitor.print(stdout);
+  }
+}
+
+/////////////////////////////////////////////////////////////////////////
+
+// The six possible faces of the cube on the boundary of cell A and cell B. For
+// instance,  face_cases[0] (the first row), is an even site site for cell B,
+// eoA=0, cell B is shifted by plus one in the x direction.  and not shited in
+// the y and z directions. face_cases[5] (the last row) is odd (eoA=1) for cell
+// A, and cell B is shifted in z by one unit
+g_face_case g_face_cases[3][2] = {
+    0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 1, 0, 0, 1,
+};
+
+// Update a pair of cells A and B with the Heat Bath
+double modelg_update_charge_pair(const double &chi, const double &rms,
+                                 const double &nA, const double &nB,
+                                 o4_stepper_monitor &monitor) {
+  double q = rms * ModelARndm->normal();
+  double dS =
+      (pow(nA - q, 2) + pow(nB + q, 2) - pow(nA, 2) - pow(nB, 2)) / (2. * chi);
+  // Downward step
+  if (dS < 0) {
+    monitor.increment_down(dS);
+    return q;
+  }
+  // Process upward step
+  double r = ModelARndm->uniform();
+  if (r < exp(-dS)) {
+    // keep the upward step w. probl exp(-dS)
+    monitor.increment_up_yes(dS);
+    return q;
+  } else {
+    // q is rejected. Set the action change dS=0
+    monitor.increment_up_no(0.);
+    return 0.;
+  }
+}
+
+ModelGChargeHB::ModelGChargeHB(ModelA &in) : model(&in) {
+  DMCreateLocalVector(model->domain, &phi_local);
+  DMCreateLocalVector(model->domain, &dn_local);
+}
+
+bool ModelGChargeHB::step(const double &dt) {
+
+  // Get pointer to local array
+  data_node ***phi;
+  DMDAVecGetArray(model->domain, phi_local, &phi);
+
+  data_node ***dn;
+  DMDAVecGetArray(model->domain, dn_local, &dn);
+
+  // Get the ranges
+  PetscInt ixs, iys, izs, nx, ny, nz;
+  DMDAGetCorners(model->domain, &ixs, &iys, &izs, &nx, &ny, &nz);
+
+  const PetscReal rdtsigma = sqrt(2. * dt * model->data.sigma);
+  const PetscReal chi = model->data.chi;
+
+  // Shuffle the order of xyz and the order of even and odd
+  // to eliminate potential bias.
+  std::array<int, 3> orderxyz{0, 1, 2};
+  std::array<int, 2> ordereo{0, 1};
+  if (model->rank == 0) {
+    shuffle(orderxyz.begin(), orderxyz.end(), ModelARndm->generator());
+    shuffle(ordereo.begin(), ordereo.end(), ModelARndm->generator());
+  }
+  MPI_Bcast(orderxyz.data(), 3, MPI_INT, 0, PETSC_COMM_WORLD);
+  MPI_Bcast(ordereo.data(), 2, MPI_INT, 0, PETSC_COMM_WORLD);
+
+  // Checkerboard order ieo = even and odd sites
+  for (int ixyz = 0; ixyz < 3; ixyz++) {
+    for (int ieo = 0; ieo < 2; ieo++) {
+      // get the face case that we will update
+      g_face_case &face = g_face_cases[orderxyz[ixyz]][ordereo[ieo]];
+
+      // take the global vector U and distribute to the local vector localU
+      DMGlobalToLocalBegin(model->domain, model->solution, INSERT_VALUES,
+                           phi_local);
+      DMGlobalToLocalEnd(model->domain, model->solution, INSERT_VALUES,
+                         phi_local);
+
+      // Zero out the differences
+      VecSet(dn_local, 0.);
+      for (int k = izs; k < izs + nz; k++) {
+        for (int j = iys; j < iys + ny; j++) {
+          for (int i = ixs; i < ixs + nx; i++) {
+            if ((k + j + i) % 2 != face.eoA) {
+              continue;
+            }
+            for (int L = ModelAData::Nphi; L < ModelAData::Ndof; L++) {
+              int iB = i + face.iB;
+              int jB = j + face.jB;
+              int kB = k + face.kB;
+              const PetscScalar &nA = phi[k][j][i].x[L];
+              const PetscScalar &nB = phi[kB][jB][iB].x[L];
+              PetscScalar q =
+                  modelg_update_charge_pair(chi, rdtsigma, nA, nB, qmonitor);
+
+              dn[k][j][i].x[L] = -q;
+              dn[kB][jB][iB].x[L] = q;
+            }
+          }
+        }
+      }
+      DMLocalToGlobal(model->domain, dn_local, ADD_VALUES, model->solution);
+    }
+  }
+  return true;
+};
+
+void ModelGChargeHB::finalize() {
+  VecDestroy(&phi_local);
+  VecDestroy(&dn_local);
+
+  int rank;
+  MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
+  if (rank == 0) {
+    fprintf(stdout, "Statistics of current updates.... \n");
+    qmonitor.print(stdout);
   }
 }

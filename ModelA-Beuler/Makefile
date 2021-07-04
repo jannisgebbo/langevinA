@@ -55,6 +55,7 @@ LDLIBS := $(shell pkg-config --libs-only-l $(PACKAGES)) -lm
 HEADRS = ModelA.h Stepper.h NoiseGenerator.h measurer.h plotter.h
 OBJS = measurer.o Stepper.o NoiseGenerator.o
 
+
 ModelA-Beuler.exe: ModelA-Beuler.o $(OBJS)
 	$(LINK.cc) -o $@ $^ $(LDLIBS) -lstdc++
 
@@ -75,6 +76,12 @@ smoothtest.exe: smoothtest.o $(OBJS)
 
 noisetest.exe: noisetest.o $(OBJS)
 	$(LINK.cc) -o $@ $^ $(LDLIBS) -lstdc++
+
+q_heatbathtest.exe: q_heatbathtest.o $(OBJS) 
+	$(LINK.cc) -o $@ $^ $(LDLIBS) -lstdc++
+
+q_heatbathtest.o: q_heatbathtest.cxx $(HEADRS)
+	$(COMPILE.cc) $(OUTPUT_OPTION) $<
 	
 # If the file c.cxx needs to link with a C++ standard library -lstdc++ , then
 # you'll need to add it explicitly.  It can go in the rule above or be added to

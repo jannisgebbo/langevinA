@@ -16,11 +16,11 @@ struct smoothtest_data {
   double sigma = 4.;
 };
 
-double smoothtest_fcn(const double &x, const double &y, const double &z,
-                      const int &l, const int &fieldtype, void *params) {
-  if (fieldtype == 0) {
+double smoothtest_fcn_flat(const double &x, const double &y, const double &z,
+                           const int &L, void *params) {
+  if (L < ModelAData::Nphi) {
     smoothtest_data *data = (smoothtest_data *)params;
-    double sigma2 = pow(data->sigma + l * 0.2, 2);
+    double sigma2 = pow(data->sigma + L * 0.2, 2);
     double N = data->N / 2;
     return exp(-(pow(x - N + 0.5, 2) + pow(y - N - 1.0, 2) +
                  pow(z - N + 2, 2)) /
@@ -49,7 +49,7 @@ int main(int argc, char **argv) {
   // allocate the grid and initialize
   smoothtest_data gauss;
   ModelA model(inputdata);
-  model.initialize(smoothtest_fcn, &gauss);
+  model.initialize(smoothtest_fcn_flat, &gauss);
 
   plotter plot(inputdata.outputfiletag + "_phi");
   plot.plot(model.solution, "phi_ic");

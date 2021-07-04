@@ -8,13 +8,17 @@
 #define NOISEGENERATOR_STDCPP
 
 #ifdef NOISEGENERATOR_STDCPP
-#include <random>
 #include "xoroshiro128plus.h"
+#include <random>
 #endif
 #ifdef NOISEGENERATOR_GSL
 #include <gsl/gsl_randist.h>
 #include <gsl/gsl_rng.h>
 #endif
+
+// typedef std::ranlux48 RNGType;
+// typedef xoroshiro128plus RNGType;
+typedef std::mt19937_64 RNGType;
 
 class NoiseGenerator {
 public:
@@ -27,9 +31,9 @@ public:
     gsl_rng_set(rng, baseSeed + rank);
 #endif
 #ifdef NOISEGENERATOR_STDCPP
-    //std::seed_seq seq{baseSeed, rank};
-    //rng.seed(seq);
-    rng.seed(baseSeed+rank);
+    // std::seed_seq seq{baseSeed, rank};
+    // rng.seed(seq);
+    rng.seed(baseSeed + rank);
 #endif
   }
 
@@ -73,14 +77,15 @@ public:
 #endif
   }
 
+#ifdef NOISEGENERATOR_STDCPP
+  RNGType &generator() { return rng; }
+#endif
+
 private:
 #ifdef NOISEGENERATOR_GSL
   gsl_rng *rng;
 #endif
 #ifdef NOISEGENERATOR_STDCPP
-  //typedef std::ranlux48 RNGType;
-  //typedef xoroshiro128plus RNGType;
-  typedef std::mt19937_64 RNGType;
   RNGType rng;
   std::normal_distribution<PetscReal> normalDistribution;
   std::uniform_real_distribution<PetscReal> uniformDistribution;

@@ -105,12 +105,12 @@ private:
 //! record the number of successful steps
 class o4_stepper_monitor {
 public:
-  long int down_counts; // number of steps downwards
-  long int up_counts;   // number of upward trial steps
-  long int up_yes;      // number of accepted upward steps
-  long int up_no;       // number of rejected upward steps
-  double down_dS;       // The change in action summed over downward steps
-  double up_dS;         // The change in action summed over downward steps
+  long int down_counts; //!< number of steps downwards
+  long int up_counts;   //!< number of upward trial steps
+  long int up_yes;      //!< number of accepted upward steps
+  long int up_no;       //!< number of rejected upward steps
+  double down_dS;       //!< The change in action summed over downward steps
+  double up_dS;         //!< The change in action summed over upward steps
 
 public:
   o4_stepper_monitor() {
@@ -166,11 +166,13 @@ public:
     prob = up_yes / static_cast<double>(up_counts);
     mean_dS = up_dS / up_counts;
     fprintf(fh,
-            "dS>=0: counts  = %ld; probability of accepting when up  = %f; mean dS=%f\n",
+            "dS>=0: counts  = %ld; probability of accepting when up  = %f; "
+            "mean dS=%f\n",
             up_yes, prob, mean_dS);
     prob = up_no / static_cast<double>(up_counts);
     fprintf(fh,
-            "dS>=0: counts  = %ld; probability of rejecting when up  = %f; mean dS=%f\n",
+            "dS>=0: counts  = %ld; probability of rejecting when up  = %f; "
+            "mean dS=%f\n",
             up_no, prob, mean_dS);
     fprintf(fh, "============================================\n");
   }
@@ -190,5 +192,34 @@ private:
 
   Vec phi_local;
 };
+
+class ModelGChargeHB : public Stepper {
+public:
+  ModelGChargeHB(ModelA &in);
+  bool step(const double &dt);
+  void finalize();
+  ~ModelGChargeHB() { ; }
+
+private:
+  ModelA *model;
+  o4_stepper_monitor qmonitor;
+
+  Vec phi_local;
+  Vec dn_local;
+};
+
+struct g_face_case {
+  int eoA; // zero or one / even or odd of site A
+  int iB;  // either zero or one (indexing of the B cell relative to A)
+  int jB;  // either zero or one  (indexing of the B cell relative to A)
+  int kB;  // either zero or one  (indexing of the B cell relative to A)
+};
+
+extern g_face_case g_face_cases[3][2];
+
+PetscScalar modelg_update_charge_pair(const double &chi, const double &rms,
+                                      const PetscScalar &nA,
+                                      const PetscScalar &nB,
+                                      o4_stepper_monitor &monitor);
 
 #endif

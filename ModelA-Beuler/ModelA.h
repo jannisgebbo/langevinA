@@ -33,6 +33,7 @@ struct ModelAData {
   static const PetscInt Nphi = 4;
   static const PetscInt NA = 3;
   static const PetscInt NV = 3;
+  static const PetscInt Ndof = Nphi + NA + NV;
 
   // Options controlling the time stepping:
   PetscReal finaltime = 20.;
@@ -48,6 +49,8 @@ struct ModelAData {
   PetscReal lambda = 5.;
   PetscReal gamma = 1.;
   PetscReal H = 0.;
+  PetscReal sigma = 1.2;
+  PetscReal chi = 1.1;
 
   // random seed
   PetscInt seed = 10;
@@ -87,6 +90,8 @@ struct ModelAData {
     lambda = params.get<double>("lambda");
     gamma = params.get<double>("gamma");
     H = params.get<double>("H");
+    sigma = params.get<double>("sigma", 1.);
+    chi = params.get<double>("chi", 1.);
 
     seed = (PetscInt)params.getSeed("seed");
 
@@ -134,6 +139,8 @@ struct ModelAData {
     PetscPrintf(PETSC_COMM_WORLD, "lambda = %e\n", lambda);
     PetscPrintf(PETSC_COMM_WORLD, "gamma = %e\n", gamma);
     PetscPrintf(PETSC_COMM_WORLD, "H = %e\n", H);
+    PetscPrintf(PETSC_COMM_WORLD, "sigma = %e\n", sigma);
+    PetscPrintf(PETSC_COMM_WORLD, "chi = %e\n", chi);
 
     PetscPrintf(PETSC_COMM_WORLD, "seed = %d\n", seed);
 
@@ -169,6 +176,10 @@ typedef struct {
   PetscScalar V[ModelAData::NV];
 } G_node;
 
+typedef struct {
+  PetscScalar x[ModelAData::Ndof];
+} data_node;
+
 class ModelA {
 
 public:
@@ -183,6 +194,9 @@ public:
 
   // Previous solution
   Vec previoussolution;
+
+  // Rank of this processor
+  int rank;
 
   //! Construct the grid and initialize the fields according to
   //! the configuration parameters in the input ModelAData structure
@@ -203,6 +217,9 @@ public:
 
     // Setup the random number generation
     ModelARndm = make_unique<NoiseGenerator>(data.seed);
+
+    // Printout store the rank
+    MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
   }
 
   void finalize() {
@@ -233,15 +250,12 @@ public:
 #endif
   }
 
-  // Initialize the vector solution. If coldStart is false ! then read in the
+  // Initialize the vector solution. If coldStart is false  then read in the
   // data from Derek's file. Otherwise fill with  random numbers, or if
   // zeroStart is true set to zero. Finally  if a function is provided,
-  // f(x,y,z,l,fieldtype, params), this function will be used.  If fieldtype is
-  // 0 then we are filling the phi[l].  If fieldtype is 1 then we are filling
-  // the charges  q[l]
+  // f(x,y,z,L, params), this function will be used.
   PetscErrorCode initialize(double (*func)(const double &x, const double &y,
-                                           const double &z, const int &l,
-                                           const int &fieldtype,
+                                           const double &z, const int &L,
                                            void *params) = 0,
                             void *params = 0) {
 
@@ -256,11 +270,11 @@ public:
     PetscReal hz = data.hZ();
 
     // This Get a pointer to do the calculation
-    G_node ***u;
-    DMDAVecGetArray(domain, solution, &u);
+    PetscScalar ****u;
+    DMDAVecGetArrayDOF(domain, solution, &u);
 
     // Get the Local Corner od the vector
-    PetscInt i, j, k, l, xstart, ystart, zstart, xdimension, ydimension,
+    PetscInt i, j, k, L, xstart, ystart, zstart, xdimension, ydimension,
         zdimension;
 
     DMDAGetCorners(domain, &xstart, &ystart, &zstart, &xdimension, &ydimension,
@@ -273,43 +287,21 @@ public:
         PetscReal y = j * hy;
         for (i = xstart; i < xstart + xdimension; i++) {
           PetscReal x = i * hx;
-          for (l = 0; l < ModelAData::Nphi; l++) {
+          for (L = 0; L < ModelAData::Ndof; L++) {
             if (data.zeroStart) {
-              u[k][j][i].f[l] = 0.0;
+              u[k][j][i][L] = 0.0;
             } else {
               if (func) {
-                u[k][j][i].f[l] = func(x, y, z, l, 0, params);
+                u[k][j][i][L] = func(x, y, z, L, params);
               } else {
-                u[k][j][i].f[l] = ModelARndm->normal();
-              }
-            }
-          }
-          for (l = 0; l < ModelAData::NA; l++) {
-            if (data.zeroStart) {
-              u[k][j][i].A[l] = 0.0;
-            } else {
-              if (func) {
-                u[k][j][i].A[l] = func(x, y, z, l, 1, params);
-              } else {
-                u[k][j][i].A[l] = 0.0;
-              }
-            }
-          }
-          for (l = 0; l < ModelAData::NV; l++) {
-            if (data.zeroStart) {
-              u[k][j][i].V[l] = 0.0;
-            } else {
-              if (func) {
-                u[k][j][i].V[l] = func(x, y, z, l, 1, params);
-              } else {
-                u[k][j][i].V[l] = 0.0;
+                u[k][j][i][L] = ModelARndm->normal();
               }
             }
           }
         }
       }
     }
-    DMDAVecRestoreArray(domain, solution, &u);
+    DMDAVecRestoreArrayDOF(domain, solution, &u);
     return (0);
   }
 };
