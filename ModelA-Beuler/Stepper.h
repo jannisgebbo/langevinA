@@ -10,6 +10,20 @@ public:
   virtual ~Stepper() = default;
 };
 
+class IdealLFStepper : public Stepper {
+public:
+  IdealLFStepper(ModelA &in);
+
+  bool step(const double &dt) override;
+  virtual bool diffusive_step(const double &dt) = 0;
+  virtual bool ideal_step(const double &dt);
+  //virtual void finalize() = 0;
+  virtual ~IdealLFStepper()  {}
+
+protected:
+  ModelA* model;
+};
+
 class ForwardEuler : public Stepper {
 public:
   ForwardEuler(ModelA &in, bool wnoise = true);
@@ -23,6 +37,17 @@ private:
   Vec noise;
 };
 
+class ForwardEulerSplit : public IdealLFStepper {
+public:
+  ForwardEulerSplit(ModelA &in, bool wnoise = true);
+  void finalize() override;
+  bool diffusive_step(const double &dt) override;
+  ~ForwardEulerSplit() { ; }
+
+private:
+  bool withNoise;
+  Vec noise;
+};
 /////////////////////////////////////////////////////////////////////////
 
 class BackwardEuler : public Stepper {
