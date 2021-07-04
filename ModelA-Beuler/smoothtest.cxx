@@ -27,7 +27,7 @@ double smoothtest_fcn_flat(const double &x, const double &y, const double &z,
                (2 * sigma2)) /
            pow(2.0 * M_PI * sigma2, 3. / 2.);
   } else {
-    return 0.;
+    return L; // some test data. This should not be modified by the evolutions
   }
 }
 
