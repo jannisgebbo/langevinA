@@ -12,6 +12,21 @@ public:
                         &H5viewer);
   }
 
+    void settime(Vec V,int time,const std::string &name){
+        PetscObjectSetName((PetscObject)V, name.c_str());
+        PetscViewerHDF5SetTimestep(H5viewer, time);
+        PetscViewerSetFromOptions(H5viewer);
+    }
+    
+    void update() {
+      PetscViewerHDF5IncrementTimestep(H5viewer);
+    }
+    
+    void dump(Vec V) {
+      VecView(V, H5viewer);
+    }
+  
+    
   void plot(Vec V, const std::string &name) {
     PetscObjectSetName((PetscObject)V, name.c_str());
     VecView(V, H5viewer);

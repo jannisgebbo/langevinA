@@ -12,7 +12,7 @@ public:
 
 class IdealLFStepper : public Stepper {
 public:
-  IdealLFStepper(ModelA &in);
+  IdealLFStepper(ModelA &in, bool oid);
 
   bool step(const double &dt) override;
   virtual bool diffusive_step(const double &dt) = 0;
@@ -22,6 +22,7 @@ public:
 
 protected:
   ModelA* model;
+  bool onlyideal ;
 };
 
 class ForwardEuler : public Stepper {
@@ -39,7 +40,7 @@ private:
 
 class ForwardEulerSplit : public IdealLFStepper {
 public:
-  ForwardEulerSplit(ModelA &in, bool wnoise = true);
+  ForwardEulerSplit(ModelA &in, bool wnoise = true,bool oid=false);
   void finalize() override;
   bool diffusive_step(const double &dt) override;
   ~ForwardEulerSplit() { ; }

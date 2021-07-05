@@ -4,12 +4,12 @@
 #include "O4AlgebraHelper.h"
 
 
-IdealLFStepper::IdealLFStepper(ModelA &in): model(&in){}
+IdealLFStepper::IdealLFStepper(ModelA &in,bool oid): model(&in), onlyideal(oid){}
 
 
 bool IdealLFStepper::step(const double& dt){
   ideal_step(dt);
-  diffusive_step(dt);
+  if(onlyideal==false) diffusive_step(dt);
   return true;
 }
 
@@ -126,8 +126,8 @@ bool IdealLFStepper::ideal_step(const double& dt){
 
 ///////////////////////////////////////////////////////////////////////////
 
-ForwardEulerSplit::ForwardEulerSplit(ModelA &in, bool wnoise)
-    : IdealLFStepper(in), withNoise(wnoise) {
+ForwardEulerSplit::ForwardEulerSplit(ModelA &in, bool wnoise, bool oid)
+    : IdealLFStepper(in,oid), withNoise(wnoise) {
   VecDuplicate(model->solution, &noise);
 }
 void ForwardEulerSplit::finalize() { VecDestroy(&noise); }
@@ -734,8 +734,6 @@ bool EulerLangevinHB::step(const double &dt) {
   G_node ***phinew;
   DMDAVecGetArray(model->domain, model->solution, &phinew);
 
-  G_node ***phinew;
-  DMDAVecGetArray(model->domain, model->solution, &phinew);
 
   // Get the ranges
   PetscInt ixs, iys, izs, nx, ny, nz;
