@@ -71,6 +71,11 @@ measurer.o: measurer.cxx $(HEADRS)
 NoiseGenerator.o: NoiseGenerator.cxx NoiseGenerator.h
 	$(COMPILE.cc) $(OUTPUT_OPTION) $<
 
+idealtest.exe: idealtest.o $(OBJS)
+	$(LINK.cc) -o $@ $^ $(LDLIBS) -lstdc++
+
+idealtest.o: idealtest.cxx $(HEADRS)
+	$(COMPILE.cc) $(OUTPUT_OPTION) $<
 
 smoothtest.exe: smoothtest.o $(OBJS)
 	$(LINK.cc) -o $@ $^ $(LDLIBS) -lstdc++

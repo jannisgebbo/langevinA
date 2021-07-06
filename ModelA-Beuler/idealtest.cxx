@@ -12,12 +12,29 @@
 #include "NoiseGenerator.h"
 #include "Stepper.h"
 #include "make_unique.h"
+#include "plotter.h"
 
 // Homemade parser
 #include "parameterparser/parameterparser.h"
 
 // Measurer, where the Petsc are included
 #include "measurer.h"
+
+struct ideal_data {
+  double phi = 5;
+  double N;
+};
+
+double ideal_fcn_flat(const double &x, const double &y, const double &z,
+                           const int &L, void *params) {
+  if (L == 3) {
+      
+      ideal_data *data = (ideal_data *)params;
+    return data->phi* cos(x*2*M_PI/data->N);
+  } else {
+    return 0; // some test data. This should not be modified by the evolutions
+  }
+}
 
 int main(int argc, char **argv) {
   // Initialization
@@ -44,7 +61,9 @@ int main(int argc, char **argv) {
 
   // allocate the grid and initialize
   ModelA model(inputdata);
-  model.initialize();
+  ideal_data ideal;
+  ideal.N= model.data.NX;
+  model.initialize(ideal_fcn_flat,&ideal);
 
   // initialize the measurments and measure the initial condition
   Measurer measurer(&model);
@@ -53,27 +72,14 @@ int main(int argc, char **argv) {
   // Initialize the stepper
   std::unique_ptr<Stepper> step;
 
-  switch (model.data.evolverType) {
-  case 1:
-    step = make_unique<BackwardEuler>(model);
-    break;
-  case 2:
-    step = make_unique<ForwardEuler>(model);
-    break;
-  case 3:
-    step = make_unique<SemiImplicitBEuler>(model);
-    break;
-  case 4:
-    step = make_unique<EulerLangevinHB>(model);
-    break;
-  case 5:
-    step = make_unique<ForwardEulerSplit>(model,false, true);
-    break;
-  }
-
-  PetscInt steps = 1;
-  PetscLogEvent measurements;
-  PetscLogEventRegister("Measurements", 0, &measurements);
+  
+  step = make_unique<ForwardEulerSplit>(model,false, true);
+    
+  plotter plot(inputdata.outputfiletag + "_phi");
+  //plot.plot(model.solution, "phi_0");
+  PetscInt steps = 0;
+    plot.settime(model.solution, steps,"phi");
+    plot.dump(model.solution);
   // Thsi is the loop for the time step
   for (PetscReal time = model.data.initialtime; time < model.data.finaltime;
        time += model.data.deltat) {
@@ -81,21 +87,17 @@ int main(int argc, char **argv) {
     VecCopy(model.solution, model.previoussolution);
 
     step->step(model.data.deltat);
-
-    // measure the solution
-    PetscLogEventBegin(measurements, 0, 0, 0, 0);
-    if (steps % model.data.saveFrequency == 0) {
-      measurer.measure(&model.solution);
-      // Print some information to not get bored during the running:
-      PetscPrintf(PETSC_COMM_WORLD, "Timestep %D: step size = %g, time = %g\n",
-                  steps, (double)model.data.deltat, (double)time);
-    }
-    PetscLogEventEnd(measurements, 0, 0, 0, 0);
-
+    
     steps++;
+      plot.update();
+      plot.dump(model.solution);
+    //std::string index= ;
+    //std::string blabla = "phi_" + std::to_string(steps) ;
+    //plot.plot(model.solution, "phi_" + std::to_string(steps));
   }
 
   // Destroy everything
+  plot.finalize();
   step->finalize();
   measurer.finalize();
   model.finalize();
