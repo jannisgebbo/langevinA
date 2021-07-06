@@ -127,7 +127,7 @@ ForwardEulerSplit::ForwardEulerSplit(ModelA &in, bool wnoise)
 }
 void ForwardEulerSplit::finalize() { VecDestroy(&noise); }
 
-bool ForwardEulerSplit::diffusive_step(const double &dt) {}
+bool ForwardEulerSplit::diffusive_step(const double &dt) { return true; }
 
 ///////////////////////////////////////////////////////////////////////////
 
@@ -724,9 +724,6 @@ bool EulerLangevinHB::step(const double &dt) {
   G_node ***phinew;
   DMDAVecGetArray(model->domain, model->solution, &phinew);
 
-  G_node ***phinew;
-  DMDAVecGetArray(model->domain, model->solution, &phinew);
-
   // Get the ranges
   PetscInt ixs, iys, izs, nx, ny, nz;
   DMDAGetCorners(model->domain, &ixs, &iys, &izs, &nx, &ny, &nz);
@@ -828,9 +825,16 @@ void EulerLangevinHB::finalize() {
 // eoA=0, cell B is shifted by plus one in the x direction.  and not shited in
 // the y and z directions. face_cases[5] (the last row) is odd (eoA=1) for cell
 // A, and cell B is shifted in z by one unit
+/* clang-format off */
 g_face_case g_face_cases[3][2] = {
-    0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 1, 0, 0, 1,
+    0, 1, 0, 0, 
+    1, 1, 0, 0, 
+    0, 0, 1, 0,
+    1, 0, 1, 0,
+    0, 0, 0, 1,
+    1, 0, 0, 1,
 };
+/* clang-format on */
 
 // Update a pair of cells A and B with the Heat Bath
 double modelg_update_charge_pair(const double &chi, const double &rms,
@@ -940,4 +944,221 @@ void ModelGChargeHB::finalize() {
     fprintf(stdout, "Statistics of current updates.... \n");
     qmonitor.print(stdout);
   }
+}
+
+/////////////////////////////////////////////////////////////////////////
+
+ModelGChargeCN::ModelGChargeCN(ModelA &in, bool wnoise)
+    : model(&in), withNoise(wnoise) {
+
+  VecDuplicate(model->solution, &rhs);
+  VecDuplicate(model->solution, &dn);
+  DMCreateLocalVector(model->domain, &noise_local);
+
+  DMCreateMatrix(model->domain, &J);
+
+  double hx = model->data.hX();
+  double hy = model->data.hY();
+  double hz = model->data.hZ();
+  Form3PointLaplacian(model->domain, J, hx, hy, hz);
+
+  MatConvert(J, MATSAME, MAT_INITIAL_MATRIX, &A);
+  KSPCreate(PETSC_COMM_WORLD, &ksp);
+}
+
+void ModelGChargeCN::finalize() {
+  KSPDestroy(&ksp);
+  MatDestroy(&A);
+  MatDestroy(&J);
+  VecDestroy(&noise_local);
+  VecDestroy(&dn);
+  VecDestroy(&rhs);
+}
+
+// We are solving
+//
+// (1/dtD  + J) n_+ = n/dtD  +  1/D div.xi
+//
+// Here J = - nabla^2,  dtD = dt * D
+bool ModelGChargeCN::step(const double &dt) {
+
+  PetscScalar ****bI;
+  DMDAVecGetArrayDOF(model->domain, rhs, &bI);
+
+  PetscScalar ****phiI;
+  DMDAVecGetArrayDOF(model->domain, model->solution, &phiI);
+
+  PetscScalar ****xiI;
+  DMDAVecGetArrayDOF(model->domain, noise_local, &xiI);
+
+  // accumulates the divergence of xi
+  PetscScalar ****dnI;
+  DMDAVecGetArrayDOF(model->domain, dn, &dnI);
+
+  PetscInt i, j, k, L, xstart, ystart, zstart, xdimension, ydimension,
+      zdimension;
+
+  // Compute the random fluxes
+  DMDAGetCorners(model->domain, &xstart, &ystart, &zstart, &xdimension,
+                 &ydimension, &zdimension);
+
+  // Parameters needed
+  const PetscReal &dtD = dt * model->data.sigma / model->data.chi;
+  ;
+  const PetscReal &rxbyD = sqrt(2. * model->data.chi / dtD);
+
+  // Compute the divergence of the noise
+  VecSet(noise_local, 0.);
+  VecSet(dn, 0.);
+  if (withNoise) {
+    for (int ixyz = 0; ixyz < 3; ixyz++) {
+      for (int ieo = 0; ieo < 2; ieo++) {
+        // get the face case that we will update
+        g_face_case face = g_face_cases[ixyz][ieo];
+        for (k = zstart; k < zstart + zdimension; k++) {
+          for (j = ystart; j < ystart + ydimension; j++) {
+            for (i = xstart; i < xstart + xdimension; i++) {
+              if ((k + j + i) % 2 != face.eoA) {
+                continue;
+              }
+              for (int L = ModelAData::Nphi; L < ModelAData::Ndof; L++) {
+
+                int iB = i + face.iB;
+                int jB = j + face.jB;
+                int kB = k + face.kB;
+
+                // Assumes that hx = hy = hz=1!
+                PetscScalar q = rxbyD * ModelARndm->normal();
+                xiI[k][j][i][L] -= q;
+                xiI[kB][jB][iB][L] += q;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  DMLocalToGlobal(model->domain, noise_local, ADD_VALUES, dn);
+
+  // Compute the RHS of the equation to be solved
+  for (k = zstart; k < zstart + zdimension; k++) {
+    for (j = ystart; j < ystart + ydimension; j++) {
+      for (i = xstart; i < xstart + xdimension; i++) {
+
+        const PetscScalar *phi = phiI[k][j][i];
+        const PetscScalar *q = dnI[k][j][i];
+        PetscScalar *b = bI[k][j][i];
+
+        for (L = 0; L < ModelAData::Nphi; L++) {
+          b[L] = phi[L] / dtD;
+        }
+        for (L = ModelAData::Nphi; L < ModelAData::Ndof; L++) {
+          b[L] = phi[L] / dtD + q[L];
+        }
+      }
+    }
+  }
+  DMDAVecRestoreArrayDOF(model->domain, dn, &dnI);
+  DMDAVecRestoreArrayDOF(model->domain, noise_local, &xiI);
+  DMDAVecRestoreArrayDOF(model->domain, model->solution, &phiI);
+  DMDAVecRestoreArrayDOF(model->domain, rhs, &bI);
+
+  // Construct the matrix for the equation to be solved
+  MatCopy(J, A, SAME_NONZERO_PATTERN);
+  MatShift(A, 1. / dtD);
+
+  // Actually solve
+  KSPSetOperators(ksp, A, A);
+  KSPSetFromOptions(ksp);
+  KSPSolve(ksp, rhs, model->solution);
+
+  return true;
+}
+
+// Form the Jacobian the Jabian generic interface
+PetscErrorCode ModelGChargeCN::Form3PointLaplacian(DM da, Mat J,
+                                                   const double &hx,
+                                                   const double &hy,
+                                                   const double &hz) {
+  // Get the local information and store in info
+  DMDALocalInfo info;
+  DMDAGetLocalInfo(da, &info);
+  PetscInt i, j, k, l;
+  for (k = info.zs; k < info.zs + info.zm; k++) {
+    for (j = info.ys; j < info.ys + info.ym; j++) {
+      for (i = info.xs; i < info.xs + info.xm; i++) {
+        for (l = 0; l < ModelAData::Nphi; l++) {
+          PetscInt nc = 0;
+          MatStencil row, column[10];
+          PetscScalar value[10];
+          // here we insert the position of the row
+          row.i = i;
+          row.j = j;
+          row.k = k;
+          row.c = l;
+          MatSetValuesStencil(J, 1, &row, nc, column, value, INSERT_VALUES);
+        }
+        for (l = ModelAData::Nphi; l < ModelAData::Ndof; l++) {
+          // we define the column
+          PetscInt nc = 0;
+          MatStencil row, column[10];
+          PetscScalar value[10];
+          // here we insert the position of the row
+          row.i = i;
+          row.j = j;
+          row.k = k;
+          row.c = l;
+          // here we define de position of the non-vansih column for the given
+          // row in total there are 7*4 entries and nc is the total number of
+          // column per row x direction
+          column[nc].i = i - 1;
+          column[nc].j = j;
+          column[nc].k = k;
+          column[nc].c = l;
+          value[nc++] = -1. / (hx * hx);
+          column[nc].i = i + 1;
+          column[nc].j = j;
+          column[nc].k = k;
+          column[nc].c = l;
+          value[nc++] = -1. / (hx * hx);
+          // y direction
+          column[nc].i = i;
+          column[nc].j = j - 1;
+          column[nc].k = k;
+          column[nc].c = l;
+          value[nc++] = -1. / (hy * hy);
+          column[nc].i = i;
+          column[nc].j = j + 1;
+          column[nc].k = k;
+          column[nc].c = l;
+          value[nc++] = -1. / (hy * hy);
+          // z direction
+          column[nc].i = i;
+          column[nc].j = j;
+          column[nc].k = k - 1;
+          column[nc].c = l;
+          value[nc++] = -1. / (hz * hz);
+          column[nc].i = i;
+          column[nc].j = j;
+          column[nc].k = k + 1;
+          column[nc].c = l;
+          value[nc++] = -1. / (hz * hz);
+
+          // The central element need a loop over the flavour index of the
+          // column (is a full matrix in the flavour index )
+          column[nc].i = i;
+          column[nc].j = j;
+          column[nc].k = k;
+          column[nc].c = l;
+          value[nc++] = 2.0 / (hx * hx) + 2.0 / (hy * hy) + 2.0 / (hz * hz);
+
+          // here we set the matrix
+          MatSetValuesStencil(J, 1, &row, nc, column, value, INSERT_VALUES);
+        }
+      }
+    }
+  }
+  MatAssemblyBegin(J, MAT_FINAL_ASSEMBLY);
+  MatAssemblyEnd(J, MAT_FINAL_ASSEMBLY);
+  return (0);
 }

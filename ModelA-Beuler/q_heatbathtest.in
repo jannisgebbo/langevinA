@@ -7,8 +7,8 @@ NX = 32
 #Times and timestep
 finaltime =10.
 initialtime = 0
-deltat    = 0.001
-saveFrequencyInTime = 0.1
+deltat    = 0.5
+saveFrequencyInTime = 0.5
 
 #Parameters
 mass = -4.8129999999999997

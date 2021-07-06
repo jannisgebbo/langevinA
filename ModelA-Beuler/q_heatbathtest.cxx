@@ -8,15 +8,14 @@
 void t1(const ModelAData &data, const double &nA0, const double &nB0,
         const std::string &filename);
 
-struct diffusiontest_data  {
+struct diffusiontest_data {
   double w0 = 6.;
   double t = 0.;
   double A = 100000.;
-  ModelAData &mdata ;
+  ModelAData &mdata;
 
-  diffusiontest_data(ModelAData &in) : mdata(in) {;}
+  diffusiontest_data(ModelAData &in) : mdata(in) { ; }
 };
-
 
 double diffusiontest_fcn(const double &x, const double &y, const double &z,
                          const int &L, void *params) {
@@ -25,27 +24,27 @@ double diffusiontest_fcn(const double &x, const double &y, const double &z,
   } else {
     diffusiontest_data *data = (diffusiontest_data *)params;
 
-    ModelAData &mdata = data->mdata; 
+    ModelAData &mdata = data->mdata;
 
-    double D = mdata.sigma/mdata.chi;
+    double D = mdata.sigma / mdata.chi;
     double w2 = pow(data->w0, 2) + 2. * D * data->t;
 
     double s = 0.;
-    double N = mdata.NX / 2 ;
-    static const int c = 2;  // construct a periodic solution using c images
+    double N = mdata.NX / 2;
+    static const int c = 2; // construct a periodic solution using c images
     for (int i = -c; i <= c; i++) {
       for (int j = -c; j <= c; j++) {
         for (int k = -c; k <= c; k++) {
-          s += data->A*exp(-(pow(x - (2 * i + 1) * N , 2) +
-                     pow(y - (2 * j + 1) * N , 2) +
-                     pow(z - (2 * k + 1) * N , 2)) /
+          s += data->A *
+               exp(-(pow(x - (2 * i + 1) * N, 2) + pow(y - (2 * j + 1) * N, 2) +
+                     pow(z - (2 * k + 1) * N, 2)) /
                    (2 * w2)) /
                pow(2.0 * M_PI * w2, 3. / 2.);
         }
       }
     }
-    return s ;
-  } 
+    return s;
+  }
 }
 
 int main(int argc, char **argv) {
@@ -67,26 +66,28 @@ int main(int argc, char **argv) {
   model.initialize(diffusiontest_fcn, &gauss);
 
   // Initialize the stepper
-  std::unique_ptr<Stepper> step = make_unique<ModelGChargeHB>(model);
+  // std::unique_ptr<Stepper> step = make_unique<ModelGChargeHB>(model);
+  std::unique_ptr<Stepper> step = make_unique<ModelGChargeCN>(model);
 
   plotter plot(inputdata.outputfiletag + "_phi");
   plot.plot(model.solution, "phi_ic");
 
-  plot.plotfcn(model.domain, model.solution, "phi_ic_sol", diffusiontest_fcn, &gauss);
+  plot.plotfcn(model.domain, model.solution, "phi_ic_sol", diffusiontest_fcn,
+               &gauss);
 
   // Check the thermalization step
   if (model.rank == 0) {
-     t1(inputdata, 0, 0, "t1_zero.out");
-     t1(inputdata, 2, 1, "z1_21.out");
+    t1(inputdata, 0, 0, "t1_zero.out");
+    t1(inputdata, 2, 1, "z1_21.out");
 
-     // Check the listed faces
-     for (int ixyz = 0; ixyz < 3; ixyz++) {
-       for (int ieo = 0; ieo < 2; ieo++) {
-         printf("%d %d %d %d \n", g_face_cases[ixyz][ieo].eoA,
-                g_face_cases[ixyz][ieo].iB, g_face_cases[ixyz][ieo].jB,
-                g_face_cases[ixyz][ieo].kB);
-       }
-     }
+    // Check the listed faces
+    for (int ixyz = 0; ixyz < 3; ixyz++) {
+      for (int ieo = 0; ieo < 2; ieo++) {
+        printf("%d %d %d %d \n", g_face_cases[ixyz][ieo].eoA,
+               g_face_cases[ixyz][ieo].iB, g_face_cases[ixyz][ieo].jB,
+               g_face_cases[ixyz][ieo].kB);
+      }
+    }
   }
 
   PetscInt steps = 1;
@@ -106,9 +107,9 @@ int main(int argc, char **argv) {
   }
 
   plot.plot(model.solution, "phi_final");
-  gauss.t = time ;
-  plot.plotfcn(model.domain, model.solution, "phi_final_sol", diffusiontest_fcn, &gauss);
-
+  gauss.t = time;
+  plot.plotfcn(model.domain, model.solution, "phi_final_sol", diffusiontest_fcn,
+               &gauss);
 
   step->finalize();
   plot.finalize();

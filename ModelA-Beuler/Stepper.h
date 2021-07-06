@@ -17,11 +17,11 @@ public:
   bool step(const double &dt) override;
   virtual bool diffusive_step(const double &dt) = 0;
   virtual bool ideal_step(const double &dt);
-  //virtual void finalize() = 0;
-  virtual ~IdealLFStepper()  {}
+  // virtual void finalize() = 0;
+  virtual ~IdealLFStepper() {}
 
 protected:
-  ModelA* model;
+  ModelA *model;
 };
 
 class ForwardEuler : public Stepper {
@@ -203,7 +203,7 @@ public:
   }
 };
 
-// Try the heat bath step
+// The heat bath step for the phi fields
 class EulerLangevinHB : public Stepper {
 public:
   EulerLangevinHB(ModelA &in);
@@ -218,6 +218,7 @@ private:
   Vec phi_local;
 };
 
+// The heat bath step for the charge fields
 class ModelGChargeHB : public Stepper {
 public:
   ModelGChargeHB(ModelA &in);
@@ -233,6 +234,7 @@ private:
   Vec dn_local;
 };
 
+// These are helper structures for ModelGChargeHB
 struct g_face_case {
   int eoA; // zero or one / even or odd of site A
   int iB;  // either zero or one (indexing of the B cell relative to A)
@@ -247,4 +249,27 @@ PetscScalar modelg_update_charge_pair(const double &chi, const double &rms,
                                       const PetscScalar &nB,
                                       o4_stepper_monitor &monitor);
 
+/////////////////////////////////////////////////////////////////////////
+// The Crank Nicholson step for q fields
+class ModelGChargeCN : public Stepper {
+public:
+  ModelGChargeCN(ModelA &in, bool withNoise = true);
+  bool step(const double &dt);
+  void finalize();
+  ~ModelGChargeCN() { ; }
+  static PetscErrorCode Form3PointLaplacian(DM da, Mat J, const double &hx,
+                                            const double &hy, const double &hz);
+
+private:
+  ModelA *model;
+  bool withNoise;
+
+  Vec rhs;
+  Vec noise_local;
+  Vec dn;
+  Mat J;
+  Mat A;
+
+  KSP ksp;
+};
 #endif
