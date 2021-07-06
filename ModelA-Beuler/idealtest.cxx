@@ -28,7 +28,7 @@ struct ideal_data {
 double ideal_fcn_flat(const double &x, const double &y, const double &z,
                            const int &L, void *params) {
   if (L == 3) {
-      
+
       ideal_data *data = (ideal_data *)params;
     return data->phi* cos(x*2*M_PI/data->N);
   } else {
@@ -72,9 +72,9 @@ int main(int argc, char **argv) {
   // Initialize the stepper
   std::unique_ptr<Stepper> step;
 
-  
-  step = make_unique<ForwardEulerSplit>(model,false, true);
-    
+
+  step = make_unique<IdealLF>(model);
+
   plotter plot(inputdata.outputfiletag + "_phi");
   //plot.plot(model.solution, "phi_0");
   PetscInt steps = 0;
@@ -87,7 +87,7 @@ int main(int argc, char **argv) {
     VecCopy(model.solution, model.previoussolution);
 
     step->step(model.data.deltat);
-    
+
     steps++;
       plot.update();
       plot.dump(model.solution);

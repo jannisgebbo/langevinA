@@ -4,19 +4,12 @@
 #include <cstdio>
 
 
-IdealLFStepper::IdealLFStepper(ModelA &in, bool oid)
-    : model(&in), onlyideal(oid) {
-  ;
+IdealLF::IdealLF(ModelA &in)
+    : model(&in) {
 }
 
-bool IdealLFStepper::step(const double &dt) {
-  ideal_step(dt);
-  if (onlyideal == false)
-    diffusive_step(dt);
-  return true;
-}
 
-bool IdealLFStepper::ideal_step(const double &dt) {
+bool IdealLF::step(const double &dt) {
 
   DM da = model->domain;
   // Get a local vector with ghost cells
@@ -39,15 +32,15 @@ bool IdealLFStepper::ideal_step(const double &dt) {
 
   PetscScalar advxx, advyy, advzz;
   PetscInt s1, s2, epsilon;
-  PetscInt i, j, k, l, xstart, ystart, zstart, xdimension, ydimension,
+  PetscInt  xstart, ystart, zstart, xdimension, ydimension,
       zdimension;
   DMDAGetCorners(da, &xstart, &ystart, &zstart, &xdimension, &ydimension,
                  &zdimension);
 
   // Loop over central elements
-  for (k = zstart; k < zstart + zdimension; k++) {
-    for (j = ystart; j < ystart + ydimension; j++) {
-      for (i = xstart; i < xstart + xdimension; i++) {
+  for (PetscInt k = zstart; k < zstart + zdimension; k++) {
+    for (PetscInt j = ystart; j < ystart + ydimension; j++) {
+      for (PetscInt i = xstart; i < xstart + xdimension; i++) {
         // First evolve the momenta nab
 
         G_node &centralPhi = phi[k][j][i];
@@ -108,7 +101,7 @@ bool IdealLFStepper::ideal_step(const double &dt) {
                    centralPhi.f[1 + s1] * phizminus.f[1 + s2]) *
                   azz;
 
-          phi[k][j][i].V[l] += dt * (advxx + advyy + advzz);
+          phi[k][j][i].V[s] += dt * (advxx + advyy + advzz);
         }
 
         // Then we rotate phi by n.
@@ -126,14 +119,7 @@ bool IdealLFStepper::ideal_step(const double &dt) {
 
 ///////////////////////////////////////////////////////////////////////////
 
-ForwardEulerSplit::ForwardEulerSplit(ModelA &in, bool wnoise, bool oid)
-    : IdealLFStepper(in, oid), withNoise(wnoise) {
-  VecDuplicate(model->solution, &noise);
-}
-void ForwardEulerSplit::finalize() { VecDestroy(&noise); }
-
-bool ForwardEulerSplit::diffusive_step(const double &dt) { return true; }
-
+void IdealLF::finalize() { }
 ///////////////////////////////////////////////////////////////////////////
 
 ForwardEuler::ForwardEuler(ModelA &in, bool wnoise)
@@ -144,7 +130,7 @@ void ForwardEuler::finalize() { VecDestroy(&noise); }
 
 bool ForwardEuler::step(const double &dt) {
 
-  PetscLogEvent random, matrix, loop, create;
+  PetscLogEvent random,  loop, create;
   PetscLogEventRegister("FillRandomVec", 0, &random);
   PetscLogEventRegister("PotentialEval", 0, &loop);
   PetscLogEventRegister("CreationAndMPI", 0, &create);
@@ -741,8 +727,6 @@ bool EulerLangevinHB::step(const double &dt) {
   const double &lambda = model->data.lambda;
   const double &H = model->data.H;
   const PetscReal rdtg = sqrt(2. * dt * model->data.gamma);
-  const int &NX = model->data.NX;
-  const int &NY = model->data.NY;
 
   // Checkerboard order ieo = even and odd sites
   for (int ieo = 0; ieo < 2; ieo++) {
@@ -786,7 +770,9 @@ bool EulerLangevinHB::step(const double &dt) {
 
           // Downward step
           if (dS < 0) {
-            phinew[k][j][i] = phi_n;
+            for (int l = 0; l < ModelAData::Nphi; l++) {
+              phinew[k][j][i].f[l] = phi_n.f[l];
+            }
             monitor.increment_down(dS);
             continue;
           }
@@ -794,7 +780,9 @@ bool EulerLangevinHB::step(const double &dt) {
           double r = ModelARndm->uniform();
           if (r < exp(-dS)) {
             // keep the upward step w. probl exp(-dS)
-            phinew[k][j][i] = phi_n;
+            for (int l = 0; l < ModelAData::Nphi; l++) {
+              phinew[k][j][i].f[l] = phi_n.f[l];
+            }
             monitor.increment_up_yes(dS);
             continue;
           } else {
@@ -832,8 +820,8 @@ void EulerLangevinHB::finalize() {
 // A, and cell B is shifted in z by one unit
 /* clang-format off */
 g_face_case g_face_cases[3][2] = {
-    0, 1, 0, 0, 
-    1, 1, 0, 0, 
+    0, 1, 0, 0,
+    1, 1, 0, 0,
     0, 0, 1, 0,
     1, 0, 1, 0,
     0, 0, 0, 1,
@@ -1166,4 +1154,26 @@ PetscErrorCode ModelGChargeCN::Form3PointLaplacian(DM da, Mat J,
   MatAssemblyBegin(J, MAT_FINAL_ASSEMBLY);
   MatAssemblyEnd(J, MAT_FINAL_ASSEMBLY);
   return (0);
+}
+
+
+
+LFHBSplit::LFHBSplit(ModelA &in,   double pDtHB = 0.004)
+    : lf(in), hbPhi(in), hbN(in), dtHB(pDtHB){
+
+}
+
+
+bool LFHBSplit::step(const double &dt) {
+  lf.step(dt);
+  int nhb = dt / dtHB;
+  double tdiff = 0;
+  for(int i = 0; i < nhb - 1; ++i){
+    hbPhi.step(dtHB);
+    hbN.step(dtHB);
+    tdiff += dtHB;
+  }
+  hbPhi.step(dt - tdiff);
+  hbN.step(dt - tdiff);
+
 }

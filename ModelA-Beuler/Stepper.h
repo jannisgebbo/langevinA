@@ -10,21 +10,6 @@ public:
   virtual ~Stepper() = default;
 };
 
-class IdealLFStepper : public Stepper {
-public:
-  IdealLFStepper(ModelA &in, bool oid);
-
-  bool step(const double &dt) override;
-  virtual bool diffusive_step(const double &dt) = 0;
-  virtual bool ideal_step(const double &dt);
-  // virtual void finalize() = 0;
-  virtual ~IdealLFStepper() {}
-
-protected:
-  ModelA *model;
-  bool onlyideal;
-};
-
 class ForwardEuler : public Stepper {
 public:
   ForwardEuler(ModelA &in, bool wnoise = true);
@@ -38,17 +23,19 @@ private:
   Vec noise;
 };
 
-class ForwardEulerSplit : public IdealLFStepper {
+class IdealLF : public Stepper {
 public:
-  ForwardEulerSplit(ModelA &in, bool wnoise = true, bool oid = false);
+  IdealLF(ModelA &in);
   void finalize() override;
-  bool diffusive_step(const double &dt) override;
-  ~ForwardEulerSplit() { ; }
+  bool step(const double &dt) override;
+  ~IdealLF() { ; }
 
 private:
-  bool withNoise;
-  Vec noise;
+  ModelA *model;
 };
+
+
+
 /////////////////////////////////////////////////////////////////////////
 
 class BackwardEuler : public Stepper {
@@ -273,4 +260,28 @@ private:
 
   KSP ksp;
 };
+
+class LFHBSplit : Stepper {
+
+public:
+  LFHBSplit(ModelA &in, double pDtHB);
+  bool step(const double &dt) override;
+  void finalize() override{
+    lf.finalize();
+    hbPhi.finalize();
+    hbN.finalize();
+  }
+  ~LFHBSplit() { ; }
+
+private:
+
+  IdealLF lf;
+  EulerLangevinHB hbPhi;
+  ModelGChargeHB hbN;
+
+  const PetscReal dtHB;
+
+};
+
+
 #endif

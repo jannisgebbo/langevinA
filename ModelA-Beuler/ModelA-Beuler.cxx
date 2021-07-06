@@ -67,7 +67,7 @@ int main(int argc, char **argv) {
     step = make_unique<EulerLangevinHB>(model);
     break;
   case 5:
-    step = make_unique<ForwardEulerSplit>(model,false, true);
+    step = make_unique<IdealLF>(model);
     break;
   }
 
