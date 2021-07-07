@@ -69,6 +69,9 @@ int main(int argc, char **argv) {
   case 5:
     step = make_unique<IdealLF>(model);
     break;
+  case 6:
+    step = make_unique<LFHBSplit>(model);
+    break;
   }
 
   PetscInt steps = 1;

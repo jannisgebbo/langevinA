@@ -25,6 +25,9 @@ bool IdealLF::step(const double &dt) {
   G_node ***phi;
   DMDAVecGetArrayRead(da, localU, &phi);
 
+  G_node ***phinew;
+  DMDAVecGetArray(da, model->solution, &phinew);
+
   const PetscReal H[4] = {data.H, 0., 0., 0.};
   const PetscReal axx = pow(1. / data.hX(), 2);
   const PetscReal ayy = pow(1. / data.hY(), 2);
@@ -70,7 +73,7 @@ bool IdealLF::step(const double &dt) {
                    phizminus.f[0] * centralPhi.f[l + 1]) *
                   azz;
 
-          phi[k][j][i].A[l] +=
+          phinew[k][j][i].A[l] +=
               dt * (advxx + advyy + advzz - H[0] * centralPhi.f[l + 1]);
         }
 
@@ -101,18 +104,21 @@ bool IdealLF::step(const double &dt) {
                    centralPhi.f[1 + s1] * phizminus.f[1 + s2]) *
                   azz;
 
-          phi[k][j][i].V[s] += dt * (advxx + advyy + advzz);
+          phinew[k][j][i].V[s] += dt * (advxx + advyy + advzz);
         }
 
         // Then we rotate phi by n.
-        O4AlgebraHelper::O4Rotation(phi[k][j][i].V, phi[k][j][i].A,
-                                    phi[k][j][i].f);
+        O4AlgebraHelper::O4Rotation(phinew[k][j][i].V, phinew[k][j][i].A,
+                                    phinew[k][j][i].f);
       }
     }
   }
 
   DMDAVecRestoreArrayRead(da, localU, &phi);
   DMRestoreLocalVector(da, &localU);
+
+  DMDAVecRestoreArray(da, model->solution, &phinew);
+
 
   return true;
 }
@@ -1158,8 +1164,9 @@ PetscErrorCode ModelGChargeCN::Form3PointLaplacian(DM da, Mat J,
 
 
 
-LFHBSplit::LFHBSplit(ModelA &in,   double pDtHB = 0.004)
-    : lf(in), hbPhi(in), hbN(in), dtHB(pDtHB){
+LFHBSplit::LFHBSplit(ModelA &in)
+    : lf(in), hbPhi(in), hbN(in), dtHB(0.004)
+    {
 
 }
 

@@ -261,10 +261,9 @@ private:
   KSP ksp;
 };
 
-class LFHBSplit : Stepper {
-
+class LFHBSplit : public Stepper {
 public:
-  LFHBSplit(ModelA &in, double pDtHB);
+  LFHBSplit(ModelA &in);
   bool step(const double &dt) override;
   void finalize() override{
     lf.finalize();
