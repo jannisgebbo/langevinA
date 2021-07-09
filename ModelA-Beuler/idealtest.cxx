@@ -21,19 +21,27 @@
 #include "measurer.h"
 
 struct ideal_data {
-  double phi = 5;
-  double N;
+  double phi = 1;
+  double NX;
+  double deltaphi= 0.00001;
 };
 
 double ideal_fcn_flat(const double &x, const double &y, const double &z,
                            const int &L, void *params) {
   if (L == 3) {
-
-      ideal_data *data = (ideal_data *)params;
-    return data->phi* cos(x*2*M_PI/data->N);
-  } else {
-    return 0; // some test data. This should not be modified by the evolutions
-  }
+	ideal_data *data = (ideal_data *)params;
+      return data->deltaphi*
+      exp(-0.1*(x-data->NX/2.)*(x-data->NX/2.));
+      //(1-cos(x*2*M_PI/data->NX));
+      //(sin(x*2*M_PI/data->NX));
+  	} 
+  else if (L == 0)  {
+       ideal_data *data = (ideal_data *)params;  
+       return data->phi ; //some test data. This should not be modified by the evolutions
+  	}
+  else {
+    	return 0;
+       }
 }
 
 int main(int argc, char **argv) {
@@ -62,7 +70,7 @@ int main(int argc, char **argv) {
   // allocate the grid and initialize
   ModelA model(inputdata);
   ideal_data ideal;
-  ideal.N= model.data.NX;
+  ideal.NX= (double) model.data.NX;
   model.initialize(ideal_fcn_flat,&ideal);
 
   // initialize the measurments and measure the initial condition

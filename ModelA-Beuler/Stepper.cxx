@@ -73,8 +73,7 @@ bool IdealLF::step(const double &dt) {
                    phizminus.f[0] * centralPhi.f[l + 1]) *
                   azz;
 
-          phinew[k][j][i].A[l] +=
-              dt * (advxx + advyy + advzz - H[0] * centralPhi.f[l + 1]);
+          phinew[k][j][i].A[l] += dt * (advxx + advyy + advzz - H[0] * centralPhi.f[l + 1]);
         }
 
         for (PetscInt s = 0; s < ModelAData::NV; s++) {
@@ -107,9 +106,26 @@ bool IdealLF::step(const double &dt) {
           phinew[k][j][i].V[s] += dt * (advxx + advyy + advzz);
         }
 
-        // Then we rotate phi by n.
-        O4AlgebraHelper::O4Rotation(phinew[k][j][i].V, phinew[k][j][i].A,
-                                    phinew[k][j][i].f);
+	 // here we have to convert the charge from the chemical potential
+	PetscScalar axialmu[ModelAData::NA], vectormu[ModelAData::NV];
+	
+	for(PetscInt s=0;s < ModelAData::NV; s++ ){ 
+        
+		vectormu[s]= phinew[k][j][i].V[s]/data.sigma;
+	
+	}
+	
+	for(PetscInt s=0;s < ModelAData::NA; s++ ){
+        
+		axialmu[s]= phinew[k][j][i].A[s]/data.sigma;
+        
+	}
+
+	// Then we rotate phi by n.
+    
+    //   O4AlgebraHelper::O4Rotation(phinew[k][j][i].V, phinew[k][j][i].A,phinew[k][j][i].f);
+         
+          O4AlgebraHelper::O4Rotation(vectormu, axialmu, phinew[k][j][i].f);
       }
     }
   }
