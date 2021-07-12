@@ -2,10 +2,10 @@
 H = 0.00
 
 #Lattice size
-NX = 32
+NX = 16
 
 #Times and timestep
-finaltime =50
+finaltime =1
 initialtime = 0
 deltat    = 0.01
 saveFrequencyInTime = 0.1
@@ -15,7 +15,7 @@ mass = -4.8129999999999997
 lambda  = 4
 gamma  = 1
 sigma = 10
-chi = 100
+chi = 10
 
 # Set to 0 or don't pass to have a random seed
 seed = 122335456
