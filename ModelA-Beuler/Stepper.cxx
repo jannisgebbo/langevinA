@@ -6,6 +6,7 @@
 
 IdealLF::IdealLF(ModelA &in)
     : model(&in) {
+      VecDuplicate(model->solution, &energy);
 }
 
 
@@ -106,26 +107,27 @@ bool IdealLF::step(const double &dt) {
           phinew[k][j][i].V[s] += dt * (advxx + advyy + advzz);
         }
 
-	 // here we have to convert the charge from the chemical potential
-	PetscScalar axialmu[ModelAData::NA], vectormu[ModelAData::NV];
-	
-	for(PetscInt s=0;s < ModelAData::NV; s++ ){ 
-        
-		vectormu[s]= phinew[k][j][i].V[s]/data.sigma;
-	
-	}
-	
-	for(PetscInt s=0;s < ModelAData::NA; s++ ){
-        
-		axialmu[s]= phinew[k][j][i].A[s]/data.sigma;
-        
-	}
+      	 // here we have to convert the charge from the chemical potential
+      	PetscScalar axialmu[ModelAData::NA], vectormu[ModelAData::NV];
+
+      	for(PetscInt s=0;s < ModelAData::NV; s++ ){
+
+      		vectormu[s] = phinew[k][j][i].V[s] / data.chi;
+      	}
+
+      	for(PetscInt s=0;s < ModelAData::NA; s++ ){
+
+      		axialmu[s]= phinew[k][j][i].A[s] / data.chi;
+
+
+      	}
 
 	// Then we rotate phi by n.
-    
+
     //   O4AlgebraHelper::O4Rotation(phinew[k][j][i].V, phinew[k][j][i].A,phinew[k][j][i].f);
-         
+
           O4AlgebraHelper::O4Rotation(vectormu, axialmu, phinew[k][j][i].f);
+
       }
     }
   }

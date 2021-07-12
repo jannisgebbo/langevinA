@@ -32,6 +32,7 @@ public:
 
 private:
   ModelA *model;
+  Vec energy;
 };
 
 
