@@ -28,11 +28,11 @@ public:
   IdealLF(ModelA &in);
   void finalize() override;
   bool step(const double &dt) override;
+
   ~IdealLF() { ; }
 
 private:
   ModelA *model;
-  Vec energy;
 };
 
 

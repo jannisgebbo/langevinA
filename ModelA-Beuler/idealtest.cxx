@@ -34,9 +34,9 @@ double ideal_fcn_flat(const double &x, const double &y, const double &z,
       exp(-0.1*(x-data->NX/2.)*(x-data->NX/2.));
       //(1-cos(x*2*M_PI/data->NX));
       //(sin(x*2*M_PI/data->NX));
-  	} 
+  	}
   else if (L == 0)  {
-       ideal_data *data = (ideal_data *)params;  
+       ideal_data *data = (ideal_data *)params;
        return data->phi ; //some test data. This should not be modified by the evolutions
   	}
   else {
@@ -58,6 +58,8 @@ int main(int argc, char **argv) {
   // Read the data form command line
   FCN::ParameterParser params(argc, argv);
   ModelAData inputdata(params);
+
+  std::ofstream energy("energy.txt");
 
   // If -quit flag, then just stop before we do anything but gather inputs.
   PetscBool quit = PETSC_FALSE;
@@ -82,6 +84,8 @@ int main(int argc, char **argv) {
 
 
   step = make_unique<IdealLF>(model);
+  int myRank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
 
   plotter plot(inputdata.outputfiletag + "_phi");
   //plot.plot(model.solution, "phi_0");
@@ -95,6 +99,12 @@ int main(int argc, char **argv) {
     VecCopy(model.solution, model.previoussolution);
 
     step->step(model.data.deltat);
+    measurer.computeEnergy(model.data.deltat);
+
+    if(myRank == 0){
+      auto enComp = measurer.getEnergy();
+      energy << time << " " << enComp[0]<< " " << enComp[1]<< " " << enComp[2]<< " " << enComp[3] << std::endl;
+    }
 
     steps++;
       plot.update();
@@ -109,5 +119,6 @@ int main(int argc, char **argv) {
   step->finalize();
   measurer.finalize();
   model.finalize();
+  energy.close();
   return PetscFinalize();
 }

@@ -5,7 +5,7 @@ H = 0.00
 NX = 32
 
 #Times and timestep
-finaltime =0.5
+finaltime =50
 initialtime = 0
 deltat    = 0.01
 saveFrequencyInTime = 0.1

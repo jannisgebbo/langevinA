@@ -6,7 +6,6 @@
 
 IdealLF::IdealLF(ModelA &in)
     : model(&in) {
-      VecDuplicate(model->solution, &energy);
 }
 
 
@@ -112,12 +111,12 @@ bool IdealLF::step(const double &dt) {
 
       	for(PetscInt s=0;s < ModelAData::NV; s++ ){
 
-      		vectormu[s] = phinew[k][j][i].V[s] / data.chi;
+      		vectormu[s] = - phinew[k][j][i].V[s] / data.chi;
       	}
 
       	for(PetscInt s=0;s < ModelAData::NA; s++ ){
 
-      		axialmu[s]= phinew[k][j][i].A[s] / data.chi;
+      		axialmu[s]= - phinew[k][j][i].A[s] / data.chi;
 
 
       	}
@@ -140,6 +139,9 @@ bool IdealLF::step(const double &dt) {
 
   return true;
 }
+
+
+
 
 ///////////////////////////////////////////////////////////////////////////
 

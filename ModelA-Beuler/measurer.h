@@ -3,6 +3,7 @@
 
 #include "ModelA.h"
 #include "make_unique.h"
+#include <array>
 
 class Measurer;
 
@@ -99,6 +100,89 @@ public:
     }
   }
 
+
+
+
+    void computeEnergy(const double &dt)
+    {
+      DM da = model->domain;
+      // Get a local vector with ghost cells
+      Vec localUOld;
+      DMGetLocalVector(da, &localUOld);
+      Vec localUNew;
+      DMGetLocalVector(da, &localUNew);
+
+      // Fill in the ghost celss with mpicalls
+      DMGlobalToLocalBegin(da, model->previoussolution, INSERT_VALUES, localUOld);
+      DMGlobalToLocalEnd(da, model->previoussolution, INSERT_VALUES, localUOld);
+      DMGlobalToLocalBegin(da, model->solution, INSERT_VALUES, localUNew);
+      DMGlobalToLocalEnd(da, model->solution, INSERT_VALUES, localUNew);
+
+      const ModelAData &data = model->data;
+
+      G_node ***phiOld;
+      DMDAVecGetArrayRead(da, localUOld, &phiOld);
+
+      G_node ***phiNew;
+      DMDAVecGetArrayRead(da, localUNew, &phiNew);
+
+
+      const PetscReal H[4] = {data.H, 0., 0., 0.};
+
+
+      PetscInt  xstart, ystart, zstart, xdimension, ydimension,
+          zdimension;
+      DMDAGetCorners(da, &xstart, &ystart, &zstart, &xdimension, &ydimension,
+                     &zdimension);
+
+      // Loop over central elements
+      PetscScalar phimid = 0, grad2 = 0, kinPhi2 = 0, nab2 = 0;
+      std::array<PetscScalar,4> localEnergy{0,0,0,0};
+
+
+      for (PetscInt k = zstart; k < zstart + zdimension; k++) {
+        for (PetscInt j = ystart; j < ystart + ydimension; j++) {
+          for (PetscInt i = xstart; i < xstart + xdimension; i++) {
+            for(int s = 0; s < ModelAData::Nphi; ++s){
+              kinPhi2 += pow((phiNew[k][j][i].f[s] - phiOld[k][j][i].f[s]) / dt, 2);
+
+              phimid = 0.5 * (phiNew[k][j][i].f[s] + phiOld[k][j][i].f[s]);
+
+              grad2 += pow( 0.5 * (phiNew[k+1][j][i].f[s] + phiOld[k+1][j][i].f[s]) - phimid, 2);
+              grad2 += pow( 0.5 * (phiNew[k][j+1][i].f[s] + phiOld[k][j+1][i].f[s]) - phimid, 2);
+              grad2 += pow( 0.5 * (phiNew[k][j][i+1].f[s] + phiOld[k][j][i+1].f[s]) - phimid, 2);
+            }
+            for(PetscInt s=0;s < ModelAData::NV; s++ ){
+              nab2 += pow(phiNew[k][j][i].V[s], 2);
+            }
+
+            for(PetscInt s=0;s < ModelAData::NA; s++ ){
+              nab2 += pow(phiNew[k][j][i].A[s], 2);
+            }
+
+            localEnergy[0] +=  0.5 / data.chi * nab2;
+            localEnergy[1] +=  0.5 * kinPhi2;
+            localEnergy[2] +=  0.5 * grad2;
+          }
+        }
+      }
+      energy = std::array<PetscScalar,4>{0,0,0,0};
+      MPI_Reduce(localEnergy.data(), energy.data(), energy.size() - 1, MPIU_SCALAR, MPI_SUM, 0, PETSC_COMM_WORLD);
+
+      for(PetscScalar& x : energy) x/= (data.NX * data.NY * data.NZ);
+      energy.back() = energy[0] + energy[1] - energy[2];
+
+      DMDAVecRestoreArrayRead(da, localUOld, &phiOld);
+      DMRestoreLocalVector(da, &localUOld);
+      DMDAVecRestoreArrayRead(da, localUNew, &phiNew);
+      DMRestoreLocalVector(da, &localUNew);
+
+    }
+
+    std::array<PetscScalar,4> getEnergy() const{
+      return energy;
+    }
+
 private:
   void computeSliceAverage(Vec *solution) {
     // Get the local information and store in info
@@ -183,6 +267,7 @@ private:
     }
   }
 
+
   void computeDerivedObs() {
 
     // Create the correlator array initialized to zero
@@ -246,6 +331,8 @@ private:
   // (M^2)^2
   static const PetscInt NScalars = NObs + 2;
   std::vector<PetscScalar> OAverage;
+
+  std::array<PetscScalar, 4> energy;
 
   friend class measurer_output_hdf5;
   friend class measurer_output_txt;
