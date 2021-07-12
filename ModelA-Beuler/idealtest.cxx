@@ -30,8 +30,8 @@ double ideal_fcn_flat(const double &x, const double &y, const double &z,
                            const int &L, void *params) {
   if (L == 3) {
 	ideal_data *data = (ideal_data *)params;
-      return data->deltaphi*
-      exp(-0.1*(x-data->NX/2.)*(x-data->NX/2.));
+      return data->phi*(1+data->deltaphi*
+      exp(-0.1*(x-data->NX/2.)*(x-data->NX/2.)));
       //(1-cos(x*2*M_PI/data->NX));
       //(sin(x*2*M_PI/data->NX));
   	}
