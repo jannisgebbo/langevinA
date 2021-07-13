@@ -7,6 +7,7 @@
 #include <iostream>
 #include <memory>
 #include <vector>
+#include <iomanip>
 
 #include "ModelA.h"
 #include "NoiseGenerator.h"
@@ -59,7 +60,7 @@ int main(int argc, char **argv) {
   FCN::ParameterParser params(argc, argv);
   ModelAData inputdata(params);
 
-  std::ofstream energy("energy.txt");
+  std::ofstream energy(inputdata.outputfiletag + "energy.txt");
 
   // If -quit flag, then just stop before we do anything but gather inputs.
   PetscBool quit = PETSC_FALSE;
@@ -103,7 +104,8 @@ int main(int argc, char **argv) {
 
     if(myRank == 0){
       auto enComp = measurer.getEnergy();
-      energy << time << " " << enComp[0]<< " " << enComp[1]<< " " << enComp[2]<< " " << enComp[3] << std::endl;
+
+      energy << std::setprecision(16) << time << " " << enComp[0]<< " " << enComp[1]<< " " << enComp[2]<< " " << enComp[3] << std::endl;
     }
 
     steps++;

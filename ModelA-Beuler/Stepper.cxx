@@ -105,31 +105,38 @@ bool IdealLF::step(const double &dt) {
 
           phinew[k][j][i].V[s] += dt * (advxx + advyy + advzz);
         }
-
-      	 // here we have to convert the charge from the chemical potential
-      	PetscScalar axialmu[ModelAData::NA], vectormu[ModelAData::NV];
-
-      	for(PetscInt s=0;s < ModelAData::NV; s++ ){
-
-      		vectormu[s] = - phinew[k][j][i].V[s] / data.chi * dt;
-      	}
-
-      	for(PetscInt s=0;s < ModelAData::NA; s++ ){
-
-      		axialmu[s]= - phinew[k][j][i].A[s] / data.chi * dt;
-
-
-      	}
-
-	// Then we rotate phi by n.
-
-    //   O4AlgebraHelper::O4Rotation(phinew[k][j][i].V, phinew[k][j][i].A,phinew[k][j][i].f);
-
-          O4AlgebraHelper::O4Rotation(vectormu, axialmu, phinew[k][j][i].f);
-
       }
     }
   }
+
+  // Loop over central elements
+  for (PetscInt k = zstart; k < zstart + zdimension; k++) {
+    for (PetscInt j = ystart; j < ystart + ydimension; j++) {
+      for (PetscInt i = xstart; i < xstart + xdimension; i++) {
+
+          // here we have to convert the charge from the chemical potential
+         PetscScalar axialmu[ModelAData::NA], vectormu[ModelAData::NV];
+
+         for(PetscInt s=0;s < ModelAData::NV; s++ ){
+
+           vectormu[s] = - phinew[k][j][i].V[s] / data.chi * dt;
+         }
+
+         for(PetscInt s=0;s < ModelAData::NA; s++ ){
+
+           axialmu[s]= - phinew[k][j][i].A[s] / data.chi * dt;
+         }
+
+         O4AlgebraHelper::O4Rotation(vectormu, axialmu, phinew[k][j][i].f);
+      }
+    }
+  }
+
+// Then we rotate phi by n.
+
+//   O4AlgebraHelper::O4Rotation(phinew[k][j][i].V, phinew[k][j][i].A,phinew[k][j][i].f);
+
+
 
   DMDAVecRestoreArrayRead(da, localU, &phi);
   DMRestoreLocalVector(da, &localU);

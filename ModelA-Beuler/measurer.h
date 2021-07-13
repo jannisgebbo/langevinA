@@ -136,8 +136,8 @@ public:
                      &zdimension);
 
       // Loop over central elements
-      PetscScalar phimid = 0, grad2 = 0, nab2 = 0;
-      std::array<PetscScalar,3> localEnergy{0,0,0};
+      PetscScalar phimid = 0, grad2 = 0, nab2 = 0, hEn = 0;
+      std::array<PetscScalar,4> localEnergy{0,0,0,0};
 
 
       for (PetscInt k = zstart; k < zstart + zdimension; k++) {
@@ -149,6 +149,8 @@ public:
               grad2 += pow( 0.5 * (phiNew[k+1][j][i].f[s] + phiOld[k+1][j][i].f[s]) - phimid, 2);
               grad2 += pow( 0.5 * (phiNew[k][j+1][i].f[s] + phiOld[k][j+1][i].f[s]) - phimid, 2);
               grad2 += pow( 0.5 * (phiNew[k][j][i+1].f[s] + phiOld[k][j][i+1].f[s]) - phimid, 2);
+
+              hEn += phimid * H[s];
             }
             for(PetscInt s=0;s < ModelAData::NV; s++ ){
               nab2 += pow(phiNew[k][j][i].V[s], 2);
@@ -160,14 +162,15 @@ public:
 
             localEnergy[0] +=  0.5 / data.chi * nab2;
             localEnergy[1] +=  0.5 * grad2;
+            localEnergy[2] +=   hEn;
           }
         }
       }
-      energy = std::array<PetscScalar,3>{0,0,0};
+      energy = std::array<PetscScalar,4>{0,0,0,0};
       MPI_Reduce(localEnergy.data(), energy.data(), energy.size() - 1, MPIU_SCALAR, MPI_SUM, 0, PETSC_COMM_WORLD);
 
       for(PetscScalar& x : energy) x/= (data.NX * data.NY * data.NZ);
-      energy.back() = energy[0] + energy[1];
+      energy.back() = energy[0] + energy[1] - energy[2];
 
       DMDAVecRestoreArrayRead(da, localUOld, &phiOld);
       DMRestoreLocalVector(da, &localUOld);
@@ -176,7 +179,7 @@ public:
 
     }
 
-    std::array<PetscScalar,3> getEnergy() const{
+    std::array<PetscScalar,4> getEnergy() const{
       return energy;
     }
 
@@ -329,7 +332,7 @@ private:
   static const PetscInt NScalars = NObs + 2;
   std::vector<PetscScalar> OAverage;
 
-  std::array<PetscScalar, 3> energy;
+  std::array<PetscScalar, 4> energy;
 
   friend class measurer_output_hdf5;
   friend class measurer_output_txt;
