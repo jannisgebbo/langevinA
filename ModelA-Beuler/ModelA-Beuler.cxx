@@ -70,7 +70,7 @@ int main(int argc, char **argv) {
     step = make_unique<IdealLF>(model);
     break;
   case 6:
-    step = make_unique<LFHBSplit>(model, modeldata.deltatHB);
+    step = make_unique<LFHBSplit>(model, model.data.deltatHB);
     break;
   }
 

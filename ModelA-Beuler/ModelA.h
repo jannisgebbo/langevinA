@@ -39,6 +39,7 @@ struct ModelAData {
   PetscReal finaltime = 20.;
   PetscReal initialtime = 0.;
   PetscReal deltat = 0.01;
+  PetscReal deltatHB = 0.01;
   // 1 is BEuler, 2 is FEuler
   PetscInt evolverType = 2;
 

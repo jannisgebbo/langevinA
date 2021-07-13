@@ -264,7 +264,7 @@ private:
 
 class LFHBSplit : public Stepper {
 public:
-  LFHBSplit(ModelA &in);
+  LFHBSplit(ModelA &in, PetscScalar deltatHB);
   bool step(const double &dt) override;
   void finalize() override{
     lf.finalize();
