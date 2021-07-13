@@ -1191,8 +1191,8 @@ PetscErrorCode ModelGChargeCN::Form3PointLaplacian(DM da, Mat J,
 
 
 
-LFHBSplit::LFHBSplit(ModelA &in)
-    : lf(in), hbPhi(in), hbN(in), dtHB(0.004)
+LFHBSplit::LFHBSplit(ModelA &in, PetscScalar deltatHB)
+    : lf(in), hbPhi(in), hbN(in), dtHB(deltatHB)
     {
 
 }

@@ -83,6 +83,7 @@ struct ModelAData {
     finaltime = params.get<double>("finaltime");
     initialtime = params.get<double>("initialtime");
     deltat = params.get<double>("deltat");
+    deltatHB = params.get<double>("deltatHB");
     evolverType = params.get<int>("evolverType");
 
     // Action

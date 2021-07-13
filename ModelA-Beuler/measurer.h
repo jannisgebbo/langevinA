@@ -216,6 +216,8 @@ private:
     DMDAGetCorners(da, &ixs, &iys, &izs, &nx, &ny, &nz);
     PetscReal norm;
 
+    int actualInd = 0;
+
     // Store the local averages
     for (int k = izs; k < izs + nz; k++) {
       for (int j = iys; j < iys + ny; j++) {
@@ -228,15 +230,17 @@ private:
             norm += pow(fld[k][j][i].f[l], 2);
           }
           norm = sqrt(norm);
-          for (int l = 0; l < ModelAData::NA; l++) {
-            sliceAveragesLocalX[l][i] += fld[k][j][i].A[l];
-            sliceAveragesLocalY[l][j] += fld[k][j][i].A[l];
-            sliceAveragesLocalZ[l][k] += fld[k][j][i].A[l];
+          for (int l = ModelAData::Nphi; l < ModelAData::Nphi + ModelAData::NA; l++) {
+            actualInd = l - ModelAData::Nphi;
+            sliceAveragesLocalX[l][i] += fld[k][j][i].A[actualInd];
+            sliceAveragesLocalY[l][j] += fld[k][j][i].A[actualInd];
+            sliceAveragesLocalZ[l][k] += fld[k][j][i].A[actualInd];
           }
-          for (int l = 0; l < ModelAData::NV; l++) {
-            sliceAveragesLocalX[l][i] += fld[k][j][i].V[l];
-            sliceAveragesLocalY[l][j] += fld[k][j][i].V[l];
-            sliceAveragesLocalZ[l][k] += fld[k][j][i].V[l];
+          for (int l = ModelAData::Nphi + ModelAData::NA; l < ModelAData::Nphi + ModelAData::NA + ModelAData::NV; l++) {
+            actualInd = l - ModelAData::Nphi - ModelAData::NA;
+            sliceAveragesLocalX[l][i] += fld[k][j][i].V[actualInd];
+            sliceAveragesLocalY[l][j] += fld[k][j][i].V[actualInd];
+            sliceAveragesLocalZ[l][k] += fld[k][j][i].V[actualInd];
           }
           sliceAveragesLocalX.back()[i] += norm;
           sliceAveragesLocalY.back()[j] += norm;
