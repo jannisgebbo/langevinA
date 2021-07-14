@@ -2,8 +2,6 @@
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
-#include <gsl/gsl_randist.h>
-#include <gsl/gsl_rng.h>
 #include <iostream>
 #include <memory>
 #include <vector>

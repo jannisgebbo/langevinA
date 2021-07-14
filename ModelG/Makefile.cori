@@ -1,0 +1,54 @@
+#-*- mode: makefile -*-
+
+# This sample (GNU) Makefile can be used to compile PETSc applications with a single
+# source file and can be easily modified to compile multi-file applications.
+# It relies on pkg_config tool, and PETSC_DIR and PETSC_ARCH variables.
+# Copy this file to your source directory as "Makefile" and modify as needed.
+#
+# For example - a single source file can be compiled with:
+#
+#  $ cd src/snes/tutorials/
+#  $ make -f $PETSC_DIR/share/petsc/Makefile.user ex17
+#
+# The following variable must either be a path to PETSc.pc or just "PETSc" if PETSc.pc
+# has been installed to a system location or can be found in PKG_CONFIG_PATH.
+HEADRS = ModelA.h Stepper.h NoiseGenerator.h measurer.h plotter.h O4AlgebraHelper.h
+OBJS = measurer.o Stepper.o NoiseGenerator.o 
+
+
+
+SuperPions.exe: SuperPions.o $(OBJS)
+	CC -o $@ $^ $(LDLIBS) -lstdc++
+
+SuperPions.o: SuperPions.cxx $(HEADRS)
+	CC -c  $<
+
+Stepper.o: Stepper.cxx $(HEADRS)
+	CC -c  $<
+
+measurer.o: measurer.cxx $(HEADRS)
+	CC -c  $<
+
+NoiseGenerator.o: NoiseGenerator.cxx NoiseGenerator.h
+	CC -c  $<
+
+	
+# If the file c.cxx needs to link with a C++ standard library -lstdc++ , then
+# you'll need to add it explicitly.  It can go in the rule above or be added to
+# a target-specific variable by uncommenting the line below.
+#
+
+clean:
+	rm *.o
+
+print:
+	@echo CC=$(CC)
+	@echo CXX=$(CXX)
+	@echo FC=$(FC)
+	@echo CFLAGS=$(CFLAGS)
+	@echo CXXFLAGS=$(CXXFLAGS)
+	@echo FFLAGS=$(FFLAGS)
+	@echo CPPFLAGS=$(CPPFLAGS)
+	@echo LDFLAGS=$(LDFLAGS)
+	@echo LDLIBS=$(LDLIBS)
+	@echo LINK.cc=$(LINK.cc)

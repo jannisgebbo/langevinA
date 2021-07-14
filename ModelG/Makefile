@@ -56,10 +56,10 @@ HEADRS = ModelA.h Stepper.h NoiseGenerator.h measurer.h plotter.h O4AlgebraHelpe
 OBJS = measurer.o Stepper.o NoiseGenerator.o 
 
 
-ModelA-Beuler.exe: ModelA-Beuler.o $(OBJS)
+SuperPions.exe: SuperPions.o $(OBJS)
 	$(LINK.cc) -o $@ $^ $(LDLIBS) -lstdc++
 
-ModelA-Beuler.o: ModelA-Beuler.cxx $(HEADRS)
+SuperPions.o: SuperPions.cxx $(HEADRS)
 	$(COMPILE.cc) $(OUTPUT_OPTION) $<
 
 Stepper.o: Stepper.cxx $(HEADRS)
