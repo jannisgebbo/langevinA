@@ -103,7 +103,7 @@ public:
 
 
 
-    void computeEnergy(const double &dt)
+    void computeEnergy(const double &dt, bool staggered = true)
     {
       DM da = model->domain;
       // Get a local vector with ghost cells
@@ -144,11 +144,19 @@ public:
         for (PetscInt j = ystart; j < ystart + ydimension; j++) {
           for (PetscInt i = xstart; i < xstart + xdimension; i++) {
             for(int s = 0; s < ModelAData::Nphi; ++s){
-              phimid = 0.5 * (phiNew[k][j][i].f[s] + phiOld[k][j][i].f[s]);
 
-              grad2 += pow( 0.5 * (phiNew[k+1][j][i].f[s] + phiOld[k+1][j][i].f[s]) - phimid, 2);
-              grad2 += pow( 0.5 * (phiNew[k][j+1][i].f[s] + phiOld[k][j+1][i].f[s]) - phimid, 2);
-              grad2 += pow( 0.5 * (phiNew[k][j][i+1].f[s] + phiOld[k][j][i+1].f[s]) - phimid, 2);
+              if(staggered){
+                phimid = 0.5 * (phiNew[k][j][i].f[s] + phiOld[k][j][i].f[s]);
+                grad2 += pow( 0.5 * (phiNew[k+1][j][i].f[s] + phiOld[k+1][j][i].f[s]) - phimid, 2);
+                grad2 += pow( 0.5 * (phiNew[k][j+1][i].f[s] + phiOld[k][j+1][i].f[s]) - phimid, 2);
+                grad2 += pow( 0.5 * (phiNew[k][j][i+1].f[s] + phiOld[k][j][i+1].f[s]) - phimid, 2);
+              }else{
+                phimid = phiNew[k][j][i].f[s];
+
+                grad2 += pow(phiNew[k+1][j][i].f[s] - phimid, 2);
+                grad2 += pow(phiNew[k][j+1][i].f[s] - phimid, 2);
+                grad2 += pow(phiNew[k][j][i+1].f[s] - phimid, 2);
+              }
 
               hEn += phimid * H[s];
             }

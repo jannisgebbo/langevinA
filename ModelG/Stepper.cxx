@@ -155,6 +155,163 @@ bool IdealLF::step(const double &dt) {
 void IdealLF::finalize() { }
 ///////////////////////////////////////////////////////////////////////////
 
+
+IdealPV2::IdealPV2(ModelA &in)
+    : model(&in), da(model->domain), data(model->data){
+      DMDAGetCorners(da, &xstart, &ystart, &zstart, &xdimension, &ydimension,
+                     &zdimension);
+}
+
+
+bool IdealPV2::step(const double &dt) {
+  G_node ***phinew;
+  DMDAVecGetArray(da, model->solution, &phinew);
+
+
+  // drifts dt / 2.0
+
+  rotatePhi(phinew, dt / 2.0);
+
+  // Get a local vector with ghost cells
+  Vec localU;
+  DMGetLocalVector(da, &localU);
+
+  // Fill in the ghost celss with mpicalls
+  DMGlobalToLocalBegin(da, model->solution, INSERT_VALUES, localU);
+  DMGlobalToLocalEnd(da, model->solution, INSERT_VALUES, localU);
+
+
+  G_node ***phi;
+  DMDAVecGetArrayRead(da, localU, &phi);
+
+  const PetscReal H[4] = {data.H, 0., 0., 0.};
+  const PetscReal axx = pow(1. / data.hX(), 2);
+  const PetscReal ayy = pow(1. / data.hY(), 2);
+  const PetscReal azz = pow(1. / data.hZ(), 2);
+
+  PetscScalar advxx, advyy, advzz;
+  PetscInt s1, s2, epsilon;
+
+
+
+
+  // Loop over central elements
+  for (PetscInt k = zstart; k < zstart + zdimension; k++) {
+    for (PetscInt j = ystart; j < ystart + ydimension; j++) {
+      for (PetscInt i = xstart; i < xstart + xdimension; i++) {
+        // First evolve the momenta nab
+
+        G_node &centralPhi = phi[k][j][i];
+        G_node &phixplus = phi[k][j][i + 1];
+        G_node &phixminus = phi[k][j][i - 1];
+        G_node &phiyplus = phi[k][j + 1][i];
+        G_node &phiyminus = phi[k][j - 1][i];
+        G_node &phizplus = phi[k + 1][j][i];
+        G_node &phizminus = phi[k - 1][j][i];
+
+        for (PetscInt l = 0; l < ModelAData::NA; l++) {
+          advxx = (-phixplus.f[0] * centralPhi.f[l + 1] +
+                   centralPhi.f[0] * phixplus.f[l + 1] +
+                   centralPhi.f[0] * phixminus.f[l + 1] -
+                   phixminus.f[0] * centralPhi.f[l + 1]) *
+                  axx;
+
+          advyy = (-phiyplus.f[0] * centralPhi.f[l + 1] +
+                   centralPhi.f[0] * phiyplus.f[l + 1] +
+                   centralPhi.f[0] * phiyminus.f[l + 1] -
+                   phiyminus.f[0] * centralPhi.f[l + 1]) *
+                  ayy;
+
+          advzz = (-phizplus.f[0] * centralPhi.f[l + 1] +
+                   centralPhi.f[0] * phizplus.f[l + 1] +
+                   centralPhi.f[0] * phizminus.f[l + 1] -
+                   phizminus.f[0] * centralPhi.f[l + 1]) *
+                  azz;
+
+          phinew[k][j][i].A[l] += dt * (advxx + advyy + advzz - H[0] * centralPhi.f[l + 1]);
+        }
+
+        for (PetscInt s = 0; s < ModelAData::NV; s++) {
+
+          s1 = (s + 1) % 3;
+          s2 = (s + 2) % 3;
+          epsilon = ((PetscScalar)(s - s1) * (s1 - s2) * (s2 - s)) / 2.;
+          // advection term with epsilon
+          advxx = epsilon *
+                  (phixplus.f[1 + s2] * centralPhi.f[1 + s1] -
+                   centralPhi.f[1 + s2] * phixminus.f[1 + s1] -
+                   phixplus.f[1 + s1] * centralPhi.f[1 + s2] +
+                   centralPhi.f[1 + s1] * phixminus.f[1 + s2]) *
+                  axx;
+
+          advyy = epsilon *
+                  (phiyplus.f[1 + s2] * centralPhi.f[1 + s1] -
+                   centralPhi.f[1 + s2] * phiyminus.f[1 + s1] -
+                   phiyplus.f[1 + s1] * centralPhi.f[1 + s2] +
+                   centralPhi.f[1 + s1] * phiyminus.f[1 + s2]) *
+                  ayy;
+
+          advzz = epsilon *
+                  (phizplus.f[1 + s2] * centralPhi.f[1 + s1] -
+                   centralPhi.f[1 + s2] * phizminus.f[1 + s1] -
+                   phizplus.f[1 + s1] * centralPhi.f[1 + s2] +
+                   centralPhi.f[1 + s1] * phizminus.f[1 + s2]) *
+                  azz;
+
+          phinew[k][j][i].V[s] += dt * (advxx + advyy + advzz);
+        }
+      }
+    }
+  }
+
+  // drifts dt / 2.0
+
+
+  rotatePhi(phinew, dt / 2.0);
+
+
+  DMDAVecRestoreArrayRead(da, localU, &phi);
+  DMRestoreLocalVector(da, &localU);
+
+  DMDAVecRestoreArray(da, model->solution, &phinew);
+
+
+  return true;
+}
+
+void IdealPV2::rotatePhi(G_node*** phinew, double dt){
+  for (PetscInt k = zstart; k < zstart + zdimension; k++) {
+    for (PetscInt j = ystart; j < ystart + ydimension; j++) {
+      for (PetscInt i = xstart; i < xstart + xdimension; i++) {
+
+          // here we have to convert the charge from the chemical potential
+         PetscScalar axialmu[ModelAData::NA], vectormu[ModelAData::NV];
+
+         for(PetscInt s=0;s < ModelAData::NV; s++ ){
+
+           vectormu[s] = - phinew[k][j][i].V[s] / data.chi * dt;
+         }
+
+         for(PetscInt s=0;s < ModelAData::NA; s++ ){
+
+           axialmu[s]= - phinew[k][j][i].A[s] / data.chi * dt;
+         }
+
+         O4AlgebraHelper::O4Rotation(vectormu, axialmu, phinew[k][j][i].f);
+      }
+    }
+  }
+}
+
+///////////////////////////////////////////////////////////////////////////
+
+void IdealPV2::finalize() { }
+///////////////////////////////////////////////////////////////////////////
+
+
+
+
+
 ForwardEuler::ForwardEuler(ModelA &in, bool wnoise)
     : model(&in), withNoise(wnoise) {
   VecDuplicate(model->solution, &noise);

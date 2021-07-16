@@ -84,7 +84,14 @@ int main(int argc, char **argv) {
   std::unique_ptr<Stepper> step;
 
 
-  step = make_unique<IdealLF>(model);
+  switch (model.data.evolverType) {
+  case 1:
+    step = make_unique<IdealLF>(model);
+    break;
+  case 2:
+    step = make_unique<IdealPV2>(model);
+    break;
+  }
   int myRank;
   MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
 
@@ -100,7 +107,7 @@ int main(int argc, char **argv) {
     VecCopy(model.solution, model.previoussolution);
 
     step->step(model.data.deltat);
-    measurer.computeEnergy(model.data.deltat);
+    measurer.computeEnergy(model.data.deltat, model.data.evolverType == 1);
 
     if(myRank == 0){
       auto enComp = measurer.getEnergy();

@@ -24,4 +24,4 @@ seed = 122335456
 outputfiletag = ideal
 
 #Beuler=1 Feuler=2 SemiImplicit=3 EulerLangevinHB=4
-evolverType=6
+evolverType=1

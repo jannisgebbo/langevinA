@@ -35,6 +35,26 @@ private:
   ModelA *model;
 };
 
+class IdealPV2 : public Stepper {
+public:
+  IdealPV2(ModelA &in);
+  void finalize() override;
+  bool step(const double &dt) override;
+
+  ~IdealPV2() { ; }
+
+private:
+  ModelA *model;
+  PetscInt  xstart, ystart, zstart, xdimension, ydimension,
+      zdimension;
+
+  DM da;
+  const ModelAData& data;
+
+  void rotatePhi(G_node*** phinew, double dt);
+
+};
+
 
 
 /////////////////////////////////////////////////////////////////////////
@@ -282,6 +302,28 @@ private:
   const PetscReal dtHB;
 
 };
+
+
+/*class PV2HBSplit : public Stepper {
+public:
+  PV2HBSplit(ModelA &in, PetscScalar deltatHB);
+  bool step(const double &dt) override;
+  void finalize() override{
+    pv2.finalize();
+    hbPhi.finalize();
+    hbN.finalize();
+  }
+  ~PV2HBSplit() { ; }
+
+private:
+
+  IdealPV2pv2;
+  EulerLangevinHB hbPhi;
+  ModelGChargeHB hbN;
+
+  const PetscReal dtHB;
+
+};*/
 
 
 #endif

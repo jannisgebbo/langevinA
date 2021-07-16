@@ -63,8 +63,16 @@ void quatmul(PetscScalar *v1, PetscScalar *v2, PetscScalar *w) {
 
 void expmul(PetscScalar *v, PetscScalar *w) {
   PetscScalar abs = norm(v);
-  w[0] = cos(abs);
-  scalmul(-(sin(abs) / abs), v, w + 1);
+  if(abs > 1e-20){
+    w[0] = cos(abs);
+    scalmul(-(sin(abs) / abs), v, w + 1);
+  }
+  else{
+    w[0] = 1;
+    w[1] = 0.0;
+    w[2] = 0.0;
+    w[3] = 0.0;
+  }
 }
 
 void O4Rotation(PetscScalar *V, PetscScalar *A,
