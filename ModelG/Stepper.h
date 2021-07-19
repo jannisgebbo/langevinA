@@ -43,6 +43,8 @@ public:
 
   ~IdealPV2() { ; }
 
+  PetscScalar computeEnergy( PetscScalar dt);
+
 private:
   ModelA *model;
   PetscInt  xstart, ystart, zstart, xdimension, ydimension,
@@ -304,7 +306,7 @@ private:
 };
 
 
-/*class PV2HBSplit : public Stepper {
+class PV2HBSplit : public Stepper {
 public:
   PV2HBSplit(ModelA &in, PetscScalar deltatHB);
   bool step(const double &dt) override;
@@ -312,18 +314,28 @@ public:
     pv2.finalize();
     hbPhi.finalize();
     hbN.finalize();
+    int myRank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
+    if(myRank == 0) std::cout << "Ideal steps was rejected "<< idealRej / idealAcc * 100 << "% of the time." <<std::endl;
   }
+
+
   ~PV2HBSplit() { ; }
 
 private:
 
-  IdealPV2pv2;
+  ModelA *model;
+
+
+  IdealPV2 pv2;
   EulerLangevinHB hbPhi;
   ModelGChargeHB hbN;
-
   const PetscReal dtHB;
 
-};*/
+  PetscScalar idealAcc, idealRej;
+
+
+};
 
 
 #endif

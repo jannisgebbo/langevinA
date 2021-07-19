@@ -70,6 +70,9 @@ int main(int argc, char **argv) {
   case 6:
     step = make_unique<LFHBSplit>(model, model.data.deltatHB);
     break;
+  case 7:
+    step = make_unique<PV2HBSplit>(model, model.data.deltatHB);
+    break;
   }
 
   PetscInt steps = 1;

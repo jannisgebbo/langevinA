@@ -303,6 +303,97 @@ void IdealPV2::rotatePhi(G_node*** phinew, double dt){
   }
 }
 
+
+
+
+PetscScalar IdealPV2::computeEnergy(double dt)
+{
+  DM da = model->domain;
+  // Get a local vector with ghost cells
+  Vec localUNew;
+  DMGetLocalVector(da, &localUNew);
+
+  // Fill in the ghost celss with mpicalls
+
+  DMGlobalToLocalBegin(da, model->solution, INSERT_VALUES, localUNew);
+  DMGlobalToLocalEnd(da, model->solution, INSERT_VALUES, localUNew);
+
+  const ModelAData &data = model->data;
+
+  G_node ***phiNew;
+  DMDAVecGetArrayRead(da, localUNew, &phiNew);
+
+
+  const PetscReal H[4] = {data.H, 0., 0., 0.};
+
+
+  PetscInt  xstart, ystart, zstart, xdimension, ydimension,
+      zdimension;
+  DMDAGetCorners(da, &xstart, &ystart, &zstart, &xdimension, &ydimension,
+                 &zdimension);
+
+  // Loop over central elements
+  PetscScalar phimid = 0, grad2 = 0, nab2 = 0, hEn = 0;
+  PetscScalar localEnergy = 0;
+  //std::array<PetscScalar,3> localEnergyArr {0,0,0};
+
+
+  for (PetscInt k = zstart; k < zstart + zdimension; k++) {
+    for (PetscInt j = ystart; j < ystart + ydimension; j++) {
+      for (PetscInt i = xstart; i < xstart + xdimension; i++) {
+        for(int s = 0; s < ModelAData::Nphi; ++s){
+
+          phimid = phiNew[k][j][i].f[s];
+
+          grad2 += pow(phiNew[k+1][j][i].f[s] - phimid, 2);
+          grad2 += pow(phiNew[k][j+1][i].f[s] - phimid, 2);
+          grad2 += pow(phiNew[k][j][i+1].f[s] - phimid, 2);
+
+
+          hEn += phimid * H[s];
+        }
+        for(PetscInt s=0;s < ModelAData::NV; s++ ){
+          nab2 += pow(phiNew[k][j][i].V[s], 2);
+        }
+
+        for(PetscInt s=0;s < ModelAData::NA; s++ ){
+          nab2 += pow(phiNew[k][j][i].A[s], 2);
+        }
+
+      }
+    }
+  }
+
+  localEnergy +=  0.5 / data.chi * nab2;
+  localEnergy +=  0.5 * grad2;
+  localEnergy -=   hEn;
+
+  /*localEnergyArr[0]+=0.5 / data.chi * nab2;
+  localEnergyArr[1] +=  0.5 * grad2;
+  localEnergyArr[2] -=   hEn;*/
+
+  PetscScalar energy = 0;
+  MPI_Reduce(&localEnergy, &energy, 1, MPIU_SCALAR, MPI_SUM, 0, PETSC_COMM_WORLD);
+  std::array<PetscScalar,3> energyArr {0,0,0};
+  MPI_Reduce(localEnergyArr.data(), energyArr.data(), 3, MPIU_SCALAR, MPI_SUM, 0, PETSC_COMM_WORLD);
+
+  /*std::cout << "e comp " << std::endl;
+  std::cout << energyArr[0] << std::endl;
+  std::cout << energyArr[1] << std::endl;
+  std::cout << energyArr[2] << std::endl;*/
+
+
+
+  //energy \= (data.NX * data.NY * data.NZ);
+
+  DMDAVecRestoreArrayRead(da, localUNew, &phiNew);
+  DMRestoreLocalVector(da, &localUNew);
+
+
+  return energy;
+
+}
+
 ///////////////////////////////////////////////////////////////////////////
 
 void IdealPV2::finalize() { }
@@ -1357,6 +1448,49 @@ LFHBSplit::LFHBSplit(ModelA &in, PetscScalar deltatHB)
 
 bool LFHBSplit::step(const double &dt) {
   lf.step(dt);
+  int nhb = dt / dtHB;
+  double tdiff = 0;
+  for(int i = 0; i < nhb - 1; ++i){
+    hbPhi.step(dtHB);
+    hbN.step(dtHB);
+    tdiff += dtHB;
+  }
+  hbPhi.step(dt - tdiff);
+  hbN.step(dt - tdiff);
+
+}
+
+PV2HBSplit::PV2HBSplit(ModelA &in, PetscScalar deltatHB)
+    : model(&in), pv2(in), hbPhi(in), hbN(in), dtHB(deltatHB), idealAcc(0), idealRej(0)
+    {
+
+}
+
+
+bool PV2HBSplit::step(const double &dt) {
+  PetscScalar oldEnergy = pv2.computeEnergy(dt);
+  pv2.step(dt);
+  PetscScalar newEnergy = pv2.computeEnergy(dt);
+  PetscScalar deltaE = abs(oldEnergy - newEnergy);
+
+  std::cout << oldEnergy<< std::endl;
+  std::cout <<newEnergy<< std::endl;
+  std::cout << deltaE<< std::endl;
+
+  int myRank;
+  bool reject = false;
+  MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
+  if(myRank == 0){
+    PetscScalar prob = ModelARndm->uniform();
+    if(prob > exp(-deltaE)) reject = true;
+  }
+  MPI_Bcast(&reject,1,MPIU_BOOL,0, MPI_COMM_WORLD);
+  if(reject) {
+    VecCopy( model->previoussolution, model->solution);
+    idealRej += 1;
+  } else idealAcc += 1;
+
+
   int nhb = dt / dtHB;
   double tdiff = 0;
   for(int i = 0; i < nhb - 1; ++i){
