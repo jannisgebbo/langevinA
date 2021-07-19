@@ -168,12 +168,14 @@ public:
               nab2 += pow(phiNew[k][j][i].A[s], 2);
             }
 
-            localEnergy[0] +=  0.5 / data.chi * nab2;
-            localEnergy[1] +=  0.5 * grad2;
-            localEnergy[2] +=   hEn;
+
           }
         }
       }
+
+      localEnergy[0] +=  0.5 / data.chi * nab2;
+      localEnergy[1] +=  0.5 * grad2;
+      localEnergy[2] +=   hEn;
       energy = std::array<PetscScalar,4>{0,0,0,0};
       MPI_Reduce(localEnergy.data(), energy.data(), energy.size() - 1, MPIU_SCALAR, MPI_SUM, 0, PETSC_COMM_WORLD);
 

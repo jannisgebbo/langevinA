@@ -7,8 +7,8 @@ NX = 32
 #Times and timestep
 finaltime =500
 initialtime = 0
-deltat    = 0.01
-saveFrequencyInTime = 0.1
+deltat    = 0.04
+saveFrequencyInTime = 0.4
 
 #Parameters
 mass = -4.8129999999999997
@@ -24,4 +24,6 @@ seed = 122335456
 outputfiletag = testrun 
 
 #Beuler=1 Feuler=2 SemiImplicit=3 EulerLangevinHB=4
-evolverType=6
+evolverType=7
+
+deltatHB=0.04
