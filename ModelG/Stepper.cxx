@@ -374,13 +374,8 @@ PetscScalar IdealPV2::computeEnergy(double dt)
 
   PetscScalar energy = 0;
   MPI_Reduce(&localEnergy, &energy, 1, MPIU_SCALAR, MPI_SUM, 0, PETSC_COMM_WORLD);
-<<<<<<< HEAD
   //std::array<PetscScalar,3> energyArr {0,0,0};
   //MPI_Reduce(localEnergyArr.data(), energyArr.data(), 3, MPIU_SCALAR, MPI_SUM, 0, PETSC_COMM_WORLD);
-=======
-  std::array<PetscScalar,3> energyArr {0,0,0};
-  MPI_Reduce(localEnergyArr.data(), energyArr.data(), 3, MPIU_SCALAR, MPI_SUM, 0, PETSC_COMM_WORLD);
->>>>>>> 68d56c6cd1dd6ec18a813d5e647f06b50d92a03e
 
   /*std::cout << "e comp " << std::endl;
   std::cout << energyArr[0] << std::endl;

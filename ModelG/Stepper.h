@@ -316,11 +316,8 @@ public:
     hbN.finalize();
     int myRank;
     MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
-<<<<<<< HEAD
     if(myRank == 0) std::cout << "Ideal steps was rejected "<< idealRej / (idealAcc + idealRej) * 100 << "% of the time." <<std::endl;
-=======
-    if(myRank == 0) std::cout << "Ideal steps was rejected "<< idealRej / idealAcc * 100 << "% of the time." <<std::endl;
->>>>>>> 68d56c6cd1dd6ec18a813d5e647f06b50d92a03e
+
   }
 
 
