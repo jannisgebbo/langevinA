@@ -8,7 +8,11 @@ NX = 32
 finaltime =500
 initialtime = 0
 deltat    = 0.04
+<<<<<<< HEAD
 saveFrequencyInTime = 0.4
+=======
+saveFrequencyInTime = 0.1
+>>>>>>> 68d56c6cd1dd6ec18a813d5e647f06b50d92a03e
 
 #Parameters
 mass = -4.8129999999999997
