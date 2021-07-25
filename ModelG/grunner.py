@@ -8,29 +8,29 @@ import datetime
 random.seed()
 
 data = {
-        # lattice dimension
-	"NX" : 32,
+    # lattice dimension
+    "NX" : 32,
 
-        # Time stepping
-	"finaltime" : 500,
-	"initialtime" : 0,
-	"deltat" : 0.04,
-	"deltatHB" : 0.04,
-        "evolverType" : 6,
+    # Time stepping
+    "finaltime" : 500,
+    "initialtime" : 0,
+    "deltat" : 0.04,
+    "deltatHB" : 0.04,
+    "evolverType" : 6,
 
-        #Action
-	"mass" : -4.813,
-	"lambda" : 4.,
-        "gamma" : 1.,
-        "H" :0.004,
-        "sigma" : 0.666666666666,
-	"seed" : 122335456,
-        "chi" : 2.,
+    #Action
+    "mass" : -4.813,
+    "lambda" : 4.,
+    "gamma" : 1.,
+    "H" :0.004,
+    "sigma" : 0.666666666666,
+    "seed" : 122335456,
+    "chi" : 2.,
 
-        #initial condition"
-	"zeroStart" : 1,
-	"outputfiletag" : "grun",
-        "saveFrequency" : 0.12,
+    #initial condition"
+    "zeroStart" : 1,
+    "outputfiletag" : "grun",
+    "saveFrequency" : 0.12,
 }
 # output is prepended with tag_...... For example if tag is set to "foo". Then
 # all outputs are of the form "foo_averages.txt"
@@ -87,26 +87,26 @@ def corirun(time=2, debug=False, shared=True, dry_run=True) :
     filenamesh = data["outputfiletag"] + '.sh'
     with open(filenamesh,'w') as fh:
         print("#!/bin/bash",file=fh) 
-        print("#SBATCH -N 1",file=fh) 
-        print("#SBATCH -C haswell",file=fh) 
-
         if debug :
             print("#SBATCH -q debug",file=fh) 
             print("#SBATCH -t 00:10:00",file=fh) 
+            print("#SBATCH -N 1",file=fh) 
+            print("#SBATCH --ntasks=32",file=fh) 
+            print("#SBATCH --cpus-per-task=2",file=fh) 
         elif shared :
-            print("#SBATCH --qos shared",file=fh) 
+            print("#SBATCH -q shared",file=fh) 
             print("#SBATCH -t %s" % (str(round(time*60))),file=fh) 
+            print("#SBATCH --ntasks=2",file=fh) 
+            print("#SBATCH --cpus-per-task=2",file=fh) 
         else:
             print("#SBATCH -q regular",file=fh) 
             print("#SBATCH -t %s" % (str(round(time*60))),file=fh) 
+            print("#SBATCH -N 1",file=fh) 
+            print("#SBATCH --ntasks=32",file=fh) 
+            print("#SBATCH --cpus-per-task=2",file=fh) 
+        print("#SBATCH -C haswell",file=fh) 
 
         print("",file=fh) 
-        print("#OpenMP settings:",file=fh) 
-        print("export OMP_NUM_THREADS=1",file=fh) 
-        print("export OMP_PLACES=threads",file=fh) 
-        print("export OMP_PROC_BIND=spread",file=fh) 
-        print("",file=fh) 
-        print("# set up the environment",file=fh) 
         print("module load gsl",file=fh) 
         print("module load cray-petsc",file=fh) 
         print("",file=fh) 
@@ -118,22 +118,15 @@ def corirun(time=2, debug=False, shared=True, dry_run=True) :
         prgm = path + "/SuperPions.exe"
         # set the seed and the inputfile
         data["seed"] = random.randint(1,2000000000)
-
         datatoinput()
         datatojson()
 
-
         #write the command that actually runds the program
-        if shared :
-            print("srun -n 8 -c 2 --cpu_bind=cores %s input=%s" % (prgm,data["outputfiletag"]+'.in'), file=fh) 
-        else:
-            print("srun -n 32 -c 2 --cpu_bind=cores %s input=%s" % (prgm,data["outputfiletag"]+'.in'), file=fh) 
-
+        print("srun --cpu_bind=cores %s -o4_data_inputfile %s" % (prgm,data["filename"]+'.json'), file=fh) 
         print('date  "+%%x %%T" >> %s_time.out' % (data["outputfiletag"]),file=fh) 
 
     if not dry_run:
         subprocess.run(['sbatch',filenamesh])
-    
 
 #runs the actual command current value of data  with mpiexec
 def run(moreopts=[], dry_run=True) :
