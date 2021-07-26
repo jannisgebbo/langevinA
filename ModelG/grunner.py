@@ -12,7 +12,7 @@ data = {
     "NX" : 32,
 
     # Time stepping
-    "finaltime" : 500,
+    "finaltime" : 4,
     "initialtime" : 0,
     "deltat" : 0.04,
     "deltatHB" : 0.04,
@@ -30,7 +30,7 @@ data = {
     #initial condition"
     "zeroStart" : 1,
     "outputfiletag" : "grun",
-    "saveFrequency" : 0.12,
+    "saveFrequency" : 0.4,
 }
 # output is prepended with tag_...... For example if tag is set to "foo". Then
 # all outputs are of the form "foo_averages.txt"
@@ -129,7 +129,7 @@ def corirun(time=2, debug=False, shared=True, dry_run=True) :
         subprocess.run(['sbatch',filenamesh])
 
 #runs the actual command current value of data  with mpiexec
-def run(moreopts=[], dry_run=True) :
+def run(moreopts=[], dry_run=True, time=0) :
     # find the program
     path = os.path.abspath(os.path.dirname(__file__))
     prgm = path + "/SuperPions.exe"
