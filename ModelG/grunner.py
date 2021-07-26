@@ -8,10 +8,10 @@ import datetime
 random.seed()
 
 data = {
-    # lattice dimension
+    #lattice dimension
     "NX" : 32,
 
-    # Time stepping
+    #Time stepping
     "finaltime" : 4,
     "initialtime" : 0,
     "deltat" : 0.04,
@@ -32,16 +32,18 @@ data = {
     "outputfiletag" : "grun",
     "saveFrequency" : 0.4,
 }
+
 # output is prepended with tag_...... For example if tag is set to "foo". Then
 # all outputs are of the form "foo_averages.txt"
 tag = "default"
 
-# dump the 
+# dump the data into an input file
 def datatoinput():
     with open(data["outputfiletag"] + '.in','w') as fh:
         for key, value in data.items() :
             fh.write("%s = %s\n" %(key, value) )
     
+# dump the data into a .json file
 def datatojson():
     with open(data["outputfiletag"]+ '.json', 'w') as outfile:
         json.dump(data,outfile,indent=4)
@@ -52,25 +54,25 @@ def getdefault_filename() :
     name = "%s_N%03d_m%08d_h%06d_c%05d" % (tag,data["NX"],round(100000*data["mass"]),round(1000000*data["H"]),round(100*data["chi"]))
     return name
 
-# Canonicalize the names for a given set of parameters
+# Canonicalize the names for a given set of parameters, with a scan in m2
 def getdefault_filename_m2change() :
     s = "xxxxxxxxxxxxx"
     name = "%s_N%03d_m%.8s_h%06d_c%05d" % (tag,round(data["NX"]),s,round(1000000*data["H"]),round(100*data["chi"]))
     return name
 
-# Canonicalize the names for a given set of parameters
+# Canonicalize the names for a given set of parameters, with scan in H
 def getdefault_filename_Hchange() :
     s = "xxxxxxxxxxxxx"
     name = "%s_N%03d_m%08d_h%.6s_c%05d" % (tag,data["NX"],round(100000*data["mass"]),s,round(100*data["chi"]))
     return name
 
-# Canonicalize the names for a given set of parameters
+# Canonicalize the names for a given set of parameters, with scan in N
 def getdefault_filename_Nchange() :
     s = "xxxxxxxxxxxxx"
     name = "%s_N%.3s_m%08d_h%06d_c%05d" % (tag,s,round(100000*data["mass"]),round(1000000*data["H"]),round(100*data["chi"]) )
     return name
 
-# Canonicalize the names for a given set of parameters
+# Canonicalize the names for a given set of parameters, with scan in chi
 def getdefault_filename_chichange() :
     s = "xxxxxxxxxxxxx"
     name = "%s_N%03d_m%08d_h%06d_c%.5s" % (tag,data["NX"],round(100000*data["mass"]),round(1000000*data["H"]),s)
@@ -82,8 +84,9 @@ def setdefault_filename() :
     data["outputfiletag"] = getdefault_filename()
 
 
-# Runs on cori regular que  with time inhours
-def corirun(time=2, debug=False, shared=True, dry_run=True) :
+# Runs on cori regular que  with time in hours. One should set dry_run=False to
+# actually run the code
+def corirun(time=2, debug=False, shared=False, dry_run=True) :
     filenamesh = data["outputfiletag"] + '.sh'
     with open(filenamesh,'w') as fh:
         print("#!/bin/bash",file=fh) 
@@ -118,11 +121,13 @@ def corirun(time=2, debug=False, shared=True, dry_run=True) :
         prgm = path + "/SuperPions.exe"
         # set the seed and the inputfile
         data["seed"] = random.randint(1,2000000000)
+        # write the data to an inputfile
         datatoinput()
+        # write the data to an .json
         datatojson()
 
         #write the command that actually runds the program
-        print("srun --cpu_bind=cores %s -o4_data_inputfile %s" % (prgm,data["filename"]+'.json'), file=fh) 
+        print("srun --cpu_bind=cores %s -o4_data_inputfile %s" % (prgm,data["outputfiletag"]+'.json'), file=fh) 
         print('date  "+%%x %%T" >> %s_time.out' % (data["outputfiletag"]),file=fh) 
 
     if not dry_run:
