@@ -3,11 +3,7 @@
 #include "O4AlgebraHelper.h"
 #include <cstdio>
 
-
-IdealLF::IdealLF(ModelA &in)
-    : model(&in) {
-}
-
+IdealLF::IdealLF(ModelA &in) : model(&in) {}
 
 bool IdealLF::step(const double &dt) {
 
@@ -35,8 +31,7 @@ bool IdealLF::step(const double &dt) {
 
   PetscScalar advxx, advyy, advzz;
   PetscInt s1, s2, epsilon;
-  PetscInt  xstart, ystart, zstart, xdimension, ydimension,
-      zdimension;
+  PetscInt xstart, ystart, zstart, xdimension, ydimension, zdimension;
   DMDAGetCorners(da, &xstart, &ystart, &zstart, &xdimension, &ydimension,
                  &zdimension);
 
@@ -73,7 +68,8 @@ bool IdealLF::step(const double &dt) {
                    phizminus.f[0] * centralPhi.f[l + 1]) *
                   azz;
 
-          phinew[k][j][i].A[l] += dt * (advxx + advyy + advzz - H[0] * centralPhi.f[l + 1]);
+          phinew[k][j][i].A[l] +=
+              dt * (advxx + advyy + advzz - H[0] * centralPhi.f[l + 1]);
         }
 
         for (PetscInt s = 0; s < ModelAData::NV; s++) {
@@ -114,59 +110,51 @@ bool IdealLF::step(const double &dt) {
     for (PetscInt j = ystart; j < ystart + ydimension; j++) {
       for (PetscInt i = xstart; i < xstart + xdimension; i++) {
 
-          // here we have to convert the charge from the chemical potential
-         PetscScalar axialmu[ModelAData::NA], vectormu[ModelAData::NV];
+        // here we have to convert the charge from the chemical potential
+        PetscScalar axialmu[ModelAData::NA], vectormu[ModelAData::NV];
 
-         for(PetscInt s=0;s < ModelAData::NV; s++ ){
+        for (PetscInt s = 0; s < ModelAData::NV; s++) {
 
-           vectormu[s] = - phinew[k][j][i].V[s] / data.chi * dt;
-         }
+          vectormu[s] = -phinew[k][j][i].V[s] / data.chi * dt;
+        }
 
-         for(PetscInt s=0;s < ModelAData::NA; s++ ){
+        for (PetscInt s = 0; s < ModelAData::NA; s++) {
 
-           axialmu[s]= - phinew[k][j][i].A[s] / data.chi * dt;
-         }
+          axialmu[s] = -phinew[k][j][i].A[s] / data.chi * dt;
+        }
 
-         O4AlgebraHelper::O4Rotation(vectormu, axialmu, phinew[k][j][i].f);
+        O4AlgebraHelper::O4Rotation(vectormu, axialmu, phinew[k][j][i].f);
       }
     }
   }
 
-// Then we rotate phi by n.
+  // Then we rotate phi by n.
 
-//   O4AlgebraHelper::O4Rotation(phinew[k][j][i].V, phinew[k][j][i].A,phinew[k][j][i].f);
-
-
+  //   O4AlgebraHelper::O4Rotation(phinew[k][j][i].V,
+  //   phinew[k][j][i].A,phinew[k][j][i].f);
 
   DMDAVecRestoreArrayRead(da, localU, &phi);
   DMRestoreLocalVector(da, &localU);
 
   DMDAVecRestoreArray(da, model->solution, &phinew);
 
-
   return true;
 }
 
-
-
-
 ///////////////////////////////////////////////////////////////////////////
 
-void IdealLF::finalize() { }
+void IdealLF::finalize() {}
 ///////////////////////////////////////////////////////////////////////////
-
 
 IdealPV2::IdealPV2(ModelA &in)
-    : model(&in), da(model->domain), data(model->data){
-      DMDAGetCorners(da, &xstart, &ystart, &zstart, &xdimension, &ydimension,
-                     &zdimension);
+    : model(&in), da(model->domain), data(model->data) {
+  DMDAGetCorners(da, &xstart, &ystart, &zstart, &xdimension, &ydimension,
+                 &zdimension);
 }
-
 
 bool IdealPV2::step(const double &dt) {
   G_node ***phinew;
   DMDAVecGetArray(da, model->solution, &phinew);
-
 
   // drifts dt / 2.0
 
@@ -180,7 +168,6 @@ bool IdealPV2::step(const double &dt) {
   DMGlobalToLocalBegin(da, model->solution, INSERT_VALUES, localU);
   DMGlobalToLocalEnd(da, model->solution, INSERT_VALUES, localU);
 
-
   G_node ***phi;
   DMDAVecGetArrayRead(da, localU, &phi);
 
@@ -191,9 +178,6 @@ bool IdealPV2::step(const double &dt) {
 
   PetscScalar advxx, advyy, advzz;
   PetscInt s1, s2, epsilon;
-
-
-
 
   // Loop over central elements
   for (PetscInt k = zstart; k < zstart + zdimension; k++) {
@@ -228,7 +212,8 @@ bool IdealPV2::step(const double &dt) {
                    phizminus.f[0] * centralPhi.f[l + 1]) *
                   azz;
 
-          phinew[k][j][i].A[l] += dt * (advxx + advyy + advzz - H[0] * centralPhi.f[l + 1]);
+          phinew[k][j][i].A[l] +=
+              dt * (advxx + advyy + advzz - H[0] * centralPhi.f[l + 1]);
         }
 
         for (PetscInt s = 0; s < ModelAData::NV; s++) {
@@ -266,48 +251,41 @@ bool IdealPV2::step(const double &dt) {
 
   // drifts dt / 2.0
 
-
   rotatePhi(phinew, dt / 2.0);
-
 
   DMDAVecRestoreArrayRead(da, localU, &phi);
   DMRestoreLocalVector(da, &localU);
 
   DMDAVecRestoreArray(da, model->solution, &phinew);
 
-
   return true;
 }
 
-void IdealPV2::rotatePhi(G_node*** phinew, double dt){
+void IdealPV2::rotatePhi(G_node ***phinew, double dt) {
   for (PetscInt k = zstart; k < zstart + zdimension; k++) {
     for (PetscInt j = ystart; j < ystart + ydimension; j++) {
       for (PetscInt i = xstart; i < xstart + xdimension; i++) {
 
-          // here we have to convert the charge from the chemical potential
-         PetscScalar axialmu[ModelAData::NA], vectormu[ModelAData::NV];
+        // here we have to convert the charge from the chemical potential
+        PetscScalar axialmu[ModelAData::NA], vectormu[ModelAData::NV];
 
-         for(PetscInt s=0;s < ModelAData::NV; s++ ){
+        for (PetscInt s = 0; s < ModelAData::NV; s++) {
 
-           vectormu[s] = - phinew[k][j][i].V[s] / data.chi * dt;
-         }
+          vectormu[s] = -phinew[k][j][i].V[s] / data.chi * dt;
+        }
 
-         for(PetscInt s=0;s < ModelAData::NA; s++ ){
+        for (PetscInt s = 0; s < ModelAData::NA; s++) {
 
-           axialmu[s]= - phinew[k][j][i].A[s] / data.chi * dt;
-         }
+          axialmu[s] = -phinew[k][j][i].A[s] / data.chi * dt;
+        }
 
-         O4AlgebraHelper::O4Rotation(vectormu, axialmu, phinew[k][j][i].f);
+        O4AlgebraHelper::O4Rotation(vectormu, axialmu, phinew[k][j][i].f);
       }
     }
   }
 }
 
-
-
-
-PetscScalar IdealPV2::computeEnergy(double dt)
-{
+PetscScalar IdealPV2::computeEnergy(double dt) {
   DM da = model->domain;
   // Get a local vector with ghost cells
   Vec localUNew;
@@ -323,85 +301,59 @@ PetscScalar IdealPV2::computeEnergy(double dt)
   G_node ***phiNew;
   DMDAVecGetArrayRead(da, localUNew, &phiNew);
 
-
   const PetscReal H[4] = {data.H, 0., 0., 0.};
 
-
-  PetscInt  xstart, ystart, zstart, xdimension, ydimension,
-      zdimension;
+  PetscInt xstart, ystart, zstart, xdimension, ydimension, zdimension;
   DMDAGetCorners(da, &xstart, &ystart, &zstart, &xdimension, &ydimension,
                  &zdimension);
 
   // Loop over central elements
   PetscScalar phimid = 0, grad2 = 0, nab2 = 0, hEn = 0;
   PetscScalar localEnergy = 0;
-  //std::array<PetscScalar,3> localEnergyArr {0,0,0};
-
+  // std::array<PetscScalar,3> localEnergyArr {0,0,0};
 
   for (PetscInt k = zstart; k < zstart + zdimension; k++) {
     for (PetscInt j = ystart; j < ystart + ydimension; j++) {
       for (PetscInt i = xstart; i < xstart + xdimension; i++) {
-        for(int s = 0; s < ModelAData::Nphi; ++s){
+        for (int s = 0; s < ModelAData::Nphi; ++s) {
 
           phimid = phiNew[k][j][i].f[s];
 
-          grad2 += pow(phiNew[k+1][j][i].f[s] - phimid, 2);
-          grad2 += pow(phiNew[k][j+1][i].f[s] - phimid, 2);
-          grad2 += pow(phiNew[k][j][i+1].f[s] - phimid, 2);
-
+          grad2 += pow(phiNew[k + 1][j][i].f[s] - phimid, 2);
+          grad2 += pow(phiNew[k][j + 1][i].f[s] - phimid, 2);
+          grad2 += pow(phiNew[k][j][i + 1].f[s] - phimid, 2);
 
           hEn += phimid * H[s];
         }
-        for(PetscInt s=0;s < ModelAData::NV; s++ ){
+        for (PetscInt s = 0; s < ModelAData::NV; s++) {
           nab2 += pow(phiNew[k][j][i].V[s], 2);
         }
 
-        for(PetscInt s=0;s < ModelAData::NA; s++ ){
+        for (PetscInt s = 0; s < ModelAData::NA; s++) {
           nab2 += pow(phiNew[k][j][i].A[s], 2);
         }
-
       }
     }
   }
 
-  localEnergy +=  0.5 / data.chi * nab2;
-  localEnergy +=  0.5 * grad2;
-  localEnergy -=   hEn;
-
-  /*localEnergyArr[0]+=0.5 / data.chi * nab2;
-  localEnergyArr[1] +=  0.5 * grad2;
-  localEnergyArr[2] -=   hEn;*/
+  localEnergy += 0.5 / data.chi * nab2;
+  localEnergy += 0.5 * grad2;
+  localEnergy -= hEn;
 
   PetscScalar energy = 0;
-  MPI_Reduce(&localEnergy, &energy, 1, MPIU_SCALAR, MPI_SUM, 0, PETSC_COMM_WORLD);
-  //std::array<PetscScalar,3> energyArr {0,0,0};
-  //MPI_Reduce(localEnergyArr.data(), energyArr.data(), 3, MPIU_SCALAR, MPI_SUM, 0, PETSC_COMM_WORLD);
-
-  /*std::cout << "e comp " << std::endl;
-  std::cout << energyArr[0] << std::endl;
-  std::cout << energyArr[1] << std::endl;
-  std::cout << energyArr[2] << std::endl;*/
-
-
-
-  //energy \= (data.NX * data.NY * data.NZ);
+  MPI_Reduce(&localEnergy, &energy, 1, MPIU_SCALAR, MPI_SUM, 0,
+             PETSC_COMM_WORLD);
 
   DMDAVecRestoreArrayRead(da, localUNew, &phiNew);
   DMRestoreLocalVector(da, &localUNew);
 
-
   return energy;
-
 }
 
 ///////////////////////////////////////////////////////////////////////////
 
-void IdealPV2::finalize() { }
+void IdealPV2::finalize() {}
 ///////////////////////////////////////////////////////////////////////////
-
-
-
-
 
 ForwardEuler::ForwardEuler(ModelA &in, bool wnoise)
     : model(&in), withNoise(wnoise) {
@@ -411,7 +363,7 @@ void ForwardEuler::finalize() { VecDestroy(&noise); }
 
 bool ForwardEuler::step(const double &dt) {
 
-  PetscLogEvent random,  loop, create;
+  PetscLogEvent random, loop, create;
   PetscLogEventRegister("FillRandomVec", 0, &random);
   PetscLogEventRegister("PotentialEval", 0, &loop);
   PetscLogEventRegister("CreationAndMPI", 0, &create);
@@ -983,7 +935,8 @@ PetscErrorCode SemiImplicitBEuler::Form3PointLaplacian(DM da, Mat J,
 
 /////////////////////////////////////////////////////////////////////////a
 
-EulerLangevinHB::EulerLangevinHB(ModelA &in) : model(&in) {
+EulerLangevinHB::EulerLangevinHB(ModelA &in)
+    : model(&in), monitor("Phi HB Steps") {
   DMCreateLocalVector(model->domain, &phi_local);
 }
 
@@ -1135,7 +1088,8 @@ double modelg_update_charge_pair(const double &chi, const double &rms,
   }
 }
 
-ModelGChargeHB::ModelGChargeHB(ModelA &in) : model(&in) {
+ModelGChargeHB::ModelGChargeHB(ModelA &in)
+    : model(&in), qmonitor("Charge HB Steps") {
   DMCreateLocalVector(model->domain, &phi_local);
   DMCreateLocalVector(model->domain, &dn_local);
 }
@@ -1215,7 +1169,6 @@ void ModelGChargeHB::finalize() {
   int rank;
   MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
   if (rank == 0) {
-    fprintf(stdout, "Statistics of current updates.... \n");
     qmonitor.print(stdout);
   }
 }
@@ -1437,68 +1390,68 @@ PetscErrorCode ModelGChargeCN::Form3PointLaplacian(DM da, Mat J,
   return (0);
 }
 
-
-
 LFHBSplit::LFHBSplit(ModelA &in, PetscScalar deltatHB)
-    : lf(in), hbPhi(in), hbN(in), dtHB(deltatHB)
-    {
-
-}
-
+    : lf(in), hbPhi(in), hbN(in), dtHB(deltatHB) {}
 
 bool LFHBSplit::step(const double &dt) {
   lf.step(dt);
   int nhb = dt / dtHB;
   double tdiff = 0;
-  for(int i = 0; i < nhb - 1; ++i){
+  for (int i = 0; i < nhb - 1; ++i) {
     hbPhi.step(dtHB);
     hbN.step(dtHB);
     tdiff += dtHB;
   }
   hbPhi.step(dt - tdiff);
   hbN.step(dt - tdiff);
-
+  return true;
 }
 
 PV2HBSplit::PV2HBSplit(ModelA &in, PetscScalar deltatHB)
-    : model(&in), pv2(in), hbPhi(in), hbN(in), dtHB(deltatHB), idealAcc(0), idealRej(0)
-    {
-
-}
-
+    : model(&in), pv2(in), hbPhi(in), hbN(in), dtHB(deltatHB),
+      monitor("Postion Verlet Ideal Steps") {}
 
 bool PV2HBSplit::step(const double &dt) {
+
+  // Compute the ideal step with the position verlet integrator.
+  // Record the energy for the accept reject step
   PetscScalar oldEnergy = pv2.computeEnergy(dt);
   pv2.step(dt);
   PetscScalar newEnergy = pv2.computeEnergy(dt);
-  PetscScalar deltaE = abs(oldEnergy - newEnergy);
+  PetscScalar deltaE = newEnergy - oldEnergy;
 
-  std::cout << oldEnergy<< std::endl;
-  std::cout <<newEnergy<< std::endl;
-  std::cout << deltaE<< std::endl;
-
+  // Do a metropolis accept reject for the ideal step
+  PetscBool reject(PETSC_FALSE);
   int myRank;
-  bool reject = false;
   MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
-  if(myRank == 0){
-    PetscScalar prob = ModelARndm->uniform();
-    if(prob > exp(-deltaE)) reject = true;
+  if (myRank == 0) {
+    if (deltaE > 0) {
+      PetscScalar prob = ModelARndm->uniform();
+      if (prob > exp(-deltaE)) {
+        reject = PETSC_TRUE;
+        monitor.increment_up_no(deltaE);
+      } else {
+        monitor.increment_up_yes(deltaE);
+      }
+    } else {
+      monitor.increment_down(deltaE);
+    }
   }
-  MPI_Bcast(&reject,1,MPIU_BOOL,0, MPI_COMM_WORLD);
-  if(reject) {
-    VecCopy( model->previoussolution, model->solution);
-    idealRej += 1;
-  } else idealAcc += 1;
+  MPI_Bcast(&reject, 1, MPIU_BOOL, 0, MPI_COMM_WORLD);
 
+  if (reject) {
+    VecCopy(model->previoussolution, model->solution);
+  }
 
+  // Update the fields with the diffusive step
   int nhb = dt / dtHB;
   double tdiff = 0;
-  for(int i = 0; i < nhb - 1; ++i){
+  for (int i = 0; i < nhb - 1; ++i) {
     hbPhi.step(dtHB);
     hbN.step(dtHB);
     tdiff += dtHB;
   }
   hbPhi.step(dt - tdiff);
   hbN.step(dt - tdiff);
-
+  return true;
 }
