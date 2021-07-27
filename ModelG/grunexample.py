@@ -7,10 +7,10 @@ grun.data = {
     "NX" : 32,
 
     # Time stepping
-    "finaltime" : 2,
+    "finaltime" : 400,
     "initialtime" : 0,
-    "deltat" : 0.02,
-    "deltatHB" : 0.02,
+    "deltat" : 0.04,
+    "deltatHB" : 0.04,
     "evolverType" : 7,
 
     #Action
@@ -25,11 +25,11 @@ grun.data = {
     #initial condition"
     "zeroStart" : "true",
     "outputfiletag" : "grun",
-    "saveFrequencyInTime" : 0.4,
+    "saveFrequencyInTime" : 0.8,
 }
 
-Ns = [24,48]
+Ns = [32]
 for N in Ns:
     grun.data["NX"] = N 
     grun.data["outputfiletag"]=grun.getdefault_filename()
-    grun.corirun(dry_run=True, time=(N/16.)**3*0.05)
+    grun.run(dry_run=True, time=(N/16.)**3*0.05)
