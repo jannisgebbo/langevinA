@@ -962,14 +962,23 @@ bool EulerLangevinHB::step(const double &dt) {
   const double &H = model->data.H;
   const PetscReal rdtg = sqrt(2. * dt * model->data.gamma);
 
+  PetscLogEvent communication, random, loop;
+  PetscLogEventRegister("Communication", 0, &communication);
+  PetscLogEventRegister("Random", 0, &random);
+  PetscLogEventRegister("Loop", 0, &loop);
+
+
   // Checkerboard order ieo = even and odd sites
   for (int ieo = 0; ieo < 2; ieo++) {
     // take the global vector U and distribute to the local vector localU
+    PetscLogEventBegin(communication, 0, 0, 0, 0);
     DMGlobalToLocalBegin(model->domain, model->solution, INSERT_VALUES,
                          phi_local);
     DMGlobalToLocalEnd(model->domain, model->solution, INSERT_VALUES,
                        phi_local);
+    PetscLogEventEnd(communication, 0, 0, 0, 0);
 
+    PetscLogEventBegin(loop, 0, 0, 0, 0);
     for (int k = izs; k < izs + nz; k++) {
       for (int j = iys; j < iys + ny; j++) {
         for (int i = ixs; i < ixs + nx; i++) {
@@ -1027,6 +1036,7 @@ bool EulerLangevinHB::step(const double &dt) {
         }
       }
     }
+    PetscLogEventEnd(loop, 0, 0, 0, 0);
   }
 
   // Retstore the array
