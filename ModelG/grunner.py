@@ -86,7 +86,7 @@ def setdefault_filename() :
 
 # Runs on cori regular que  with time in hours. One should set dry_run=False to
 # actually run the code
-def corirun(time=2, debug=False, shared=False, dry_run=True) :
+def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=[]) :
     filenamesh = data["outputfiletag"] + '.sh'
     with open(filenamesh,'w') as fh:
         print("#!/bin/bash",file=fh) 
@@ -127,7 +127,10 @@ def corirun(time=2, debug=False, shared=False, dry_run=True) :
         datatojson()
 
         #write the command that actually runds the program
-        print("srun --cpu_bind=cores %s -o4_data_inputfile %s" % (prgm,data["outputfiletag"]+'.json'), file=fh) 
+        print("srun --cpu_bind=cores %s -o4_data_inputfile %s" % (prgm,data["outputfiletag"]+'.json'), end=' ', file=fh) 
+        for opt in moreopts:
+            print(opt,end=' ', file=fh)
+        print(file=fh)
         print('date  "+%%x %%T" >> %s_time.out' % (data["outputfiletag"]),file=fh) 
 
     if not dry_run:
