@@ -76,25 +76,31 @@ int main(int argc, char **argv) {
   }
 
   PetscInt steps = 1;
-  PetscLogEvent measurements;
+  PetscLogEvent measurements, stepmonitor;
   PetscLogEventRegister("Measurements", 0, &measurements);
+  PetscLogEventRegister("Steps", 0, &stepmonitor);
+
   // Thsi is the loop for the time step
   for (PetscReal time = model.data.initialtime; time < model.data.finaltime;
        time += model.data.deltat) {
+
     // Copy the solution
     VecCopy(model.solution, model.previoussolution);
 
+    //Do the actual steps
+    PetscLogEventBegin(stepmonitor, 0, 0, 0, 0);
     step->step(model.data.deltat);
+    PetscLogEventEnd(stepmonitor, 0, 0, 0, 0);
 
     // measure the solution
-    PetscLogEventBegin(measurements, 0, 0, 0, 0);
     if (steps % model.data.saveFrequency == 0) {
+      PetscLogEventBegin(measurements, 0, 0, 0, 0);
       measurer.measure(&model.solution);
       // Print some information to not get bored during the running:
       PetscPrintf(PETSC_COMM_WORLD, "Timestep %D: step size = %g, time = %g\n",
                   steps, (double)model.data.deltat, (double)time);
+      PetscLogEventEnd(measurements, 0, 0, 0, 0);
     }
-    PetscLogEventEnd(measurements, 0, 0, 0, 0);
 
     steps++;
   }
