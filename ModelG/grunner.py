@@ -99,7 +99,7 @@ def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=[]) :
         elif shared :
             print("#SBATCH -q shared",file=fh) 
             print("#SBATCH -t %s" % (str(round(time*60))),file=fh) 
-            print("#SBATCH --ntasks=2",file=fh) 
+            print("#SBATCH --ntasks=8",file=fh) 
             print("#SBATCH --cpus-per-task=2",file=fh) 
         else:
             print("#SBATCH -q regular",file=fh) 
