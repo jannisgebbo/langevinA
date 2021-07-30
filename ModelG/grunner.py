@@ -5,6 +5,9 @@ import json
 import random
 import datetime
 
+
+GLOBAL_PETSCPKG_PATH_SEAWULF="${PKG_CONFIG_PATH}:/gpfs/home/adrflorio/petsc/arch-linux2-c-debug/lib/pkgconfig/"
+
 random.seed()
 
 data = {
@@ -31,6 +34,7 @@ data = {
     "zeroStart" : 1,
     "outputfiletag" : "grun",
     "saveFrequency" : 0.4,
+    "outputfolder" : "./", #this is interal to python and prepended to the outputfiletag
 }
 
 # output is prepended with tag_...... For example if tag is set to "foo". Then
@@ -83,7 +87,6 @@ def getdefault_filename_chichange() :
 def setdefault_filename() :
     data["outputfiletag"] = getdefault_filename()
 
-
 # Runs on cori regular que  with time in hours. One should set dry_run=False to
 # actually run the code
 def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=[]) :
@@ -128,6 +131,56 @@ def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=[]) :
 
         #write the command that actually runds the program
         print("srun --cpu_bind=cores %s input=%s" % (prgm,data["outputfiletag"]+'.in'), end=' ', file=fh) 
+        for opt in moreopts:
+            print(opt,end=' ', file=fh)
+        print(file=fh)
+        print('date  "+%%x %%T" >> %s_time.out' % (data["outputfiletag"]),file=fh) 
+
+    if not dry_run:
+        subprocess.run(['sbatch',filenamesh])
+
+# Runs on seawulf  with time in batch time. One should set dry_run=False to
+# actually run the code
+def seawulfrun(time="00:02:00", debug=False, shared=False, dry_run=True, moreopts=[]) :
+    nprocesses=24
+    filenamesh = data["outputfiletag"] + '.sh'
+    with open(filenamesh,'w') as fh:
+        print("#!/bin/bash",file=fh) 
+        if debug :
+            print("#SBATCH -p debug-{}core".format(nprocesses),file=fh) 
+            print("#SBATCH --time=00:10:00",file=fh) 
+            print("#SBATCH --nodes=1",file=fh) 
+            print("#SBATCH --ntasks-per-node={}".format(nprocesses),file=fh) 
+        else:
+            print("#SBATCH -p long-{}core".format(nprocesses),file=fh) 
+            print("#SBATCH --time={}".format(time),file=fh) 
+            print("#SBATCH --nodes=1",file=fh) 
+            print("#SBATCH --ntasks-per-node={}".format(nprocesses),file=fh) 
+
+        print("",file=fh) 
+        print("module load shared",file=fh) 
+        print("module load gcc-stack",file=fh) 
+        print("module load hdf5/1.10.5-parallel",file=fh) 
+        print("module load cmake",file=fh) 
+        print("module load gsl",file=fh)
+        print("export PKG_CONFIG_PATH={}".format(GLOBAL_PETSCPKG_PATH_SEAWULF), file=fh) 
+        print("export MV2_ENABLE_AFFINITY=0",file=fh)
+        print("",file=fh) 
+        print("#run the application:",file=fh) 
+
+        print('date  "+%%x %%T" > %s_time.out' % (data["outputfiletag"]),file=fh) 
+        # get the program
+        path = os.path.abspath(os.path.dirname(__file__))
+        prgm = path + "/SuperPions.exe"
+        # set the seed and the inputfile
+        data["seed"] = random.randint(1,2000000000)
+        # write the data to an inputfile
+        datatoinput()
+        # write the data to an .json
+        datatojson()
+
+        #write the command that actually runds the program
+        print("mpirun -n {} {} input={} outpufiletag={}".format(nprocesses,prgm,data["outputfiletag"]+'.in', data["outputfolder"] + data["outputfiletag"]), end=' ', file=fh) 
         for opt in moreopts:
             print(opt,end=' ', file=fh)
         print(file=fh)
