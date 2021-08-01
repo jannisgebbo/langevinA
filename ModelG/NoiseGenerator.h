@@ -1,49 +1,83 @@
 #ifndef NOISEGENERATOR
 #define NOISEGENERATOR
 
+#include <fstream>
+#include <iostream>
 #include <memory>
 #include <petscsys.h>
 #include <petscvec.h>
+#include <random>
+#include <string>
+#include <vector>
 
 #define NOISEGENERATOR_STDCPP
 
 #ifdef NOISEGENERATOR_STDCPP
 #include "xoroshiro128plus.h"
-#include <random>
 #endif
+
 #ifdef NOISEGENERATOR_GSL
 #include <gsl/gsl_randist.h>
 #include <gsl/gsl_rng.h>
+
+class gsl_rng_urng {
+public:
+  typedef unsigned long int result_type;
+  gsl_rng *grng;
+
+  static constexpr unsigned long int min() { return 0; }
+  static constexpr unsigned long int max() { return 0xFFFFFFFF; }
+  gsl_rng_urng() { grng = gsl_rng_alloc(gsl_rng_mt19937); }
+  ~gsl_rng_urng() { gsl_rng_free(grng); }
+  void seed(unsigned long int sd) { gsl_rng_set(grng, sd); }
+
+  unsigned long int operator()() { return gsl_rng_get(grng); }
+  void write(const std::string &fname) {
+    FILE *fp = fopen(fname.c_str(), "wb");
+    if (!fp) {
+      std::cout << "Unable to open file for writing in gsl URNG" << std::endl;
+      std::terminate();
+    } else {
+      std::cout << "Writing  file in gsl URNG" << std::endl;
+      gsl_rng_fwrite(fp, grng);
+    }
+    fclose(fp);
+  }
+  void read(const std::string &fname) {
+    FILE *fp = fopen(fname.c_str(), "rb");
+    if (!fp) {
+      std::cout << "Unable to open file for reading in gsl URNG" << std::endl;
+      std::terminate();
+    } else {
+      gsl_rng_fread(fp, grng);
+    }
+    fclose(fp);
+  }
+};
 #endif
 
 // typedef std::ranlux48 RNGType;
-// typedef xoroshiro128plus RNGType;
-typedef std::mt19937_64 RNGType;
+// typedef std::mt19937_64 RNGType;
+typedef xoroshiro128plus RNGType;
+// typedef gsl_rng_urng RNGType;
 
 class NoiseGenerator {
 public:
-  NoiseGenerator(const int &baseSeed = 0) {
+  NoiseGenerator(const int &baseSeed = 0)
+      : uniformDistribution(-sqrt(3.), sqrt(3.)) {
+
     int rank = 0;
     MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
+    int size = 0;
+    MPI_Comm_size(PETSC_COMM_WORLD, &size);
 
-#ifdef NOISEGENERATOR_GSL
-    rng = gsl_rng_alloc(gsl_rng_mt19937);
-    gsl_rng_set(rng, baseSeed + rank);
-#endif
-#ifdef NOISEGENERATOR_STDCPP
-    // std::seed_seq seq{baseSeed, rank};
-    // rng.seed(seq);
-    rng.seed(baseSeed + rank);
-#endif
+    std::seed_seq sequence = {baseSeed};
+    std::vector<unsigned int> seeds(size, 0);
+    sequence.generate(seeds.begin(), seeds.end());
+    rng.seed(seeds[rank]);
   }
 
-  ~NoiseGenerator() {
-#ifdef NOISEGENERATOR_GSL
-    gsl_rng_free(rng);
-#endif
-#ifdef NOISEGENERATOR_STDCPP
-#endif
-  }
+  ~NoiseGenerator() {}
 
   PetscErrorCode fillVec(Vec U) {
     PetscScalar *array;
@@ -59,55 +93,59 @@ public:
     return 0;
   }
 
-  PetscReal normal() {
-#ifdef NOISEGENERATOR_GSL
-    return gsl_ran_gaussian(rng, 1.);
-#endif
-#ifdef NOISEGENERATOR_STDCPP
-    return normalDistribution(rng);
-#endif
-  }
+  PetscReal normal() { return normalDistribution(rng); }
 
-  PetscReal uniform() {
-#ifdef NOISEGENERATOR_GSL
-    return gsl_rng_uniform(rng);
-#endif
-#ifdef NOISEGENERATOR_STDCPP
-    return uniformDistribution(rng);
-#endif
-  }
+  PetscReal uniform() { return uniformDistribution(rng); }
 
-#ifdef NOISEGENERATOR_STDCPP
   RNGType &generator() { return rng; }
+
+  void write(const std::string &filename_stub) {
+    int rank;
+    MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
+    std::string srank = std::to_string(rank);
+    std::string fname = filename_stub + "_" + srank + ".rng";
+#ifdef NOISEGENERATOR_GSL
+    rng.write(fname);
+#else
+    std::ofstream out(fname);
+    if (out) {
+      out << rng;
+    } else {
+      std::cout << "Unable to open file when saving the random number "
+                   "generator state!"
+                << std::endl;
+      std::terminate();
+    }
 #endif
+  }
+
+  void read(const std::string &filename_stub) {
+    int rank;
+    MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
+    std::string srank = std::to_string(rank);
+    std::string fname = filename_stub + "_" + srank + ".rng";
+#ifdef NOISEGENERATOR_GSL
+    rng.read(fname);
+#else
+    std::ifstream in(fname);
+    if (in) {
+      in >> rng;
+    } else {
+      std::cout << "Unable to open file when writing the random number "
+                   "generator state!"
+                << std::endl;
+      std::terminate();
+    }
+#endif
+  }
 
 private:
-#ifdef NOISEGENERATOR_GSL
-  gsl_rng *rng;
-#endif
-#ifdef NOISEGENERATOR_STDCPP
   RNGType rng;
   std::normal_distribution<PetscReal> normalDistribution;
   std::uniform_real_distribution<PetscReal> uniformDistribution;
-#endif
 };
 
 //! Global random number generator which is initialized when
 //! ModelA is created.
 extern std::unique_ptr<NoiseGenerator> ModelARndm;
 #endif
-
-// Prodcues gaussian random numbers with mean 0 and variance 1
-// void normal_pair(PetscReal &z1, PetscReal &z2) {
-//  constexpr PetscReal two_pi = 2.0 * M_PI;
-//
-//  //create two random numbers, make sure u1 is greater than epsilon
-//  PetscReal u1, u2;
-//  u1 = gsl_rng_uniform_pos(rng) ;
-//  u2 = gsl_rng_uniform(rng) ;
-
-//  //compute z1 and z2
-//  PetscReal mag = sqrt(-2.0 * log(u1));
-//  z1  = mag * cos(two_pi * u2) ;
-//  z2  = mag * sin(two_pi * u2) ;
-//}
