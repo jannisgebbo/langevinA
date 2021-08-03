@@ -1169,6 +1169,9 @@ bool ModelGChargeHB::step(const double &dt) {
       DMLocalToGlobal(model->domain, dn_local, ADD_VALUES, model->solution);
     }
   }
+  DMDAVecRestoreArray(model->domain, phi_local, &phi);
+  DMDAVecRestoreArray(model->domain, dn_local, &dn);
+
   return true;
 };
 
