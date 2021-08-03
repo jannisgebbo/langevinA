@@ -35,10 +35,8 @@ public:
   void write(const std::string &fname) {
     FILE *fp = fopen(fname.c_str(), "wb");
     if (!fp) {
-      std::cout << "Unable to open file for writing in gsl URNG" << std::endl;
-      std::terminate();
+      std::cout << "gsl_rng_urng::write Unable to open file for writing in gsl URNG." << std::endl;
     } else {
-      std::cout << "Writing  file in gsl URNG" << std::endl;
       gsl_rng_fwrite(fp, grng);
     }
     fclose(fp);
@@ -46,8 +44,8 @@ public:
   void read(const std::string &fname) {
     FILE *fp = fopen(fname.c_str(), "rb");
     if (!fp) {
-      std::cout << "Unable to open file for reading in gsl URNG" << std::endl;
-      std::terminate();
+      std::cout << "gsl_rng_urng::read Unable to open file for reading in gsl URNG. Defaulting to seed." << std::endl;
+      return ;
     } else {
       gsl_rng_fread(fp, grng);
     }
@@ -111,10 +109,7 @@ public:
     if (out) {
       out << rng;
     } else {
-      std::cout << "Unable to open file when saving the random number "
-                   "generator state!"
-                << std::endl;
-      std::terminate();
+      std::cout << "urng::write Unable to open file for writing in URNG. Defaulting to seed." << std::endl;
     }
 #endif
   }
@@ -131,10 +126,7 @@ public:
     if (in) {
       in >> rng;
     } else {
-      std::cout << "Unable to open file when writing the random number "
-                   "generator state!"
-                << std::endl;
-      std::terminate();
+      std::cout << "urng::read Unable to open file for reading in URNG. Defaulting to seed." << std::endl;
     }
 #endif
   }

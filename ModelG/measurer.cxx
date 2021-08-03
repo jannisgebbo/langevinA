@@ -10,14 +10,39 @@ measurer_output_hdf5::measurer_output_hdf5(Measurer *in) : measure(in) {
 
   // Set the parameters controlling the output
   verbosity = model->data.verboseMeasurements;
-  std::string name(model->data.outputfiletag + ".h5");
-  PetscViewerHDF5Open(PETSC_COMM_SELF, name.c_str(), FILE_MODE_WRITE, &viewer);
 
-  PetscViewerSetFromOptions(viewer);
-  PetscViewerHDF5SetTimestep(viewer, model->data.initialtime);
+  // filename is foo.h5
+  std::string name = model->data.outputfiletag + ".h5" ;
+
+  // Check if we are supposed to, and are able to, restart the measurements
+  PetscBool restartflg = PETSC_FALSE ;
+  if (model->data.restart) {
+    PetscTestFile(name.c_str(), '\0', &restartflg); 
+    if (!restartflg) {
+      std::cout << "measurer_output_hdf5::measurer_output_hdf5: Unable to open measurement file " << name << " while in restart mode. Creating a new measurement file. " << std::endl;
+    }
+  }
+
+  // Restart the measurements
+  if (restartflg)  {
+    PetscErrorCode ierr ;
+    ierr = PetscViewerHDF5Open(PETSC_COMM_SELF, name.c_str(), FILE_MODE_APPEND, &viewer); CHKERRV(ierr) ;
+    PetscInt timestep;
+    ierr = PetscViewerHDF5ReadAttribute(viewer, NULL, "Timestep", PETSC_INT, &timestep); CHKERRV(ierr) ;
+    PetscViewerSetFromOptions(viewer);
+    PetscViewerHDF5SetTimestep(viewer, timestep);
+  } else { // Start a new measurement file 
+    std::string name(model->data.outputfiletag + ".h5");
+    PetscViewerHDF5Open(PETSC_COMM_SELF, name.c_str(), FILE_MODE_WRITE, &viewer);
+    PetscViewerSetFromOptions(viewer);
+    PetscViewerHDF5SetTimestep(viewer, 0);
+  }
 }
 
 measurer_output_hdf5::~measurer_output_hdf5() {
+  PetscInt timestep ;
+  PetscViewerHDF5GetTimestep(viewer, &timestep) ;
+  PetscViewerHDF5WriteAttribute(viewer, NULL, "Timestep", PETSC_INT, &timestep)  ;
   VecDestroy(&vecSaverCors);
   VecDestroy(&vecSaverScalars);
   PetscViewerDestroy(&viewer);
@@ -45,37 +70,27 @@ void measurer_output_hdf5::save(const std::string &what) {
 void measurer_output_hdf5::saveScalarsLike(std::vector<PetscScalar> &arr,
                                            const std::string &name) {
 
-  // for indixing the petsc vectors where these will be saved
-  std::vector<PetscInt> vecScalarsIndex;
+  PetscScalar *v;
+  VecGetArray(vecSaverScalars, &v) ;
   for (PetscInt i = 0; i < measure->NScalars; ++i) {
-    vecScalarsIndex.emplace_back(i);
+    v[i] = arr[i] ;
   }
-
+  VecRestoreArray(vecSaverScalars, &v) ;
   PetscObjectSetName((PetscObject)vecSaverScalars, name.c_str());
-
-  VecSetValues(vecSaverScalars, measure->NScalars, vecScalarsIndex.data(),
-               arr.data(), INSERT_VALUES);
-
-  VecAssemblyBegin(vecSaverScalars);
-  VecAssemblyEnd(vecSaverScalars);
   VecView(vecSaverScalars, viewer);
 }
 // Save instance of a correlator like object into a hdf5 file
 void measurer_output_hdf5::saveCorLike(std::vector<PetscScalar> &arr,
                                        const std::string &name) {
 
-  // For indexing the Petsc objects where these will be saved
-  std::vector<PetscInt> vecCorsIndex;
+  PetscScalar *v;
+  VecGetArray(vecSaverCors, &v) ;
   for (PetscInt i = 0; i < measure->N; ++i) {
-    vecCorsIndex.emplace_back(i);
+    v[i] = arr[i] ;
   }
+  VecRestoreArray(vecSaverCors, &v) ;
 
   PetscObjectSetName((PetscObject)vecSaverCors, name.c_str());
-  VecSetValues(vecSaverCors, measure->N, vecCorsIndex.data(), arr.data(),
-               INSERT_VALUES);
-
-  VecAssemblyBegin(vecSaverCors);
-  VecAssemblyEnd(vecSaverCors);
   VecView(vecSaverCors, viewer);
 }
 

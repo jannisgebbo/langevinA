@@ -46,7 +46,6 @@ int main(int argc, char **argv) {
 
   // initialize the measurments and measure the initial condition
   Measurer measurer(&model);
-  measurer.measure(&model.solution);
 
   // Initialize the stepper
   std::unique_ptr<Stepper> step;
@@ -75,34 +74,37 @@ int main(int argc, char **argv) {
     break;
   }
 
-  PetscInt steps = 1;
+  PetscInt steps = 0;
   PetscLogEvent measurements, stepmonitor;
   PetscLogEventRegister("Measurements", 0, &measurements);
   PetscLogEventRegister("Steps", 0, &stepmonitor);
 
-  // Thsi is the loop for the time step
-  for (PetscReal time = model.data.initialtime; time < model.data.finaltime;
-       time += model.data.deltat) {
-
-    // Copy the solution
-    VecCopy(model.solution, model.previoussolution);
-
-    //Do the actual steps
-    PetscLogEventBegin(stepmonitor, 0, 0, 0, 0);
-    step->step(model.data.deltat);
-    PetscLogEventEnd(stepmonitor, 0, 0, 0, 0);
+  // This is the loop for the time step
+  PetscReal time = model.data.initialtime;
+  while (time < model.data.finaltime) {
 
     // measure the solution
     if (steps % model.data.saveFrequency == 0) {
       PetscLogEventBegin(measurements, 0, 0, 0, 0);
       measurer.measure(&model.solution);
       // Print some information to not get bored during the running:
-      PetscPrintf(PETSC_COMM_WORLD, "Timestep %D: step size = %g, time = %g\n",
-                  steps, (double)model.data.deltat, (double)time);
+      PetscPrintf(PETSC_COMM_WORLD,
+                  "Timestep %D: step size = %g, time = %g, final = %g\n", steps,
+                  (double)model.data.deltat, (double)time,
+                  (double)model.data.finaltime);
       PetscLogEventEnd(measurements, 0, 0, 0, 0);
     }
 
+    // Copy the solution to have the current and previous step in memory
+    VecCopy(model.solution, model.previoussolution);
+
+    // Do the actual steps
+    PetscLogEventBegin(stepmonitor, 0, 0, 0, 0);
+    step->step(model.data.deltat);
+    PetscLogEventEnd(stepmonitor, 0, 0, 0, 0);
+
     steps++;
+    time += model.data.deltat;
   }
 
   // Destroy everything

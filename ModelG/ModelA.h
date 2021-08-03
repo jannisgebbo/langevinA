@@ -57,9 +57,7 @@ struct ModelAData {
   PetscInt seed = 10;
 
   // Options controlling the initial condition
-  std::string initFile = "x";
-  bool zeroStart;
-  bool coldStart;
+  bool restart = false;
 
   // Options controlling the output. The outputfiletag
   // labells the run. All output files are tag_foo.txt, or tag_bar.h5
@@ -98,19 +96,17 @@ struct ModelAData {
     seed = (PetscInt)params.getSeed("seed");
 
     // Control initialization
-    initFile = params.get<std::string>("initFile", "x");
-    if (initFile == "x") {
-      coldStart = true;
-    } else {
-      coldStart = false;
-    }
-    zeroStart = params.get<bool>("zeroStart", false);
+    restart = params.get<bool>("restart", false) ;
 
     // Control outputs
     outputfiletag = params.get<std::string>("outputfiletag", "o4output");
     saveFrequencyInTime = params.get<double>("saveFrequencyInTime");
     verboseMeasurements = params.get<bool>("verboseMeasurements", false);
     saveFrequency = saveFrequencyInTime / deltat;
+
+    // In order to work in restart mode final time should be an integral number of saveFrequency
+    // So that the first action, upon reloading is to save the datastream.
+    finaltime = static_cast<int>(finaltime/(deltat * saveFrequency)) * deltat * saveFrequency ;
 
     // Printout
     int rank = 0;
@@ -147,16 +143,7 @@ struct ModelAData {
     PetscPrintf(PETSC_COMM_WORLD, "seed = %d\n", seed);
 
     // Initialization
-    PetscPrintf(PETSC_COMM_WORLD,
-                "# Choose initFile=x to set coldStart to true\n");
-    PetscPrintf(PETSC_COMM_WORLD, "# Expected value of coldStart = %s\n",
-                (coldStart ? "true" : "false"));
-    PetscPrintf(PETSC_COMM_WORLD, "initFile = %s\n", initFile.c_str());
-
-    PetscPrintf(PETSC_COMM_WORLD,
-                "# Uncomment zero start to set the initial value to zero\n");
-    PetscPrintf(PETSC_COMM_WORLD, "# zeroStart = %s\n",
-                (zeroStart ? "true" : "false"));
+    PetscPrintf(PETSC_COMM_WORLD, "restart = %s\n", (restart ? "true" : "false"));
 
     // Outputs
     PetscPrintf(PETSC_COMM_WORLD, "outputfiletag = %s\n",
@@ -219,12 +206,17 @@ public:
 
     // Setup the random number generation
     ModelARndm = make_unique<NoiseGenerator>(data.seed);
+    if (data.restart) { 
+      ModelARndm->read(data.outputfiletag) ;
+    }
 
     // Printout store the rank
     MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
   }
 
   void finalize() {
+    ModelARndm->write(data.outputfiletag) ;
+    write(data.outputfiletag) ;
     VecDestroy(&previoussolution);
     VecDestroy(&solution);
     DMDestroy(&domain);
@@ -232,22 +224,47 @@ public:
 
   //! Reads in a stored initial condition from Derek's file.
   //! This is a helper function for initialize
-  PetscErrorCode loadFromDereksFile() {
+  PetscErrorCode read(const std::string fnamein) {
+    std::string fname = fnamein + "_save.h5";
 #ifndef MODELA_NO_HDF5
     PetscViewer initViewer;
-    PetscViewerHDF5Open(PETSC_COMM_WORLD, data.initFile.c_str(), FILE_MODE_READ,
+    PetscBool flg ;
+    PetscErrorCode ierr = PetscTestFile(fname.c_str(), '\0' ,  &flg) ;
+    if (!flg) {
+      throw(std::string("Unable to open file in restart mode with filename = ") + fname ) ;
+    }
+    ierr = PetscViewerHDF5Open(PETSC_COMM_WORLD, fname.c_str(), FILE_MODE_READ,
                         &initViewer);
+    CHKERRQ(ierr) ; 
     PetscViewerSetFromOptions(initViewer);
-    PetscObjectSetName((PetscObject)solution, "final_phi");
-    PetscErrorCode ierr = VecLoad(solution, initViewer);
-    CHKERRQ(ierr);
     PetscObjectSetName((PetscObject)solution, "o4fields");
+    ierr = VecLoad(solution, initViewer);
+    CHKERRQ(ierr) ;
     PetscViewerDestroy(&initViewer);
-    return ierr;
+    return ierr ;
 #else
-    PetscPrintf(
-        PETSC_COMM_WORLD,
-        "loadFromDereksFile: Unable to load from file without HDF5 support\n");
+    throw("ModelA::read Unable to load from file without HDF5 support. \n");
+    return 0;
+#endif
+  }
+  
+  //! Reads in a stored initial condition from Derek's file.
+  //! This is a helper function for initialize
+  PetscErrorCode write(const std::string fnamein) {
+    std::string fname = fnamein + "_save.h5" ;
+#ifndef MODELA_NO_HDF5
+    PetscViewer initViewer;
+    PetscErrorCode ierr = PetscViewerHDF5Open(PETSC_COMM_WORLD, fname.c_str(), FILE_MODE_WRITE,
+                        &initViewer);
+    CHKERRQ(ierr) ;
+    PetscViewerSetFromOptions(initViewer);
+    PetscObjectSetName((PetscObject)solution, "o4fields");
+    ierr = VecView(solution, initViewer);
+    CHKERRQ(ierr) ;
+    PetscViewerDestroy(&initViewer);
+    return 0;
+#else
+    PetscPrintf("ModelA::write Unable to write to a file wihtout HDF5 support\n") ;
     return 0;
 #endif
   }
@@ -261,9 +278,14 @@ public:
                                            void *params) = 0,
                             void *params = 0) {
 
-    // Read in from a file
-    if (!data.coldStart) {
-      return loadFromDereksFile();
+    if (data.restart) {
+      try {
+        read(data.outputfiletag) ;
+        return (0);
+      } catch(const std::string &error) {
+        std::cout << error << std::endl;
+        std::cout << "Continuing with zerostart mode." << std::endl;
+      }
     }
 
     // Compute the lattice spacing
@@ -290,14 +312,10 @@ public:
         for (i = xstart; i < xstart + xdimension; i++) {
           PetscReal x = i * hx;
           for (L = 0; L < ModelAData::Ndof; L++) {
-            if (data.zeroStart) {
-              u[k][j][i][L] = 0.0;
+            if (func) {
+              u[k][j][i][L] = func(x, y, z, L, params);
             } else {
-              if (func) {
-                u[k][j][i][L] = func(x, y, z, L, params);
-              } else {
-                u[k][j][i][L] = ModelARndm->normal();
-              }
+              u[k][j][i][L] = 0.;
             }
           }
         }
