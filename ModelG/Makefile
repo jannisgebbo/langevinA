@@ -91,7 +91,11 @@ q_heatbathtest.exe: q_heatbathtest.o $(OBJS)
 
 q_heatbathtest.o: q_heatbathtest.cxx $(HEADRS)
 	$(COMPILE.cc) $(OUTPUT_OPTION) $<
-	
+
+test_random.exe: test_random.cxx $(HEADRS)
+	$(COMPILE.cc) test_random.cxx
+	$(LINK.cc) -o test_random.exe test_random.o  $(LDLIBS) -lstdc++
+
 # If the file c.cxx needs to link with a C++ standard library -lstdc++ , then
 # you'll need to add it explicitly.  It can go in the rule above or be added to
 # a target-specific variable by uncommenting the line below.

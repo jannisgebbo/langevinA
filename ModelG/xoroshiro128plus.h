@@ -83,9 +83,11 @@ public:
         s[0] = 0xe6a52bbd554f6446;
         s[1] = 0x4917ac5d1056b6d7;
     }
-    void seed(uint64_t s0) {
-        s[0] = s0;
-        s[1] = 0;
+    void seed(uint64_t seed) {
+        // s[0] = s0;
+        // s[1] = 0;
+        s[0] = 0x01d353e5f3993bb0+seed;
+        s[1] = 0x7b9c0df6cb193b20*(seed+1);
     }
     template <typename SeedSequence, typename = typename std::enable_if<is_seed_sequence<SeedSequence>::value>::type>
     void seed(SeedSequence seq) {
