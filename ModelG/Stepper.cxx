@@ -1125,8 +1125,8 @@ bool ModelGChargeHB::step(const double &dt) {
   std::array<int, 3> orderxyz{0, 1, 2};
   std::array<int, 2> ordereo{0, 1};
   if (model->rank == 0) {
-    shuffle(orderxyz.begin(), orderxyz.end(), ModelARndm->generator());
-    shuffle(ordereo.begin(), ordereo.end(), ModelARndm->generator());
+     std::shuffle(orderxyz.begin(), orderxyz.end(), ModelARndm->generator());
+     std::shuffle(ordereo.begin(), ordereo.end(), ModelARndm->generator());
   }
   MPI_Bcast(orderxyz.data(), 3, MPI_INT, 0, PETSC_COMM_WORLD);
   MPI_Bcast(ordereo.data(), 2, MPI_INT, 0, PETSC_COMM_WORLD);
@@ -1169,6 +1169,9 @@ bool ModelGChargeHB::step(const double &dt) {
       DMLocalToGlobal(model->domain, dn_local, ADD_VALUES, model->solution);
     }
   }
+  DMDAVecRestoreArray(model->domain, phi_local, &phi);
+  DMDAVecRestoreArray(model->domain, dn_local, &dn);
+
   return true;
 };
 

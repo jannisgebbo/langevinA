@@ -5,10 +5,11 @@ H = 0.01
 NX = 32
 
 #Times and timestep
-finaltime =500
+finaltime =1.45
 initialtime = 0
 deltat    = 0.04
-saveFrequencyInTime = 0.4
+deltatHB=0.04
+saveFrequencyInTime = 0.33
 
 #Parameters
 mass = -4.8129999999999997
@@ -20,13 +21,11 @@ chi = 5.1
 # Set to 0 or don't pass to have a random seed
 seed = 122335456
 
-# The program will attempt to restart from a previous run
 restart = true
 
 #output tag
-outputfiletag = testrun
+outputfiletag = testrestart1
 
 #Beuler=1 Feuler=2 SemiImplicit=3 EulerLangevinHB=4
 evolverType=7
 
-deltatHB=0.04

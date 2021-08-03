@@ -100,98 +100,96 @@ public:
     }
   }
 
+  void computeEnergy(const double &dt, bool staggered = true) {
+    DM da = model->domain;
+    // Get a local vector with ghost cells
+    Vec localUOld;
+    DMGetLocalVector(da, &localUOld);
+    Vec localUNew;
+    DMGetLocalVector(da, &localUNew);
 
+    // Fill in the ghost celss with mpicalls
+    DMGlobalToLocalBegin(da, model->previoussolution, INSERT_VALUES, localUOld);
+    DMGlobalToLocalEnd(da, model->previoussolution, INSERT_VALUES, localUOld);
+    DMGlobalToLocalBegin(da, model->solution, INSERT_VALUES, localUNew);
+    DMGlobalToLocalEnd(da, model->solution, INSERT_VALUES, localUNew);
 
+    const ModelAData &data = model->data;
 
-    void computeEnergy(const double &dt, bool staggered = true)
-    {
-      DM da = model->domain;
-      // Get a local vector with ghost cells
-      Vec localUOld;
-      DMGetLocalVector(da, &localUOld);
-      Vec localUNew;
-      DMGetLocalVector(da, &localUNew);
+    G_node ***phiOld;
+    DMDAVecGetArrayRead(da, localUOld, &phiOld);
 
-      // Fill in the ghost celss with mpicalls
-      DMGlobalToLocalBegin(da, model->previoussolution, INSERT_VALUES, localUOld);
-      DMGlobalToLocalEnd(da, model->previoussolution, INSERT_VALUES, localUOld);
-      DMGlobalToLocalBegin(da, model->solution, INSERT_VALUES, localUNew);
-      DMGlobalToLocalEnd(da, model->solution, INSERT_VALUES, localUNew);
+    G_node ***phiNew;
+    DMDAVecGetArrayRead(da, localUNew, &phiNew);
 
-      const ModelAData &data = model->data;
+    const PetscReal H[4] = {data.H, 0., 0., 0.};
 
-      G_node ***phiOld;
-      DMDAVecGetArrayRead(da, localUOld, &phiOld);
+    PetscInt xstart, ystart, zstart, xdimension, ydimension, zdimension;
+    DMDAGetCorners(da, &xstart, &ystart, &zstart, &xdimension, &ydimension,
+                   &zdimension);
 
-      G_node ***phiNew;
-      DMDAVecGetArrayRead(da, localUNew, &phiNew);
+    // Loop over central elements
+    PetscScalar phimid = 0, grad2 = 0, nab2 = 0, hEn = 0;
+    std::array<PetscScalar, 4> localEnergy{0, 0, 0, 0};
 
+    for (PetscInt k = zstart; k < zstart + zdimension; k++) {
+      for (PetscInt j = ystart; j < ystart + ydimension; j++) {
+        for (PetscInt i = xstart; i < xstart + xdimension; i++) {
+          for (int s = 0; s < ModelAData::Nphi; ++s) {
 
-      const PetscReal H[4] = {data.H, 0., 0., 0.};
+            if (staggered) {
+              phimid = 0.5 * (phiNew[k][j][i].f[s] + phiOld[k][j][i].f[s]);
+              grad2 += pow(
+                  0.5 * (phiNew[k + 1][j][i].f[s] + phiOld[k + 1][j][i].f[s]) -
+                      phimid,
+                  2);
+              grad2 += pow(
+                  0.5 * (phiNew[k][j + 1][i].f[s] + phiOld[k][j + 1][i].f[s]) -
+                      phimid,
+                  2);
+              grad2 += pow(
+                  0.5 * (phiNew[k][j][i + 1].f[s] + phiOld[k][j][i + 1].f[s]) -
+                      phimid,
+                  2);
+            } else {
+              phimid = phiNew[k][j][i].f[s];
 
-
-      PetscInt  xstart, ystart, zstart, xdimension, ydimension,
-          zdimension;
-      DMDAGetCorners(da, &xstart, &ystart, &zstart, &xdimension, &ydimension,
-                     &zdimension);
-
-      // Loop over central elements
-      PetscScalar phimid = 0, grad2 = 0, nab2 = 0, hEn = 0;
-      std::array<PetscScalar,4> localEnergy{0,0,0,0};
-
-
-      for (PetscInt k = zstart; k < zstart + zdimension; k++) {
-        for (PetscInt j = ystart; j < ystart + ydimension; j++) {
-          for (PetscInt i = xstart; i < xstart + xdimension; i++) {
-            for(int s = 0; s < ModelAData::Nphi; ++s){
-
-              if(staggered){
-                phimid = 0.5 * (phiNew[k][j][i].f[s] + phiOld[k][j][i].f[s]);
-                grad2 += pow( 0.5 * (phiNew[k+1][j][i].f[s] + phiOld[k+1][j][i].f[s]) - phimid, 2);
-                grad2 += pow( 0.5 * (phiNew[k][j+1][i].f[s] + phiOld[k][j+1][i].f[s]) - phimid, 2);
-                grad2 += pow( 0.5 * (phiNew[k][j][i+1].f[s] + phiOld[k][j][i+1].f[s]) - phimid, 2);
-              }else{
-                phimid = phiNew[k][j][i].f[s];
-
-                grad2 += pow(phiNew[k+1][j][i].f[s] - phimid, 2);
-                grad2 += pow(phiNew[k][j+1][i].f[s] - phimid, 2);
-                grad2 += pow(phiNew[k][j][i+1].f[s] - phimid, 2);
-              }
-
-              hEn += phimid * H[s];
-            }
-            for(PetscInt s=0;s < ModelAData::NV; s++ ){
-              nab2 += pow(phiNew[k][j][i].V[s], 2);
+              grad2 += pow(phiNew[k + 1][j][i].f[s] - phimid, 2);
+              grad2 += pow(phiNew[k][j + 1][i].f[s] - phimid, 2);
+              grad2 += pow(phiNew[k][j][i + 1].f[s] - phimid, 2);
             }
 
-            for(PetscInt s=0;s < ModelAData::NA; s++ ){
-              nab2 += pow(phiNew[k][j][i].A[s], 2);
-            }
+            hEn += phimid * H[s];
+          }
+          for (PetscInt s = 0; s < ModelAData::NV; s++) {
+            nab2 += pow(phiNew[k][j][i].V[s], 2);
+          }
 
-
+          for (PetscInt s = 0; s < ModelAData::NA; s++) {
+            nab2 += pow(phiNew[k][j][i].A[s], 2);
           }
         }
       }
-
-      localEnergy[0] +=  0.5 / data.chi * nab2;
-      localEnergy[1] +=  0.5 * grad2;
-      localEnergy[2] +=   hEn;
-      energy = std::array<PetscScalar,4>{0,0,0,0};
-      MPI_Reduce(localEnergy.data(), energy.data(), energy.size() - 1, MPIU_SCALAR, MPI_SUM, 0, PETSC_COMM_WORLD);
-
-      for(PetscScalar& x : energy) x/= (data.NX * data.NY * data.NZ);
-      energy.back() = energy[0] + energy[1] - energy[2];
-
-      DMDAVecRestoreArrayRead(da, localUOld, &phiOld);
-      DMRestoreLocalVector(da, &localUOld);
-      DMDAVecRestoreArrayRead(da, localUNew, &phiNew);
-      DMRestoreLocalVector(da, &localUNew);
-
     }
 
-    std::array<PetscScalar,4> getEnergy() const{
-      return energy;
-    }
+    localEnergy[0] += 0.5 / data.chi * nab2;
+    localEnergy[1] += 0.5 * grad2;
+    localEnergy[2] += hEn;
+    energy = std::array<PetscScalar, 4>{0, 0, 0, 0};
+    MPI_Reduce(localEnergy.data(), energy.data(), energy.size() - 1,
+               MPIU_SCALAR, MPI_SUM, 0, PETSC_COMM_WORLD);
+
+    for (PetscScalar &x : energy)
+      x /= (data.NX * data.NY * data.NZ);
+    energy.back() = energy[0] + energy[1] - energy[2];
+
+    DMDAVecRestoreArrayRead(da, localUOld, &phiOld);
+    DMRestoreLocalVector(da, &localUOld);
+    DMDAVecRestoreArrayRead(da, localUNew, &phiNew);
+    DMRestoreLocalVector(da, &localUNew);
+  }
+
+  std::array<PetscScalar, 4> getEnergy() const { return energy; }
 
 private:
   void computeSliceAverage(Vec *solution) {
@@ -240,13 +238,15 @@ private:
             norm += pow(fld[k][j][i].f[l], 2);
           }
           norm = sqrt(norm);
-          for (int l = ModelAData::Nphi; l < ModelAData::Nphi + ModelAData::NA; l++) {
+          for (int l = ModelAData::Nphi; l < ModelAData::Nphi + ModelAData::NA;
+               l++) {
             actualInd = l - ModelAData::Nphi;
             sliceAveragesLocalX[l][i] += fld[k][j][i].A[actualInd];
             sliceAveragesLocalY[l][j] += fld[k][j][i].A[actualInd];
             sliceAveragesLocalZ[l][k] += fld[k][j][i].A[actualInd];
           }
-          for (int l = ModelAData::Nphi + ModelAData::NA; l < ModelAData::Nphi + ModelAData::NA + ModelAData::NV; l++) {
+          for (int l = ModelAData::Nphi + ModelAData::NA;
+               l < ModelAData::Nphi + ModelAData::NA + ModelAData::NV; l++) {
             actualInd = l - ModelAData::Nphi - ModelAData::NA;
             sliceAveragesLocalX[l][i] += fld[k][j][i].V[actualInd];
             sliceAveragesLocalY[l][j] += fld[k][j][i].V[actualInd];
@@ -280,7 +280,6 @@ private:
                  MPIU_SCALAR, MPI_SUM, 0, PETSC_COMM_WORLD);
     }
   }
-
 
   void computeDerivedObs() {
 
@@ -324,7 +323,8 @@ private:
   PetscInt N;
 
   // Arrays of size Nobs contain X=(phi[1..Nphi], q[1...Nq], phi2)
-  static const PetscInt NObs = ModelAData::Nphi + ModelAData::NA + ModelAData::NV + 1;
+  static const PetscInt NObs =
+      ModelAData::Nphi + ModelAData::NA + ModelAData::NV + 1;
 
   std::vector<std::vector<PetscScalar>>
       sliceAveragesX; // First dimension is NObs, last dimension slice
