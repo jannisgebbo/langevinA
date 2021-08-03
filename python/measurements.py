@@ -39,6 +39,23 @@ class ConfResults:
         for t in range(len(self.wallXphi0)):
             self.wallXphi0F[t] = np.fft.fft(self.wallXphi0[t]) / Nx
             #self.wallXphiNormF[t] = self.manualFourier(self.wallXphiNorm[t])
+    
+    def computeWallXFourierJA1(self):
+        r = h5py.File(self.fn,'r')
+        self.wallXJA1 = np.asarray(r["wallX_phi_5"])[self.thTime:]
+        Nx = len(self.wallXJA1[0])
+        self.wallXJA1F = np.zeros(np.shape(self.wallXJA1), dtype=complex)
+        for t in range(len(self.wallXJA1)):
+            self.wallXJA1F[t] = np.fft.fft(self.wallXJA1[t]) / Nx
+            #self.wallXphiNormF[t] = self.manualFourier(self.wallXphiNorm[t])
+    def computeWallXFourierJV1(self):
+        r = h5py.File(self.fn,'r')
+        self.wallXJV1 = np.asarray(r["wallX_phi_8"])[self.thTime:]
+        Nx = len(self.wallXJV1[0])
+        self.wallXJV1F = np.zeros(np.shape(self.wallXJV1), dtype=complex)
+        for t in range(len(self.wallXJV1)):
+            self.wallXJV1F[t] = np.fft.fft(self.wallXJV1[t]) / Nx
+            #self.wallXphiNormF[t] = self.manualFourier(self.wallXphiNorm[t])
             
     def correlator0(self):
         r = h5py.File(self.fn,'r')
@@ -46,6 +63,7 @@ class ConfResults:
         self.wallXphi0Corr = []
         for t in range(len(self.wallXphi0)):
             self.wallXphi0Corr.append(self.twoPtAv(self.wallXphi0[t]))
+        
                 
     def twoPtAv(self,arr):
         N=len(arr)
@@ -72,6 +90,10 @@ class ConfResults:
         return Cttp
 
 
+    def computeCttpPhi0(self,conn, tMax):
+        self.CttpPhi0 = self.computeCttp(self.phi[:,0], self.phi[:,0],conn,tMax)
+    def computeCttpPhiNorm(self):
+        self.CttpPhiNorm = self.computeCttp(self.phiNorm, self.phiNorm)
     def computeCttpPhi0(self,conn, tMax):
         self.CttpPhi0 = self.computeCttp(self.phi[:,0], self.phi[:,0],conn,tMax)
     def computeCttpPhiNorm(self):
