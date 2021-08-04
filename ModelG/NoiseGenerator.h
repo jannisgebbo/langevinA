@@ -62,7 +62,7 @@ typedef xoroshiro128plus RNGType;
 class NoiseGenerator {
 public:
   NoiseGenerator(const int &baseSeed = 0)
-      : uniformDistribution(-sqrt(3.), sqrt(3.)) {
+      : uniformDistributionRt3(-sqrt(3.), sqrt(3.)) {
 
     int rank = 0;
     MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
@@ -94,6 +94,8 @@ public:
   PetscReal normal() { return normalDistribution(rng); }
 
   PetscReal uniform() { return uniformDistribution(rng); }
+
+  PetscReal uniformRt3() { return uniformDistributionRt3(rng); }
 
   RNGType &generator() { return rng; }
 
@@ -133,7 +135,11 @@ public:
 
 private:
   RNGType rng;
+  // Normal distribution with variance 1
   std::normal_distribution<PetscReal> normalDistribution;
+  // Flat distribution between -sqrt(3) .. sqrt(3) with variance 1
+  std::uniform_real_distribution<PetscReal> uniformDistributionRt3;
+  // Flat distribution between 0 and 1
   std::uniform_real_distribution<PetscReal> uniformDistribution;
 };
 

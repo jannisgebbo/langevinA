@@ -1,35 +1,21 @@
 import grunner as grun
+import pprint
 
-# set the overall tag
-grun.tag="gset"
-grun.data = {
-    # lattice dimension
-    "NX" : 32,
+pp = pprint.PrettyPrinter()
 
-    # Time stepping
-    "finaltime" : 400,
-    "initialtime" : 0,
-    "deltat" : 0.04,
-    "deltatHB" : 0.04,
-    "evolverType" : 7,
+# Print out the defaults
+pp.pprint(grun.data) 
 
-    #Action
-    "mass" : -4.813,
-    "lambda" : 4.,
-    "gamma" : 1.,
-    "H" :0.004,
-    "sigma" : 0.666666666666,
-    "seed" : 122335456,
-    "chi" : 2.,
+# Modify the defaults
+grun.tag="grunexample"
+grun.data["finaltime"] = 10.
+grun.data["restart"] = "true"
 
-    #initial condition"
-    "zeroStart" : "true",
-    "outputfiletag" : "grun",
-    "saveFrequencyInTime" : 0.8,
-}
+# Print out the modifications 
+pp.pprint(grun.data)
 
 Ns = [32]
 for N in Ns:
     grun.data["NX"] = N 
     grun.data["outputfiletag"]=grun.getdefault_filename()
-    grun.run(dry_run=True, time=(N/16.)**3*0.05)
+    grun.run(dry_run=False, time=(N/16.)**3*0.05)
