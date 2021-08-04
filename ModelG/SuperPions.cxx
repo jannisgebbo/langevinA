@@ -79,9 +79,10 @@ int main(int argc, char **argv) {
   PetscLogEventRegister("Measurements", 0, &measurements);
   PetscLogEventRegister("Steps", 0, &stepmonitor);
 
-  // This is the loop for the time step
+  // This is the loop for the time step. 
   PetscReal time = model.data.initialtime;
-  while (time < model.data.finaltime) {
+  const double tiny = 1.e-10 ;
+  while (time < model.data.finaltime - tiny) {
 
     // measure the solution
     if (steps % model.data.saveFrequency == 0) {
