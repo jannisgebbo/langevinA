@@ -7,16 +7,17 @@ import datetime
 
 random.seed()
 
+# set the overall tag
 data = {
-    #lattice dimension
+    # lattice dimension
     "NX" : 32,
 
-    #Time stepping
-    "finaltime" : 4,
+    # Time stepping
+    "finaltime" : 10,
     "initialtime" : 0,
     "deltat" : 0.04,
     "deltatHB" : 0.04,
-    "evolverType" : 6,
+    "evolverType" : 7,
 
     #Action
     "mass" : -4.813,
@@ -24,13 +25,13 @@ data = {
     "gamma" : 1.,
     "H" :0.004,
     "sigma" : 0.666666666666,
-    "seed" : 122335456,
     "chi" : 2.,
+    "seed" : 122335456,
+    "restart" : "false",
 
     #initial condition"
-    "zeroStart" : 1,
     "outputfiletag" : "grun",
-    "saveFrequency" : 0.4,
+    "saveFrequencyInTime" : 0.8,
 }
 
 # output is prepended with tag_...... For example if tag is set to "foo". Then
