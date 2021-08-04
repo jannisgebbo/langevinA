@@ -27,7 +27,7 @@ data = {
     "sigma" : 0.666666666666,
     "chi" : 2.,
     "seed" : 122335456,
-    "restart" : "true",
+    "restart" : "false",
 
     #initial condition"
     "outputfiletag" : "grun",

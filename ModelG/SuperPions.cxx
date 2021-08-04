@@ -79,9 +79,19 @@ int main(int argc, char **argv) {
   PetscLogEventRegister("Measurements", 0, &measurements);
   PetscLogEventRegister("Steps", 0, &stepmonitor);
 
-  // This is the loop for the time step. 
+  // This is the loop for the time step. It goes
+  //
+  // PRE-Loop
+  //
+  // Loop:
+  // measure&step, step, step,  measure&step, step step,
+  //
+  // POST-Loop
+  //
+  // Thus restarting the program will give the same data
+  // stream, as if there was no interuption.
   PetscReal time = model.data.initialtime;
-  const double tiny = 1.e-10 ;
+  const double tiny = 1.e-10;
   while (time < model.data.finaltime - tiny) {
 
     // measure the solution
