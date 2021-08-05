@@ -28,7 +28,7 @@ def jackknife(arr, nBlock=10):
     bootstrapArr = []
     count = 0
     thetaBar = np.mean(arr, axis=0)
-    sigma2 = np.zeros(np.shape(arr[0,:]), dtype=arr.dtype)
+    sigma2 = np.zeros(1 if len(np.shape(arr)) == 1 else np.shape(arr[0,:]), dtype=arr.dtype)
     for n in range(nSamples):
         newArr = np.concatenate((arr[:count], arr[count+nBlock:]))
         bootstrapArr.append(np.mean(newArr,axis = 0))
@@ -36,27 +36,56 @@ def jackknife(arr, nBlock=10):
         sigma2 += (bootstrapArr[-1] - thetaBar)**2
 
     bootstrapArr = np.asarray(bootstrapArr)
+    
 
+    
     return (np.mean(bootstrapArr,axis = 0), (nSamples -1.0)/nSamples * np.sqrt(sigma2))
     #return (np.mean(arr,axis = 0), np.std(arr,axis = 0))
 
+def autocorrelationFunction(arr):
+    mean2 = np.mean(arr,axis = 0)**2
+    X2 = np.mean(arr**2,axis = 0)
+    newArr = np.zeros(np.shape(arr), dtype=arr.dtype)
+    N = len(arr)
+    for t in range(N):
+        for i in range(N-t):
+            newArr[t] += arr[i] * arr[i+t]
+        newArr[t]/=float(N-t)
+        newArr[t] = (newArr[t] - mean2) / (X2 - mean2)
+    print(X2)
+    return  newArr
+        
+#def intAutocorrrelationTime(arr):
+#    Ct = autocorrelationFunction(arr)
+#    res = 0.5
+#    count = 0
+    #while count < 5 * res:
+      #  res+=
 
 
-
-
-def computeCttp(arr1, arr2, conn=False, tMax=-1, decim=1):
+def computeCttp(arr1, arr2, statFunc, conn=False, tMax=-1, decim=1):
     Npoints = len(arr1)
     if tMax==-1:
         tMax=Npoints
+        
+    
     Cttp = np.zeros(tMax, dtype=type(arr1[0]))
+    CttpErr = np.zeros(tMax, dtype=type(arr1[0]))
+    
+    # Points over which we do the time average
 
     for tt in range(tMax): #tt is the time difference
-        for t0 in range(0, Npoints - tt, decim): # t0 is the origin
-            Cttp[tt] += arr1[t0 + tt] * arr2[t0]
+        counter = 0
+        nStarts = list(range(0, Npoints - tt, decim))
+        tmpArr = np.zeros(len(nStarts), dtype=type(arr1[0]))
+        for t0 in nStarts: # t0 is the origin
+            tmpArr[counter] = arr1[t0 + tt] * arr2[t0]
             if conn:
-              Cttp[tt] -= arr1[t0]*arr2[t0]
-        Cttp[tt]/=float(Npoints - tt)
-    return Cttp
+                tmpArr[counter] -= arr1[t0]*arr2[t0]
+            counter += 1
+        Cttp[tt], CttpErr[tt] = statFunc(tmpArr)
+    
+    return Cttp, CttpErr
 
 def twoPtAv(arr):
     N=len(arr)
