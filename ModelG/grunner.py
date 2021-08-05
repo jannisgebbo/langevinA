@@ -87,7 +87,7 @@ def setdefault_filename() :
 
 # Runs on cori regular que  with time in hours. One should set dry_run=False to
 # actually run the code
-def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=[]) :
+def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=[], seed=None) :
     filenamesh = data["outputfiletag"] + '.sh'
     with open(filenamesh,'w') as fh:
         print("#!/bin/bash",file=fh) 
@@ -121,7 +121,10 @@ def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=[]) :
         path = os.path.abspath(os.path.dirname(__file__))
         prgm = path + "/SuperPions.exe"
         # set the seed and the inputfile
-        data["seed"] = random.randint(1,2000000000)
+        if seed is None:
+            data["seed"] = random.randint(1,2000000000)
+        else:
+            data["seed"] = seed
         # write the data to an inputfile
         datatoinput()
         # write the data to an .json
@@ -138,19 +141,22 @@ def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=[]) :
         subprocess.run(['sbatch',filenamesh])
 
 #runs the actual command current value of data  with mpiexec
-def run(moreopts=[], dry_run=True, time=0) :
+def run(moreopts=[], dry_run=True, time=0, seed=None, ncpus="4") :
     # find the program
     path = os.path.abspath(os.path.dirname(__file__))
     prgm = path + "/SuperPions.exe"
 
     # set the seed and the inputfile
-    data["seed"] = random.randint(1,2000000000)
+    if seed is None:
+        data["seed"] = random.randint(1,2000000000)
+    else:
+        data["seed"] = seed
 
     datatoinput()
     datatojson()
 
     # Execute the program
-    opts = ["mpiexec","-n", "16", prgm, "input="+data["outputfiletag"] + '.in'] 
+    opts = ["mpiexec","-n", ncpus, prgm, "input="+data["outputfiletag"] + '.in'] 
     opts.extend(moreopts)
     print(opts)
     if not dry_run:

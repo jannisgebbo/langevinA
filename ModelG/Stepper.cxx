@@ -997,7 +997,7 @@ bool EulerLangevinHB::step(const double &dt) {
                         (phi[k + 1][j][i].f[l] + phi[k - 1][j][i].f[l]);
 
             phi_o.f[l] = phi[k][j][i].f[l];
-            phi_n.f[l] = phi_o.f[l] + rdtg * ModelARndm->normal();
+            phi_n.f[l] = phi_o.f[l] + rdtg * ModelARndm->variance1();
 
             s_o += pow(phi_o.f[l], 2);
             s_n += pow(phi_n.f[l], 2);
@@ -1077,7 +1077,7 @@ g_face_case g_face_cases[3][2] = {
 double modelg_update_charge_pair(const double &chi, const double &rms,
                                  const double &nA, const double &nB,
                                  o4_stepper_monitor &monitor) {
-  double q = rms * ModelARndm->normal();
+  double q = rms * ModelARndm->variance1();
   double dS =
       (pow(nA - q, 2) + pow(nB + q, 2) - pow(nA, 2) - pow(nB, 2)) / (2. * chi);
   // Downward step
@@ -1268,7 +1268,7 @@ bool ModelGChargeCN::step(const double &dt) {
                 int kB = k + face.kB;
 
                 // Assumes that hx = hy = hz=1!
-                PetscScalar q = rxbyD * ModelARndm->normal();
+                PetscScalar q = rxbyD * ModelARndm->variance1();
                 xiI[k][j][i][L] -= q;
                 xiI[kB][jB][iB][L] += q;
               }
@@ -1428,6 +1428,13 @@ bool PV2HBSplit::step(const double &dt) {
 
   // Compute the ideal step with the position verlet integrator.
   // Record the energy for the accept reject step
+  
+  PetscLogEvent ideal_log, hb_log, qhb_log;
+  PetscLogEventRegister("IdealStep", 0, &ideal_log);
+  PetscLogEventRegister("HBStep", 0, &hb_log);
+  PetscLogEventRegister("QHBStep", 0, &qhb_log);
+
+  PetscLogEventBegin(ideal_log, 0, 0, 0, 0);
   PetscScalar oldEnergy = pv2.computeEnergy(dt);
   pv2.step(dt);
   PetscScalar newEnergy = pv2.computeEnergy(dt);
@@ -1455,16 +1462,31 @@ bool PV2HBSplit::step(const double &dt) {
   if (reject) {
     VecCopy(model->previoussolution, model->solution);
   }
+  PetscLogEventEnd(ideal_log, 0, 0, 0, 0);
 
   // Update the fields with the diffusive step
   int nhb = dt / dtHB;
   double tdiff = 0;
   for (int i = 0; i < nhb - 1; ++i) {
+    // Stage 2
+    PetscLogEventBegin(hb_log, 0, 0, 0, 0);
     hbPhi.step(dtHB);
+    PetscLogEventEnd(hb_log, 0, 0, 0, 0);
+
+    // Stage 3
+    PetscLogEventBegin(qhb_log, 0, 0, 0, 0);
     hbN.step(dtHB);
+    PetscLogEventEnd(qhb_log, 0, 0, 0, 0);
+
     tdiff += dtHB;
   }
+  PetscLogEventBegin(hb_log, 0, 0, 0, 0);
   hbPhi.step(dt - tdiff);
+  PetscLogEventEnd(hb_log, 0, 0, 0, 0);
+
+  PetscLogEventBegin(qhb_log, 0, 0, 0, 0);
   hbN.step(dt - tdiff);
+  PetscLogEventEnd(qhb_log, 0, 0, 0, 0);
+
   return true;
 }
