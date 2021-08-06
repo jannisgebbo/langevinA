@@ -141,18 +141,69 @@ bool IdealLF::step(const double &dt) {
   return true;
 }
 
-///////////////////////////////////////////////////////////////////////////
-
 void IdealLF::finalize() {}
+
 ///////////////////////////////////////////////////////////////////////////
 
-IdealPV2::IdealPV2(ModelA &in)
-    : model(&in), da(model->domain), data(model->data) {
+IdealPV2::IdealPV2(ModelA &in, const bool &accept_reject_in)
+    : model(&in), da(model->domain), data(model->data),
+      accept_reject(accept_reject_in), monitor("Statistics of IdealPV2") {
+
+  // Store for later use
   DMDAGetCorners(da, &xstart, &ystart, &zstart, &xdimension, &ydimension,
                  &zdimension);
+  if (accept_reject) {
+    VecDuplicate(model->solution, &previoussolution);
+  }
 }
 
 bool IdealPV2::step(const double &dt) {
+  bool success = true;
+
+  // Do some setup for the accept reject procedure
+  PetscScalar oldEnergy = 0.;
+  if (accept_reject) {
+    VecCopy(model->solution, previoussolution);
+    oldEnergy = computeEnergy(dt);
+  }
+
+  // Take the proposal
+  success = step_no_reject(dt);
+
+  // If we are not doing the accept reject, we are done
+  if (!accept_reject) {
+    return success;
+  }
+
+  // Do a metropolis accept reject for the ideal step
+  PetscScalar newEnergy = computeEnergy(dt);
+  PetscScalar deltaE = newEnergy - oldEnergy;
+
+  PetscBool reject(PETSC_FALSE);
+  int myRank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
+  if (myRank == 0) {
+    if (deltaE > 0) {
+      PetscScalar prob = ModelARndm->uniform();
+      if (prob > exp(-deltaE)) {
+        reject = PETSC_TRUE;
+        monitor.increment_up_no(deltaE);
+      } else {
+        monitor.increment_up_yes(deltaE);
+      }
+    } else {
+      monitor.increment_down(deltaE);
+    }
+  }
+  MPI_Bcast(&reject, 1, MPIU_BOOL, 0, MPI_COMM_WORLD);
+
+  if (reject) {
+    VecCopy(previoussolution, model->solution);
+  }
+  return success;
+}
+
+bool IdealPV2::step_no_reject(const double &dt) {
   G_node ***phinew;
   DMDAVecGetArray(da, model->solution, &phinew);
 
@@ -350,9 +401,16 @@ PetscScalar IdealPV2::computeEnergy(double dt) {
   return energy;
 }
 
-///////////////////////////////////////////////////////////////////////////
-
-void IdealPV2::finalize() {}
+void IdealPV2::finalize() {
+  if (accept_reject) {
+    VecDestroy(&previoussolution);
+    int myRank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
+    if (myRank == 0) {
+      monitor.print(stdout);
+    }
+  }
+}
 ///////////////////////////////////////////////////////////////////////////
 
 ForwardEuler::ForwardEuler(ModelA &in, bool wnoise)
@@ -967,7 +1025,6 @@ bool EulerLangevinHB::step(const double &dt) {
   PetscLogEventRegister("Random", 0, &random);
   PetscLogEventRegister("Loop", 0, &loop);
 
-
   // Checkerboard order ieo = even and odd sites
   for (int ieo = 0; ieo < 2; ieo++) {
     // take the global vector U and distribute to the local vector localU
@@ -1117,7 +1174,7 @@ bool ModelGChargeHB::step(const double &dt) {
   PetscInt ixs, iys, izs, nx, ny, nz;
   DMDAGetCorners(model->domain, &ixs, &iys, &izs, &nx, &ny, &nz);
 
-  const PetscReal rdtsigma = sqrt(2. * dt * model->data.sigma);
+  const PetscReal rdtsigma = sqrt(2. * dt * model->data.sigma());
   const PetscReal chi = model->data.chi;
 
   // Shuffle the order of xyz and the order of even and odd
@@ -1125,8 +1182,8 @@ bool ModelGChargeHB::step(const double &dt) {
   std::array<int, 3> orderxyz{0, 1, 2};
   std::array<int, 2> ordereo{0, 1};
   if (model->rank == 0) {
-     std::shuffle(orderxyz.begin(), orderxyz.end(), ModelARndm->generator());
-     std::shuffle(ordereo.begin(), ordereo.end(), ModelARndm->generator());
+    std::shuffle(orderxyz.begin(), orderxyz.end(), ModelARndm->generator());
+    std::shuffle(ordereo.begin(), ordereo.end(), ModelARndm->generator());
   }
   MPI_Bcast(orderxyz.data(), 3, MPI_INT, 0, PETSC_COMM_WORLD);
   MPI_Bcast(ordereo.data(), 2, MPI_INT, 0, PETSC_COMM_WORLD);
@@ -1243,7 +1300,7 @@ bool ModelGChargeCN::step(const double &dt) {
                  &ydimension, &zdimension);
 
   // Parameters needed
-  const PetscReal &dtD = dt * model->data.sigma / model->data.chi;
+  const PetscReal &dtD = dt * model->data.D() ;
   ;
   const PetscReal &rxbyD = sqrt(2. * model->data.chi / dtD);
 
@@ -1403,89 +1460,43 @@ PetscErrorCode ModelGChargeCN::Form3PointLaplacian(DM da, Mat J,
   return (0);
 }
 
-LFHBSplit::LFHBSplit(ModelA &in, PetscScalar deltatHB)
-    : lf(in), hbPhi(in), hbN(in), dtHB(deltatHB) {}
+LFHBSplit::LFHBSplit(ModelA &in) : lf(in), hbPhi(in), hbN(in) {}
 
 bool LFHBSplit::step(const double &dt) {
   lf.step(dt);
-  int nhb = dt / dtHB;
-  double tdiff = 0;
-  for (int i = 0; i < nhb - 1; ++i) {
-    hbPhi.step(dtHB);
-    hbN.step(dtHB);
-    tdiff += dtHB;
-  }
-  hbPhi.step(dt - tdiff);
-  hbN.step(dt - tdiff);
+  hbPhi.step(dt);
+  hbN.step(dt);
   return true;
 }
 
-PV2HBSplit::PV2HBSplit(ModelA &in, PetscScalar deltatHB)
-    : model(&in), pv2(in), hbPhi(in), hbN(in), dtHB(deltatHB),
-      monitor("Postion Verlet Ideal Steps") {}
+PV2HBSplit::PV2HBSplit(ModelA &in, const std::array<unsigned int, 2> &scounts)
+    : model(&in), pv2(in), hbPhi(in), hbN(in), stepcounts(scounts) {}
 
 bool PV2HBSplit::step(const double &dt) {
 
   // Compute the ideal step with the position verlet integrator.
   // Record the energy for the accept reject step
-  
+
   PetscLogEvent ideal_log, hb_log, qhb_log;
   PetscLogEventRegister("IdealStep", 0, &ideal_log);
   PetscLogEventRegister("HBStep", 0, &hb_log);
   PetscLogEventRegister("QHBStep", 0, &qhb_log);
 
-  PetscLogEventBegin(ideal_log, 0, 0, 0, 0);
-  PetscScalar oldEnergy = pv2.computeEnergy(dt);
-  pv2.step(dt);
-  PetscScalar newEnergy = pv2.computeEnergy(dt);
-  PetscScalar deltaE = newEnergy - oldEnergy;
+  // Format of steps is ABBB,ABBB,C  for (3,2)
+  for (size_t i1=0; i1 < stepcounts[1] ; i1++) {
+    PetscLogEventBegin(ideal_log, 0, 0, 0, 0);
+    pv2.step(dt/(stepcounts[1]));
+    PetscLogEventEnd(ideal_log, 0, 0, 0, 0);
 
-  // Do a metropolis accept reject for the ideal step
-  PetscBool reject(PETSC_FALSE);
-  int myRank;
-  MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
-  if (myRank == 0) {
-    if (deltaE > 0) {
-      PetscScalar prob = ModelARndm->uniform();
-      if (prob > exp(-deltaE)) {
-        reject = PETSC_TRUE;
-        monitor.increment_up_no(deltaE);
-      } else {
-        monitor.increment_up_yes(deltaE);
-      }
-    } else {
-      monitor.increment_down(deltaE);
-    }
-  }
-  MPI_Bcast(&reject, 1, MPIU_BOOL, 0, MPI_COMM_WORLD);
-
-  if (reject) {
-    VecCopy(model->previoussolution, model->solution);
-  }
-  PetscLogEventEnd(ideal_log, 0, 0, 0, 0);
-
-  // Update the fields with the diffusive step
-  int nhb = dt / dtHB;
-  double tdiff = 0;
-  for (int i = 0; i < nhb - 1; ++i) {
-    // Stage 2
     PetscLogEventBegin(hb_log, 0, 0, 0, 0);
-    hbPhi.step(dtHB);
+    for (size_t i0=0; i0 < stepcounts[0] ; i0++)  {
+      hbPhi.step(dt/(stepcounts[0]*stepcounts[1]));
+    }
     PetscLogEventEnd(hb_log, 0, 0, 0, 0);
-
-    // Stage 3
-    PetscLogEventBegin(qhb_log, 0, 0, 0, 0);
-    hbN.step(dtHB);
-    PetscLogEventEnd(qhb_log, 0, 0, 0, 0);
-
-    tdiff += dtHB;
   }
-  PetscLogEventBegin(hb_log, 0, 0, 0, 0);
-  hbPhi.step(dt - tdiff);
-  PetscLogEventEnd(hb_log, 0, 0, 0, 0);
 
   PetscLogEventBegin(qhb_log, 0, 0, 0, 0);
-  hbN.step(dt - tdiff);
+  hbN.step(dt);
   PetscLogEventEnd(qhb_log, 0, 0, 0, 0);
 
   return true;

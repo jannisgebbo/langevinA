@@ -16,7 +16,6 @@ data = {
     "finaltime" : 10,
     "initialtime" : 0,
     "deltat" : 0.04,
-    "deltatHB" : 0.04,
     "evolverType" : 7,
 
     #Action
@@ -24,7 +23,7 @@ data = {
     "lambda" : 4.,
     "gamma" : 1.,
     "H" :0.004,
-    "sigma" : 0.666666666666,
+    "diffusion" : 0.3333333,
     "chi" : 2.,
     "seed" : 122335456,
     "restart" : "false",

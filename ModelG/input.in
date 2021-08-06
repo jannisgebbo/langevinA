@@ -14,7 +14,7 @@ saveFrequencyInTime = 0.4
 mass = -4.8129999999999997
 lambda  = 4
 gamma  = 1
-sigma = 1.2
+#diffusion = 0.3333333
 chi = 5.1
 
 # Set to 0 or don't pass to have a random seed
@@ -29,4 +29,3 @@ outputfiletag = testrun
 #Beuler=1 Feuler=2 SemiImplicit=3 EulerLangevinHB=4
 evolverType=7
 
-deltatHB=0.04
