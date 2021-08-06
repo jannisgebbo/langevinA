@@ -26,7 +26,7 @@ double diffusiontest_fcn(const double &x, const double &y, const double &z,
 
     ModelAData &mdata = data->mdata;
 
-    double D = mdata.sigma / mdata.chi;
+    double D = mdata.sigma() / mdata.chi;
     double w2 = pow(data->w0, 2) + 2. * D * data->t;
 
     double s = 0.;
@@ -123,7 +123,7 @@ void t1(const ModelAData &data, const double &nA0, const double &nB0,
   o4_stepper_monitor monitor;
   FILE *fp = fopen(filename.c_str(), "w");
 
-  const double rms = sqrt(2. * data.deltat * data.sigma);
+  const double rms = sqrt(2. * data.deltat * data.sigma());
   const int N = 500000;
   double nA = nA0;
   double nB = nB0;

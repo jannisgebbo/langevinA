@@ -39,7 +39,6 @@ struct ModelAData {
   PetscReal finaltime = 20.;
   PetscReal initialtime = 0.;
   PetscReal deltat = 0.01;
-  PetscReal deltatHB = 0.01;
   // 1 is BEuler, 2 is FEuler
   PetscInt evolverType = 2;
 
@@ -50,8 +49,10 @@ struct ModelAData {
   PetscReal lambda = 5.;
   PetscReal gamma = 1.;
   PetscReal H = 0.;
-  PetscReal sigma = 1.2;
+  PetscReal diffusion = 0.3333333;
   PetscReal chi = 1.1;
+  PetscReal sigma() const {return diffusion*chi;}
+  PetscReal D() const {return diffusion;}
 
   // random seed
   PetscInt seed = 10;
@@ -82,7 +83,6 @@ struct ModelAData {
     finaltime = params.get<double>("finaltime");
     initialtime = params.get<double>("initialtime");
     deltat = params.get<double>("deltat");
-    deltatHB = params.get<double>("deltatHB");
     evolverType = params.get<int>("evolverType");
 
     // Action
@@ -90,8 +90,8 @@ struct ModelAData {
     lambda = params.get<double>("lambda");
     gamma = params.get<double>("gamma");
     H = params.get<double>("H");
-    sigma = params.get<double>("sigma", 1.);
-    chi = params.get<double>("chi", 1.);
+    diffusion = params.get<double>("diffusion", 1./3.);
+    chi = params.get<double>("chi", 1.35);
 
     seed = (PetscInt)params.getSeed("seed");
 
@@ -137,7 +137,7 @@ struct ModelAData {
     PetscPrintf(PETSC_COMM_WORLD, "lambda = %e\n", lambda);
     PetscPrintf(PETSC_COMM_WORLD, "gamma = %e\n", gamma);
     PetscPrintf(PETSC_COMM_WORLD, "H = %e\n", H);
-    PetscPrintf(PETSC_COMM_WORLD, "sigma = %e\n", sigma);
+    PetscPrintf(PETSC_COMM_WORLD, "diffusion = %e\n", diffusion);
     PetscPrintf(PETSC_COMM_WORLD, "chi = %e\n", chi);
 
     PetscPrintf(PETSC_COMM_WORLD, "seed = %d\n", seed);

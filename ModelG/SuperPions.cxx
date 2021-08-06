@@ -67,10 +67,15 @@ int main(int argc, char **argv) {
     step = make_unique<IdealLF>(model);
     break;
   case 6:
-    step = make_unique<LFHBSplit>(model, model.data.deltatHB);
+    step = make_unique<LFHBSplit>(model);
     break;
   case 7:
-    step = make_unique<PV2HBSplit>(model, model.data.deltatHB);
+    step = make_unique<PV2HBSplit>(model);
+    break;
+  case 8:
+    // ABB,ABB,ABB,C
+    std::array<unsigned int, 2> s={2,3};
+    step = std::make_unique<PV2HBSplit>(model, s);
     break;
   }
 

@@ -14,7 +14,7 @@ saveFrequencyInTime = 0.5
 mass = -4.8129999999999997
 lambda  = 4
 gamma  = 1
-sigma = 1.5
+diffusion  = 1.66666666
 chi = 0.9
 
 # Set to 0 or don't pass to have a random seed

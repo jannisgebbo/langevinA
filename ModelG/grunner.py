@@ -19,7 +19,6 @@ data = {
     "finaltime" : 10,
     "initialtime" : 0,
     "deltat" : 0.04,
-    "deltatHB" : 0.04,
     "evolverType" : 7,
 
     #Action
@@ -27,7 +26,7 @@ data = {
     "lambda" : 4.,
     "gamma" : 1.,
     "H" :0.004,
-    "sigma" : 0.666666666666,
+    "diffusion" : 0.3333333,
     "chi" : 2.,
     "seed" : 122335456,
     "restart" : "false",
@@ -90,7 +89,7 @@ def setdefault_filename() :
 
 # Runs on cori regular que  with time in hours. One should set dry_run=False to
 # actually run the code
-def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=[]) :
+def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=[], seed=None) :
     filenamesh = data["outputfiletag"] + '.sh'
     with open(filenamesh,'w') as fh:
         print("#!/bin/bash",file=fh) 
@@ -124,7 +123,10 @@ def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=[]) :
         path = os.path.abspath(os.path.dirname(__file__))
         prgm = path + "/SuperPions.exe"
         # set the seed and the inputfile
-        data["seed"] = random.randint(1,2000000000)
+        if seed is None:
+            data["seed"] = random.randint(1,2000000000)
+        else:
+            data["seed"] = seed
         # write the data to an inputfile
         datatoinput()
         # write the data to an .json
@@ -191,19 +193,22 @@ def seawulfrun(time="00:02:00", debug=False, shared=False, dry_run=True, moreopt
         subprocess.run(['sbatch',filenamesh])
 
 #runs the actual command current value of data  with mpiexec
-def run(moreopts=[], dry_run=True, time=0) :
+def run(moreopts=[], dry_run=True, time=0, seed=None, ncpus="4") :
     # find the program
     path = os.path.abspath(os.path.dirname(__file__))
     prgm = path + "/SuperPions.exe"
 
     # set the seed and the inputfile
-    data["seed"] = random.randint(1,2000000000)
+    if seed is None:
+        data["seed"] = random.randint(1,2000000000)
+    else:
+        data["seed"] = seed
 
     datatoinput()
     datatojson()
 
     # Execute the program
-    opts = ["mpiexec","-n", "16", prgm, "input="+data["outputfiletag"] + '.in'] 
+    opts = ["mpiexec","-n", ncpus, prgm, "input="+data["outputfiletag"] + '.in'] 
     opts.extend(moreopts)
     print(opts)
     if not dry_run:
