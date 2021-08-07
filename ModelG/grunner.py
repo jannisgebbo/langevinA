@@ -125,7 +125,7 @@ def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=[], seed=N
 
         # Use gnu parallel to exploit embarassingly parallel computation
         if parallel:
-            print("module load paralel", file=fh)
+            print("module load parallel", file=fh)
 
         print("", file=fh)
         print("#run the application:", file=fh)
@@ -156,10 +156,10 @@ def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=[], seed=N
             tag = data["outputfiletag"]
             listname = tag + "_list.txt"
             pmakefiles("32", seed)
-            print("srun parallel --jobs 32 %s input={} < %s" % (prgm, listname) file=fh)
+            print("srun parallel --jobs 32 %s input={} -log_view < %s > %s.out" % (prgm, listname, tag), file=fh)
 
         print('date  "+%%x %%T" >> %s_time.out' %
-              (data["outputfiletag"]), file=fh)
+              (tag), file=fh)
 
     if not dry_run:
         subprocess.run(['sbatch', filenamesh])
