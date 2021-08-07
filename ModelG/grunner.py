@@ -38,16 +38,12 @@ data = {
 tag = "default"
 
 # dump the data into an input file
-
-
 def datatoinput():
     with open(data["outputfiletag"] + '.in', 'w') as fh:
         for key, value in data.items():
             fh.write("%s = %s\n" % (key, value))
 
 # dump the data into a .json file
-
-
 def datatojson():
     with open(data["outputfiletag"] + '.json', 'w') as outfile:
         json.dump(data, outfile, indent=4)
@@ -60,8 +56,6 @@ def getdefault_filename():
     return name
 
 # Canonicalize the names for a given set of parameters, with a scan in m2
-
-
 def getdefault_filename_m2change():
     s = "xxxxxxxxxxxxx"
     name = "%s_N%03d_m%.8s_h%06d_c%05d" % (tag, round(
@@ -69,8 +63,6 @@ def getdefault_filename_m2change():
     return name
 
 # Canonicalize the names for a given set of parameters, with scan in H
-
-
 def getdefault_filename_Hchange():
     s = "xxxxxxxxxxxxx"
     name = "%s_N%03d_m%08d_h%.6s_c%05d" % (tag, data["NX"], round(
@@ -78,8 +70,6 @@ def getdefault_filename_Hchange():
     return name
 
 # Canonicalize the names for a given set of parameters, with scan in N
-
-
 def getdefault_filename_Nchange():
     s = "xxxxxxxxxxxxx"
     name = "%s_N%.3s_m%08d_h%06d_c%05d" % (tag, s, round(
@@ -87,8 +77,6 @@ def getdefault_filename_Nchange():
     return name
 
 # Canonicalize the names for a given set of parameters, with scan in chi
-
-
 def getdefault_filename_chichange():
     s = "xxxxxxxxxxxxx"
     name = "%s_N%03d_m%08d_h%06d_c%.5s" % (tag, data["NX"], round(
@@ -101,8 +89,11 @@ def setdefault_filename():
     data["outputfiletag"] = getdefault_filename()
 
 
+# run on cori 
 def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=[], seed=None, parallel=False):
+
     filenamesh = data["outputfiletag"] + '.sh'
+
     with open(filenamesh, 'w') as fh:
         print("#!/bin/bash", file=fh)
         if debug:
@@ -116,7 +107,7 @@ def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=[], seed=N
             print("#SBATCH -t %s" % (str(round(time*60))), file=fh)
             print("#SBATCH --ntasks=8", file=fh)
             print("#SBATCH --cpus-per-task=2", file=fh)
-        else if parallel:
+        elif parallel:
             print("#SBATCH -q regular", file=fh)
             print("#SBATCH -t %s" % (str(round(time*60))), file=fh)
             print("#SBATCH -N 1", file=fh)
@@ -165,7 +156,7 @@ def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=[], seed=N
             tag = data["outputfiletag"]
             listname = tag + "_list.txt"
             pmakefiles("32", seed)
-            print("srun parallel --jobs 32 %s input={} < %s", prgm, listname)
+            print("srun parallel --jobs 32 %s input={} < %s" % (prgm, listname) file=fh)
 
         print('date  "+%%x %%T" >> %s_time.out' %
               (data["outputfiletag"]), file=fh)
