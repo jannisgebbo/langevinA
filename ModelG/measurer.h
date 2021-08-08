@@ -4,6 +4,9 @@
 #include "ModelA.h"
 #include "make_unique.h"
 #include <array>
+#ifndef MODELA_NO_HDF5
+#include "ntuple.h"
+#endif
 
 class Measurer;
 
@@ -36,6 +39,20 @@ private:
 
   void saveScalarsLike(std::vector<PetscScalar> &arr, const std::string &name);
   void saveCorLike(std::vector<PetscScalar> &arr, const std::string &name);
+};
+
+class measurer_output_fasthdf5 : public measurer_output {
+public:
+  measurer_output_fasthdf5(Measurer *in);
+  ~measurer_output_fasthdf5();
+  virtual void update() override;
+  virtual void save(const std::string &what) override;
+
+private:
+  Measurer *measure;
+  hid_t file_id;
+  std::unique_ptr<ntuple<1>> scalars;
+  std::unique_ptr<ntuple<2>> corrsx;
 };
 #endif
 
@@ -70,7 +87,7 @@ public:
     MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
     if (rank == 0) {
 #ifndef MODELA_NO_HDF5
-      measurer_out = make_unique<measurer_output_hdf5>(this);
+      measurer_out = make_unique<measurer_output_fasthdf5>(this);
 #else
       measurer_out = make_unique<measurer_output_txt>(this);
 #endif
@@ -349,6 +366,7 @@ private:
   std::array<PetscScalar, 4> energy;
 
   friend class measurer_output_hdf5;
+  friend class measurer_output_fasthdf5;
   friend class measurer_output_txt;
   std::unique_ptr<measurer_output> measurer_out;
 };
