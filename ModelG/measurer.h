@@ -4,8 +4,11 @@
 #include "ModelA.h"
 #include "make_unique.h"
 #include <array>
+
 #ifndef MODELA_NO_HDF5
 #include "ntuple.h"
+#else
+#define MODELA_TXTOUTPUT
 #endif
 
 class Measurer;
@@ -86,8 +89,9 @@ public:
     int rank = 0;
     MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
     if (rank == 0) {
-#ifndef MODELA_NO_HDF5
-      measurer_out = make_unique<measurer_output_fasthdf5>(this);
+#ifndef MODELA_TXTOUTPUT
+      measurer_out = make_unique<measurer_output_hdf5>(this);
+      //measurer_out = make_unique<measurer_output_fasthdf5>(this);
 #else
       measurer_out = make_unique<measurer_output_txt>(this);
 #endif
