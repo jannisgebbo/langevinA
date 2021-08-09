@@ -131,7 +131,9 @@ measurer_output_fasthdf5::measurer_output_fasthdf5(Measurer *in) : measure(in) {
   scalars = std::make_unique<ntuple<1>>(NN1, "phi", file_id);
 
   std::array<size_t, 2> NN2{Measurer::NObs, static_cast<size_t>(measure->N)};
-  corrsx = std::make_unique<ntuple<2>>(NN2, "corrx", file_id);
+  wallx = std::make_unique<ntuple<2>>(NN2, "wallx", file_id);
+  wally = std::make_unique<ntuple<2>>(NN2, "wally", file_id);
+  wallz = std::make_unique<ntuple<2>>(NN2, "wallz", file_id);
 }
 
 measurer_output_fasthdf5::~measurer_output_fasthdf5() { H5Fclose(file_id); }
@@ -143,12 +145,16 @@ void measurer_output_fasthdf5::save(const std::string &what) {
   }
   for (int i = 0; i < Measurer::NObs; i++) {
     for (int j = 0; j < measure->N; j++) {
-      size_t k = corrsx->at({i, j});
-      corrsx->row[k] = measure->sliceAveragesX[i][j];
+      size_t k = wallx->at({i, j});
+      wallx->row[k] = measure->sliceAveragesX[i][j];
+      wally->row[k] = measure->sliceAveragesY[i][j];
+      wallz->row[k] = measure->sliceAveragesZ[i][j];
     }
   }
   scalars->fill();
-  corrsx->fill();
+  wallx->fill();
+  wally->fill();
+  wallz->fill();
 }
 #endif
 
