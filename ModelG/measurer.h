@@ -90,8 +90,8 @@ public:
     MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
     if (rank == 0) {
 #ifndef MODELA_TXTOUTPUT
-      measurer_out = make_unique<measurer_output_hdf5>(this);
-      //measurer_out = make_unique<measurer_output_fasthdf5>(this);
+      //measurer_out = make_unique<measurer_output_hdf5>(this);
+      measurer_out = make_unique<measurer_output_fasthdf5>(this);
 #else
       measurer_out = make_unique<measurer_output_txt>(this);
 #endif
