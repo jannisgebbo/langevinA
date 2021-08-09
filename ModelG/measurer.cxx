@@ -12,37 +12,46 @@ measurer_output_hdf5::measurer_output_hdf5(Measurer *in) : measure(in) {
   verbosity = model->data.verboseMeasurements;
 
   // filename is foo.h5
-  std::string name = model->data.outputfiletag + ".h5" ;
+  std::string name = model->data.outputfiletag + ".h5";
 
   // Check if we are supposed to, and are able to, restart the measurements
-  PetscBool restartflg = PETSC_FALSE ;
+  PetscBool restartflg = PETSC_FALSE;
   if (model->data.restart) {
-    PetscTestFile(name.c_str(), '\0', &restartflg); 
+    PetscTestFile(name.c_str(), '\0', &restartflg);
     if (!restartflg) {
-      std::cout << "measurer_output_hdf5::measurer_output_hdf5: Unable to open measurement file " << name << " while in restart mode. Creating a new measurement file. " << std::endl;
+      std::cout << "measurer_output_hdf5::measurer_output_hdf5: Unable to open "
+                   "measurement file "
+                << name
+                << " while in restart mode. Creating a new measurement file. "
+                << std::endl;
     }
   }
 
   // Restart the measurements
-  if (restartflg)  {
-    PetscErrorCode ierr ;
-    ierr = PetscViewerHDF5Open(PETSC_COMM_SELF, name.c_str(), FILE_MODE_APPEND, &viewer); CHKERRV(ierr) ;
+  if (restartflg) {
+    PetscErrorCode ierr;
+    ierr = PetscViewerHDF5Open(PETSC_COMM_SELF, name.c_str(), FILE_MODE_APPEND,
+                               &viewer);
+    CHKERRV(ierr);
     PetscInt timestep;
-    ierr = PetscViewerHDF5ReadAttribute(viewer, NULL, "Timestep", PETSC_INT, &timestep); CHKERRV(ierr) ;
+    ierr = PetscViewerHDF5ReadAttribute(viewer, NULL, "Timestep", PETSC_INT,
+                                        &timestep);
+    CHKERRV(ierr);
     PetscViewerSetFromOptions(viewer);
     PetscViewerHDF5SetTimestep(viewer, timestep);
-  } else { // Start a new measurement file 
+  } else { // Start a new measurement file
     std::string name(model->data.outputfiletag + ".h5");
-    PetscViewerHDF5Open(PETSC_COMM_SELF, name.c_str(), FILE_MODE_WRITE, &viewer);
+    PetscViewerHDF5Open(PETSC_COMM_SELF, name.c_str(), FILE_MODE_WRITE,
+                        &viewer);
     PetscViewerSetFromOptions(viewer);
     PetscViewerHDF5SetTimestep(viewer, 0);
   }
 }
 
 measurer_output_hdf5::~measurer_output_hdf5() {
-  PetscInt timestep ;
-  PetscViewerHDF5GetTimestep(viewer, &timestep) ;
-  PetscViewerHDF5WriteAttribute(viewer, NULL, "Timestep", PETSC_INT, &timestep)  ;
+  PetscInt timestep;
+  PetscViewerHDF5GetTimestep(viewer, &timestep);
+  PetscViewerHDF5WriteAttribute(viewer, NULL, "Timestep", PETSC_INT, &timestep);
   VecDestroy(&vecSaverCors);
   VecDestroy(&vecSaverScalars);
   PetscViewerDestroy(&viewer);
@@ -71,11 +80,11 @@ void measurer_output_hdf5::saveScalarsLike(std::vector<PetscScalar> &arr,
                                            const std::string &name) {
 
   PetscScalar *v;
-  VecGetArray(vecSaverScalars, &v) ;
+  VecGetArray(vecSaverScalars, &v);
   for (PetscInt i = 0; i < measure->NScalars; ++i) {
-    v[i] = arr[i] ;
+    v[i] = arr[i];
   }
-  VecRestoreArray(vecSaverScalars, &v) ;
+  VecRestoreArray(vecSaverScalars, &v);
   PetscObjectSetName((PetscObject)vecSaverScalars, name.c_str());
   VecView(vecSaverScalars, viewer);
 }
@@ -84,16 +93,63 @@ void measurer_output_hdf5::saveCorLike(std::vector<PetscScalar> &arr,
                                        const std::string &name) {
 
   PetscScalar *v;
-  VecGetArray(vecSaverCors, &v) ;
+  VecGetArray(vecSaverCors, &v);
   for (PetscInt i = 0; i < measure->N; ++i) {
-    v[i] = arr[i] ;
+    v[i] = arr[i];
   }
-  VecRestoreArray(vecSaverCors, &v) ;
+  VecRestoreArray(vecSaverCors, &v);
 
   PetscObjectSetName((PetscObject)vecSaverCors, name.c_str());
   VecView(vecSaverCors, viewer);
 }
+/////////////////////////////////////////////////////////////////////////
 
+measurer_output_fasthdf5::measurer_output_fasthdf5(Measurer *in) : measure(in) {
+  // filename is foo.h5
+  std::string name = measure->model->data.outputfiletag + ".h5";
+
+  // Check if we are supposed to, and are able to, restart the measurements
+  PetscBool restartflg = PETSC_FALSE;
+  if (measure->model->data.restart) {
+    PetscTestFile(name.c_str(), '\0', &restartflg);
+    if (!restartflg) {
+      std::cout << "measurer_output_hdf5::measurer_output_hdf5: Unable to open "
+                   "measurement file "
+                << name
+                << " while in restart mode. Creating a new measurement file. "
+                << std::endl;
+    }
+  }
+
+  if (restartflg) {
+     file_id = H5Fopen(name.c_str(), H5F_ACC_RDWR, H5P_DEFAULT);
+  } else {
+     file_id = H5Fcreate(name.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+  }
+
+  std::array<size_t, 1> NN1{Measurer::NScalars};
+  scalars = std::make_unique<ntuple<1>>(NN1, "phi", file_id);
+
+  std::array<size_t, 2> NN2{Measurer::NObs, static_cast<size_t>(measure->N)};
+  corrsx = std::make_unique<ntuple<2>>(NN2, "corrx", file_id);
+}
+
+measurer_output_fasthdf5::~measurer_output_fasthdf5() { H5Fclose(file_id); }
+void measurer_output_fasthdf5::update() { ; }
+
+void measurer_output_fasthdf5::save(const std::string &what) {
+  for (int k = 0; k < Measurer::NScalars; k++) {
+    scalars->row[k] = measure->OAverage[k];
+  }
+  for (int i = 0; i < Measurer::NObs; i++) {
+    for (int j = 0; j < measure->N; j++) {
+      size_t k = corrsx->at({i, j});
+      corrsx->row[k] = measure->sliceAveragesX[i][j];
+    }
+  }
+  scalars->fill();
+  corrsx->fill();
+}
 #endif
 
 /////////////////////////////////////////////////////////////////////////

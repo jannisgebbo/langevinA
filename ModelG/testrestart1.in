@@ -8,14 +8,12 @@ NX = 32
 finaltime =1.45
 initialtime = 0
 deltat    = 0.04
-deltatHB=0.04
 saveFrequencyInTime = 0.33
 
 #Parameters
 mass = -4.8129999999999997
 lambda  = 4
 gamma  = 1
-sigma = 1.2
 chi = 5.1
 
 # Set to 0 or don't pass to have a random seed

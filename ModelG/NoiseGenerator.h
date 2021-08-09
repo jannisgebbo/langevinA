@@ -97,6 +97,8 @@ public:
 
   PetscReal uniformRt3() { return uniformDistributionRt3(rng); }
 
+  PetscReal variance1() { return uniformDistributionRt3(rng); }
+
   RNGType &generator() { return rng; }
 
   void write(const std::string &filename_stub) {

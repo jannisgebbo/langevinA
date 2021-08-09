@@ -35,9 +35,81 @@ private:
   ModelA *model;
 };
 
+//! Helper class to monitor the jumps in phi at each time step, and to
+//! record the number of successful steps
+class o4_stepper_monitor {
+public:
+  long int down_counts;    //!< number of steps downwards
+  long int up_counts;      //!< number of upward trial steps
+  long int up_yes;         //!< number of accepted upward steps
+  long int up_no;          //!< number of rejected upward steps
+  double down_dS;          //!< The change in action summed over downward steps
+  double up_dS;            //!< The change in action summed over upward steps
+  std::string description; //!< What this is monitoring
+
+public:
+  o4_stepper_monitor(const std::string &name = "monitor") : description(name) {
+    down_counts = 0;
+    up_counts = 0;
+    up_yes = 0;
+    up_no = 0;
+    down_dS = 0;
+    up_dS = 0;
+  }
+  void increment_up_yes(const double &deltaS) {
+    up_counts++;
+    up_yes++;
+    up_dS += deltaS;
+  }
+  void increment_up_no(const double &deltaS) {
+    up_counts++;
+    up_no++;
+    up_dS += 0.;
+  }
+  void increment_down(const double &deltaS) {
+    down_counts++;
+    down_dS += deltaS;
+  }
+
+  void print(FILE *fh) {
+
+    fprintf(fh, "==== Statistics for %s ====\n", description.c_str());
+    double tot = down_counts + up_counts;
+    double prob = (up_yes + down_counts) / tot;
+    fprintf(fh, "Probability of up acceptance = %f\n", prob);
+
+    double mean_dS = up_dS / up_yes;
+    prob = up_yes / tot;
+    fprintf(fh,
+            "dS >0: accepts = %ld; probability of up accept = %f; mean dS=%f\n",
+            up_yes, prob, mean_dS);
+
+    prob = up_no / tot;
+    fprintf(fh,
+            "dS =0: rejects = %ld; probability of up reject = %f; mean dS=%f\n",
+            up_no, prob, 0.);
+
+    prob = up_counts / tot;
+    mean_dS = up_dS / up_counts;
+    fprintf(fh,
+            "dS>=0: counts  = %ld; probability of non-neg.  = %f; mean dS=%f\n",
+            up_counts, prob, mean_dS);
+
+    prob = down_counts / tot;
+    mean_dS = down_dS / down_counts;
+    fprintf(fh,
+            "dS <0: counts  = %ld; probability of down steps= %f; mean dS=%f\n",
+            down_counts, prob, mean_dS);
+
+    fprintf(fh, "============================================\n");
+  }
+};
+
 class IdealPV2 : public Stepper {
 public:
-  IdealPV2(ModelA &in);
+  // If accept_reject is false then the step is done without
+  // the metropolis accept reject
+  IdealPV2(ModelA &in, const bool &accept_reject_in = true);
   void finalize() override;
   bool step(const double &dt) override;
 
@@ -47,12 +119,20 @@ public:
 
 private:
   ModelA *model;
-  PetscInt xstart, ystart, zstart, xdimension, ydimension, zdimension;
 
   DM da;
   const ModelAData &data;
 
+  bool step_no_reject(const double &dt);
   void rotatePhi(G_node ***phinew, double dt);
+
+  bool accept_reject;
+  o4_stepper_monitor monitor;
+
+  Vec previoussolution;
+
+  // Minor optimization
+  PetscInt xstart, ystart, zstart, xdimension, ydimension, zdimension;
 };
 
 /////////////////////////////////////////////////////////////////////////
@@ -133,76 +213,6 @@ private:
   KSP ksp;
 };
 
-//! Helper class to monitor the jumps in phi at each time step, and to
-//! record the number of successful steps
-class o4_stepper_monitor {
-public:
-  long int down_counts;    //!< number of steps downwards
-  long int up_counts;      //!< number of upward trial steps
-  long int up_yes;         //!< number of accepted upward steps
-  long int up_no;          //!< number of rejected upward steps
-  double down_dS;          //!< The change in action summed over downward steps
-  double up_dS;            //!< The change in action summed over upward steps
-  std::string description; //!< What this is monitoring
-
-public:
-  o4_stepper_monitor(const std::string &name = "monitor") : description(name) {
-    down_counts = 0;
-    up_counts = 0;
-    up_yes = 0;
-    up_no = 0;
-    down_dS = 0;
-    up_dS = 0;
-  }
-  void increment_up_yes(const double &deltaS) {
-    up_counts++;
-    up_yes++;
-    up_dS += deltaS;
-  }
-  void increment_up_no(const double &deltaS) {
-    up_counts++;
-    up_no++;
-    up_dS += 0.;
-  }
-  void increment_down(const double &deltaS) {
-    down_counts++;
-    down_dS += deltaS;
-  }
-
-  void print(FILE *fh) {
-
-    fprintf(fh, "==== Statistics for %s ====\n", description.c_str());
-    double tot = down_counts + up_counts;
-    double prob = (up_yes + down_counts) / tot;
-    fprintf(fh, "Probability of up acceptance = %f\n", prob);
-
-    double mean_dS = up_dS / up_yes;
-    prob = up_yes / tot;
-    fprintf(fh,
-            "dS >0: accepts = %ld; probability of up accept = %f; mean dS=%f\n",
-            up_yes, prob, mean_dS);
-
-    prob = up_no / tot;
-    fprintf(fh,
-            "dS =0: rejects = %ld; probability of up reject = %f; mean dS=%f\n",
-            up_no, prob, 0.);
-
-    prob = up_counts / tot;
-    mean_dS = up_dS / up_counts;
-    fprintf(fh,
-            "dS>=0: counts  = %ld; probability of non-neg.  = %f; mean dS=%f\n",
-            up_counts, prob, mean_dS);
-
-    prob = down_counts / tot;
-    mean_dS = down_dS / down_counts;
-    fprintf(fh,
-            "dS <0: counts  = %ld; probability of down steps= %f; mean dS=%f\n",
-            down_counts, prob, mean_dS);
-
-    fprintf(fh, "============================================\n");
-  }
-};
-
 // The heat bath step for the phi fields
 class EulerLangevinHB : public Stepper {
 public:
@@ -273,9 +283,10 @@ private:
   KSP ksp;
 };
 
+/////////////////////////////////////////////////////////////////////////
 class LFHBSplit : public Stepper {
 public:
-  LFHBSplit(ModelA &in, PetscScalar deltatHB);
+  LFHBSplit(ModelA &in);
   bool step(const double &dt) override;
   void finalize() override {
     lf.finalize();
@@ -288,23 +299,25 @@ private:
   IdealLF lf;
   EulerLangevinHB hbPhi;
   ModelGChargeHB hbN;
-
-  const PetscReal dtHB;
 };
 
+/////////////////////////////////////////////////////////////////////////
 class PV2HBSplit : public Stepper {
 public:
-  PV2HBSplit(ModelA &in, PetscScalar deltatHB);
+
+  // The ideal step is A, heat bath step is B, charge step is C.
+  //
+  // The format for  scounts = {inner, outer}.
+  // With scounts  {1, 1} the stepping is (AB)C
+  // With scounts  {3, 1} the stepping is (ABBB)C
+  // With scounts  {1, 2} the stepping is (AB)(AB) C
+  // With scounts  {2, 3} the stepping is (ABB)(ABB) (ABB) C
+  PV2HBSplit(ModelA &in, const std::array<unsigned int, 2> &scounts = {1, 1});
   bool step(const double &dt) override;
   void finalize() override {
     pv2.finalize();
     hbPhi.finalize();
     hbN.finalize();
-    int myRank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
-    if (myRank == 0) {
-      monitor.print(stdout);
-    }
   }
 
   ~PV2HBSplit() { ; }
@@ -315,9 +328,8 @@ private:
   IdealPV2 pv2;
   EulerLangevinHB hbPhi;
   ModelGChargeHB hbN;
-  const PetscReal dtHB;
 
-  o4_stepper_monitor monitor;
+  std::array<unsigned int, 2> stepcounts;
 };
 
 #endif
