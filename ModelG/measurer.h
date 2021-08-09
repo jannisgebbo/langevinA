@@ -55,7 +55,9 @@ private:
   Measurer *measure;
   hid_t file_id;
   std::unique_ptr<ntuple<1>> scalars;
-  std::unique_ptr<ntuple<2>> corrsx;
+  std::unique_ptr<ntuple<2>> wallx;
+  std::unique_ptr<ntuple<2>> wally;
+  std::unique_ptr<ntuple<2>> wallz;
 };
 #endif
 
