@@ -108,7 +108,24 @@ measurer_output_fasthdf5::measurer_output_fasthdf5(Measurer *in) : measure(in) {
   // filename is foo.h5
   std::string name = measure->model->data.outputfiletag + ".h5";
 
-  file_id = H5Fcreate(name.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+  // Check if we are supposed to, and are able to, restart the measurements
+  PetscBool restartflg = PETSC_FALSE;
+  if (measure->model->data.restart) {
+    PetscTestFile(name.c_str(), '\0', &restartflg);
+    if (!restartflg) {
+      std::cout << "measurer_output_hdf5::measurer_output_hdf5: Unable to open "
+                   "measurement file "
+                << name
+                << " while in restart mode. Creating a new measurement file. "
+                << std::endl;
+    }
+  }
+
+  if (restartflg) {
+     file_id = H5Fopen(name.c_str(), H5F_ACC_RDWR, H5P_DEFAULT);
+  } else {
+     file_id = H5Fcreate(name.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+  }
 
   std::array<size_t, 1> NN1{Measurer::NScalars};
   scalars = std::make_unique<ntuple<1>>(NN1, "phi", file_id);
