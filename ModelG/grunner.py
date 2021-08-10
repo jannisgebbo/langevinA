@@ -100,44 +100,6 @@ def getdefault_filename_chichange():
 def setdefault_filename():
     data["outputfiletag"] = getdefault_filename()
 
-<<<<<<< HEAD
-# Runs on cori regular que  with time in hours. One should set dry_run=False to
-# actually run the code
-def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=[], seed=None) :
-    filenamesh = data["outputfiletag"] + '.sh'
-    with open(filenamesh,'w') as fh:
-        print("#!/bin/bash",file=fh) 
-        if debug :
-            print("#SBATCH -q debug",file=fh) 
-            print("#SBATCH -t 00:10:00",file=fh) 
-            print("#SBATCH -N 1",file=fh) 
-            print("#SBATCH --ntasks=32",file=fh) 
-            print("#SBATCH --cpus-per-task=2",file=fh) 
-        elif shared :
-            print("#SBATCH -q shared",file=fh) 
-            print("#SBATCH -t %s" % (str(round(time*60))),file=fh) 
-            print("#SBATCH --ntasks=8",file=fh) 
-            print("#SBATCH --cpus-per-task=2",file=fh) 
-        else:
-            print("#SBATCH -q regular",file=fh) 
-            print("#SBATCH -t %s" % (str(round(time*60))),file=fh) 
-            print("#SBATCH -N 1",file=fh) 
-            print("#SBATCH --ntasks=32",file=fh) 
-            print("#SBATCH --cpus-per-task=2",file=fh) 
-        print("#SBATCH -C haswell",file=fh) 
-
-        print("",file=fh) 
-        print("module load gsl",file=fh) 
-        print("module load cray-petsc",file=fh) 
-        print("",file=fh) 
-        print("#run the application:",file=fh) 
-
-        print('date  "+%%x %%T" > %s_time.out' % (data["outputfiletag"]),file=fh) 
-        # get the program
-        path = os.path.abspath(os.path.dirname(__file__))
-        prgm = path + "/SuperPions.exe"
-=======
-
 ########################################################################
 def find_program():
     # find the program
@@ -202,7 +164,6 @@ def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=[], seed=N
     print('date  "+%%x %%T" > %s_time.out' %
           (data["outputfiletag"]), file=fh)
     if not parallel:
->>>>>>> 9b9338fc120cc30ee7f58e7ec7360ae8c43b1012
         # set the seed and the inputfile
         if seed is None:
             data["seed"] = random.randint(1, 2000000000)
@@ -237,7 +198,6 @@ def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=[], seed=N
     # return to the root directory
     dstack.popd()
 
-<<<<<<< HEAD
 # Runs on seawulf  with time in batch time. One should set dry_run=False to
 # actually run the code
 def seawulfrun(time="00:02:00", debug=False, shared=False, dry_run=True, moreopts=[]) :
@@ -293,7 +253,6 @@ def run(moreopts=[], dry_run=True, time=0, seed=None, ncpus="4") :
     # find the program
     path = os.path.abspath(os.path.dirname(__file__))
     prgm = path + "/SuperPions.exe"
-=======
 
 def pmakefiles(ncpus, seed=None):
     """Create a set of inputfiles, tag_0000, tag_0001, ...., with separate
@@ -349,7 +308,6 @@ def run(moreopts=[], dry_run=True, time=0, seed=None, ncpus="4"):
     prgm = find_program()
     tag = data["outputfiletag"]
     dstack.pushd(tag)
->>>>>>> 9b9338fc120cc30ee7f58e7ec7360ae8c43b1012
 
     # set the seed and the inputfile
     if seed is None:
