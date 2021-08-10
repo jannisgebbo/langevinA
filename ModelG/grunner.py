@@ -239,7 +239,7 @@ def seawulfrun(time="00:02:00", debug=False, shared=False, dry_run=True, moreopt
         datatojson()
 
         #write the command that actually runds the program
-        print("mpirun -n {} {} input={} outpufiletag={}".format(nprocesses,prgm,data["outputfiletag"]+'.in', data["outputfolder"] + data["outputfiletag"]), end=' ', file=fh) 
+        print("mpirun -n {} {} input={} outputfiletag={}".format(nprocesses,prgm,data["outputfiletag"]+'.in', data["outputfolder"] + data["outputfiletag"]), end=' ', file=fh) 
         for opt in moreopts:
             print(opt,end=' ', file=fh)
         print(file=fh)
