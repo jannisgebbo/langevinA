@@ -111,12 +111,21 @@ def ft(om, dt, arr2, filterFunc = lambda x : 1):
 def toFourier(arr, dt, omMax, filterFunc = lambda x : 1):
     tMax= len(arr)*dt
     omegaIR = 2.0 * np.pi / tMax
-    oms = np.arange(-omMax, omMax, omegaIR)
+    oms = np.arange(0, omMax, omegaIR)
     res = []
     for om in oms:
         res.append(ft(om,dt,arr, filterFunc))
 
     return (oms, np.asarray(res))
+
+#assume first component is at zero and we don't want to double it.
+def symmetrizeArray(arr, sym = 1):
+    res = np.zeros(2 * len(arr) - 1 , arr.dtype)
+    for i in range(1,len(arr) ):
+        res[i-1] = sym * arr[-i]
+    for i in range(len(arr)-1,len(res)):
+        res[i] = arr[i - len(arr) + 1]
+    return res
 
 #Compute the Fourier transform over blocks of data.
 def toFourierBlocked(arr, dt, omMax, errFunc, filterFunc = lambda x : 1):
@@ -126,7 +135,11 @@ def toFourierBlocked(arr, dt, omMax, errFunc, filterFunc = lambda x : 1):
         oms, tmp = toFourier(arr[i], dt, omMax, filterFunc)
         res.append(tmp)
     f, ferr = errFunc(np.asarray(res))
-    return (oms, f, ferr)
+    
+    
+    return (symmetrizeArray(oms,-1), symmetrizeArray(f),symmetrizeArray(ferr))
+
+
 
 
 # For testing purpose only
@@ -158,25 +171,38 @@ def twoPtAv(arr):
 
 #Work in proigress, store the results and call the corersponding measurements in a user friendly way.
 class ConfResults:
-    def __init__(self,fn, thTime , dt, decim =1):
+    def __init__(self,fn, thTime , dt, data_format ="new", decim =1):
         self.fn = fn
         self.thTime = thTime
         self.decim = decim
         self.dt = dt
         
+        self.data_format = data_format
+        
         self.wkeys = dict()
         
-        self.wkeys["phi0"] = "wallX_phi_0"
-        self.wkeys["phi1"] = "wallX_phi_1"
-        self.wkeys["phi2"] = "wallX_phi_2"
-        self.wkeys["phi3"] = "wallX_phi_3"
-        self.wkeys["A1"] = "wallX_phi_4"
-        self.wkeys["A2"] = "wallX_phi_5"
-        self.wkeys["A3"] = "wallX_phi_6"
-        self.wkeys["V1"] = "wallX_phi_7"
-        self.wkeys["V2"] = "wallX_phi_8"
-        self.wkeys["V3"] = "wallX_phi_9"
-        
+        if self.data_format == "old":
+            self.wkeys["phi0"] = "wallX_phi_0"
+            self.wkeys["phi1"] = "wallX_phi_1"
+            self.wkeys["phi2"] = "wallX_phi_2"
+            self.wkeys["phi3"] = "wallX_phi_3"
+            self.wkeys["A1"] = "wallX_phi_4"
+            self.wkeys["A2"] = "wallX_phi_5"
+            self.wkeys["A3"] = "wallX_phi_6"
+            self.wkeys["V1"] = "wallX_phi_7"
+            self.wkeys["V2"] = "wallX_phi_8"
+            self.wkeys["V3"] = "wallX_phi_9"
+        else:
+            self.wkeys["phi0"] = 0
+            self.wkeys["phi1"] = 1
+            self.wkeys["phi2"] = 2
+            self.wkeys["phi3"] = 3
+            self.wkeys["A1"] = 4
+            self.wkeys["A2"] = 5
+            self.wkeys["A3"] = 6
+            self.wkeys["V1"] = 7
+            self.wkeys["V2"] = 8
+            self.wkeys["V3"] = 9
         
         #The results are stored in dictionnary, to have a generic way to code between the different fields.
         
@@ -195,6 +221,14 @@ class ConfResults:
         self.OtOttpSpecFunc_mean = dict()
         self.OtOttpSpecFunc_err = dict()
         self.OtOttpSpecFunc_oms = dict()
+        
+    def loadWallX(self,key):
+        r = h5py.File(self.fn,'r')
+        if self.data_format == "old":
+            self.wallX[key] = np.asarray(r[self.wkeys[key]])[self.thTime:] 
+        else:
+            self.wallX[key] = np.asarray(r["corrx"])[self.thTime:,self.wkeys[key],:] 
+            
 
     #TODO: Change the way we handle the average.
     def readAv(self):
@@ -209,9 +243,7 @@ class ConfResults:
 
     #Compute the fourier transform of a given wall, specified by the appropriate key.
     def computeWallXFourier(self, key):
-        #TODO: write a function that reads the data from a key.
-        r = h5py.File(self.fn,'r')
-        self.wallX[key] = np.asarray(r[self.wkeys[key]])[self.thTime:]
+        self.loadWallX(key)
         Nx = len(self.wallX[key][0])
         self.wallXF[key] = np.zeros(np.shape(self.wallX[key]), dtype=complex)
         for t in range(len(self.wallX[key])):
