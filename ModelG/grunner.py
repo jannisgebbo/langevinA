@@ -6,6 +6,9 @@ import random
 import dstack
 import datetime
 
+
+GLOBAL_PETSCPKG_PATH_SEAWULF="${PKG_CONFIG_PATH}:/gpfs/home/adrflorio/petsc/arch-linux2-c-debug/lib/pkgconfig/"
+
 random.seed()
 
 # set the overall tag
@@ -14,24 +17,25 @@ data = {
     "NX": 32,
 
     # Time stepping
-    "finaltime": 10,
-    "initialtime": 0,
-    "deltat": 0.04,
-    "evolverType": 7,
+    "finaltime" : 10,
+    "initialtime" : 0,
+    "deltat" : 0.04,
+    "evolverType" : 7,
 
-    # Action
-    "mass": -4.813,
-    "lambda": 4.,
-    "gamma": 1.,
-    "H": 0.004,
-    "diffusion": 0.3333333,
-    "chi": 2.,
-    "seed": 122335456,
-    "restart": "false",
+    #Action
+    "mass" : -4.813,
+    "lambda" : 4.,
+    "gamma" : 1.,
+    "H" :0.004,
+    "diffusion" : 0.3333333,
+    "chi" : 2.,
+    "seed" : 122335456,
+    "restart" : "false",
 
-    # initial condition"
-    "outputfiletag": "grun",
-    "saveFrequencyInTime": 0.8,
+    #initial condition"
+    "outputfiletag" : "grun",
+    "outputfolder" : "./", #this is interal to python and prepended to the outputfiletag
+    "saveFrequencyInTime" : 0.8,
 }
 
 
@@ -95,7 +99,6 @@ def getdefault_filename_chichange():
 # Sets the filename to getdefaultname
 def setdefault_filename():
     data["outputfiletag"] = getdefault_filename()
-
 
 ########################################################################
 def find_program():
@@ -195,6 +198,61 @@ def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=[], seed=N
     # return to the root directory
     dstack.popd()
 
+# Runs on seawulf  with time in batch time. One should set dry_run=False to
+# actually run the code
+def seawulfrun(time="00:02:00", debug=False, shared=False, dry_run=True, moreopts=[]) :
+    nprocesses=24
+    filenamesh = data["outputfiletag"] + '.sh'
+    with open(filenamesh,'w') as fh:
+        print("#!/bin/bash",file=fh) 
+        if debug :
+            print("#SBATCH -p debug-{}core".format(nprocesses),file=fh) 
+            print("#SBATCH --time=00:10:00",file=fh) 
+            print("#SBATCH --nodes=1",file=fh) 
+            print("#SBATCH --ntasks-per-node={}".format(nprocesses),file=fh) 
+        else:
+            print("#SBATCH -p long-{}core".format(nprocesses),file=fh) 
+            print("#SBATCH --time={}".format(time),file=fh) 
+            print("#SBATCH --nodes=1",file=fh) 
+            print("#SBATCH --ntasks-per-node={}".format(nprocesses),file=fh) 
+
+        print("",file=fh) 
+        print("module load shared",file=fh) 
+        print("module load gcc-stack",file=fh) 
+        print("module load hdf5/1.10.5-parallel",file=fh) 
+        print("module load cmake",file=fh) 
+        print("module load gsl",file=fh)
+        print("export PKG_CONFIG_PATH={}".format(GLOBAL_PETSCPKG_PATH_SEAWULF), file=fh) 
+        print("export MV2_ENABLE_AFFINITY=0",file=fh)
+        print("",file=fh) 
+        print("#run the application:",file=fh) 
+
+        print('date  "+%%x %%T" > %s_time.out' % (data["outputfiletag"]),file=fh) 
+        # get the program
+        path = os.path.abspath(os.path.dirname(__file__))
+        prgm = path + "/SuperPions.exe"
+        # set the seed and the inputfile
+        data["seed"] = random.randint(1,2000000000)
+        # write the data to an inputfile
+        datatoinput()
+        # write the data to an .json
+        datatojson()
+
+        #write the command that actually runds the program
+        print("mpirun -n {} {} input={} outputfiletag={}".format(nprocesses,prgm,data["outputfiletag"]+'.in', data["outputfolder"] + data["outputfiletag"]), end=' ', file=fh) 
+        for opt in moreopts:
+            print(opt,end=' ', file=fh)
+        print(file=fh)
+        print('date  "+%%x %%T" >> %s_time.out' % (data["outputfiletag"]),file=fh) 
+
+    if not dry_run:
+        subprocess.run(['sbatch',filenamesh])
+
+#runs the actual command current value of data  with mpiexec
+def run(moreopts=[], dry_run=True, time=0, seed=None, ncpus="4") :
+    # find the program
+    path = os.path.abspath(os.path.dirname(__file__))
+    prgm = path + "/SuperPions.exe"
 
 def pmakefiles(ncpus, seed=None):
     """Create a set of inputfiles, tag_0000, tag_0001, ...., with separate
