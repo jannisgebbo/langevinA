@@ -71,16 +71,19 @@ def computeOtOtp(arr1, arr2, statFunc, conn=False, nTMax=-1, decim=1):
     Cttp = np.zeros(nTMax, dtype=type(arr1[0]))
     CttpErr = np.zeros(nTMax, dtype=type(arr1[0]))
     
+    av1 = np.mean(arr1)
+    av2 = np.mean(arr2)
     # Points over which we do the time average
 
     for tt in range(nTMax): #tt is the time difference
         counter = 0
         nStarts = list(range(0, Npoints - tt, decim))
         tmpArr = np.zeros(len(nStarts), dtype=type(arr1[0]))
+        
         for t0 in nStarts: # t0 is the origin
             tmpArr[counter] = arr1[t0 + tt] * arr2[t0]
             if conn:
-                tmpArr[counter] -= arr1[t0]*arr2[t0]
+                tmpArr[counter] -= av1 * av2
             counter += 1
         Cttp[tt], CttpErr[tt] = statFunc(tmpArr)
     
@@ -226,8 +229,10 @@ class ConfResults:
         r = h5py.File(self.fn,'r')
         if self.data_format == "old":
             self.wallX[key] = np.asarray(r[self.wkeys[key]])[self.thTime:] 
-        else:
+        elif self.data_format == "semiold":
             self.wallX[key] = np.asarray(r["corrx"])[self.thTime:,self.wkeys[key],:] 
+        else:
+            self.wallX[key] = np.asarray(r["wallx"])[self.thTime:,self.wkeys[key],:] 
             
 
     #TODO: Change the way we handle the average.
