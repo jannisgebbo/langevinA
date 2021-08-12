@@ -3,6 +3,13 @@ import h5py
 import numpy as np
 from numpy import linalg as LA
 
+import matplotlib.pyplot as plt
+
+
+class StatResult:
+    def __init__(self, tup):
+        self.mean = tup[0]
+        self.err = tup[1]
 
 #Functions
 def bootstrap(arr, nSamples=100):
@@ -92,11 +99,11 @@ def computeOtOtp(arr1, arr2, statFunc, conn=False, nTMax=-1, decim=1):
 
 
 # Compute the O(t) O(0) correlator over blocks in time.
-def computeBlockedOtOtp(arr, nTMax, steps, pDecim=1, conn=False):
+def computeBlockedOtOtp(arr, nTMax, steps, decim=1, conn=False):
     res = []
     sMax = len(arr) - steps
     for s in range(0,sMax,steps):
-        tmpR, tmpE = computeOtOtp(arr[s:s+steps],arr[s:s+steps],lambda x : (np.mean(x),0) ,nTMax=nTMax,decim=pDecim,conn=conn)
+        tmpR, tmpE = computeOtOtp(arr[s:s+steps],arr[s:s+steps],lambda x : (np.mean(x),0) ,nTMax=nTMax,decim=decim,conn=conn)
         res.append(tmpR)
     return np.asarray(res)
 
@@ -110,7 +117,6 @@ def ft(om, dt, arr2, filterFunc = lambda x : 1):
     return tmp
 
 # transform a whole array to fourier space, with optimal sampling and up to oMax
-# TODO: Compute only half of that an symmetrize
 def toFourier(arr, dt, omMax, filterFunc = lambda x : 1):
     tMax= len(arr)*dt
     omegaIR = 2.0 * np.pi / tMax
@@ -140,7 +146,7 @@ def toFourierBlocked(arr, dt, omMax, errFunc, filterFunc = lambda x : 1):
     f, ferr = errFunc(np.asarray(res))
     
     
-    return (symmetrizeArray(oms,-1), symmetrizeArray(f),symmetrizeArray(ferr))
+    return (symmetrizeArray(oms,-1), StatResult((symmetrizeArray(f),symmetrizeArray(ferr))))
 
 
 
@@ -158,7 +164,9 @@ def manualFourier(arr):
 
 
 
-# static correlator
+
+# static correlator in x
+
 def twoPtAv(arr):
     N=len(arr)
     res = np.zeros(N)
@@ -174,10 +182,9 @@ def twoPtAv(arr):
 
 #Work in proigress, store the results and call the corersponding measurements in a user friendly way.
 class ConfResults:
-    def __init__(self,fn, thTime , dt, data_format ="new", decim =1):
+    def __init__(self,fn, thTime , dt, data_format ="new"):
         self.fn = fn
         self.thTime = thTime
-        self.decim = decim
         self.dt = dt
         
         self.data_format = data_format
@@ -186,6 +193,7 @@ class ConfResults:
         
         if self.data_format == "old":
             self.wkeys["phi0"] = "wallX_phi_0"
+            self.wkeys["dsigma"] = "wallX_phi_0"
             self.wkeys["phi1"] = "wallX_phi_1"
             self.wkeys["phi2"] = "wallX_phi_2"
             self.wkeys["phi3"] = "wallX_phi_3"
@@ -197,6 +205,7 @@ class ConfResults:
             self.wkeys["V3"] = "wallX_phi_9"
         else:
             self.wkeys["phi0"] = 0
+            self.wkeys["dsigma"] = 0
             self.wkeys["phi1"] = 1
             self.wkeys["phi2"] = 2
             self.wkeys["phi3"] = 3
@@ -209,30 +218,49 @@ class ConfResults:
         
         #The results are stored in dictionnary, to have a generic way to code between the different fields.
         
-        self.wallX = dict()
-        self.wallXF = dict()
-        self.wallXCorr = dict()
+        if data_format == "old" or data_format == "semi_old" :
+            self.directions = ["X"]
+        else :
+            self.directions = ["X","Y","Z"]
+        
+        self.wall = dict()
+        self.wallF = dict()
+        self.wallCorr = dict()
+        self.wallFProp = dict()
+        for d in self.directions:
+            self.wall[d] = dict()
+            self.wallF[d] = dict()
+            self.wallCorr[d] = dict() 
         
         self.OtOttp_blocks = dict()
         
         
-        self.OtOttp_mean = dict()
-        self.OtOttp_err = dict()
+        self.OtOttp = dict()
         self.OtOttp_time = dict()
         
-        #self.OtOttpSpecFunc_blocks = dict()
-        self.OtOttpSpecFunc_mean = dict()
-        self.OtOttpSpecFunc_err = dict()
-        self.OtOttpSpecFunc_oms = dict()
+        #self.OtOttpFourier_blocks = dict()
+        self.OtOttpFourier = dict()
+        self.OtOttpFourier_oms = dict()
         
-    def loadWallX(self,key):
+        #self.momenta_3d we also define the momenta 3d below
+        
+    def loadWall(self,key, direc):
         r = h5py.File(self.fn,'r')
-        if self.data_format == "old":
-            self.wallX[key] = np.asarray(r[self.wkeys[key]])[self.thTime:] 
-        elif self.data_format == "semiold":
-            self.wallX[key] = np.asarray(r["corrx"])[self.thTime:,self.wkeys[key],:] 
-        else:
-            self.wallX[key] = np.asarray(r["wallx"])[self.thTime:,self.wkeys[key],:] 
+        try :
+            if not (direc == "X" or  (self.data_format != "old" and self.data_format != "semiold")) :
+                raise
+            else:
+                if self.data_format == "old":
+                    self.wall[direc][key] = np.asarray(r[self.wkeys[key]])[self.thTime:] 
+                elif self.data_format == "semiold":
+                    self.wall[direc][key] = np.asarray(r["corrx"])[self.thTime:,self.wkeys[key],:] 
+                else:
+                    self.wall[direc][key] = np.asarray(r["wall{}".format(direc.lower())])[self.thTime:,self.wkeys[key],:]
+                if key == "dsigma":
+                    self.wall[direc][key] -= np.mean(np.mean(self.wall[direc][key], axis = 0))
+                
+        except:
+            print("You tried to load a wall in a direction that does not exist in your data format.")
             
 
     #TODO: Change the way we handle the average.
@@ -247,56 +275,93 @@ class ConfResults:
 
 
     #Compute the fourier transform of a given wall, specified by the appropriate key.
-    def computeWallXFourier(self, key):
-        self.loadWallX(key)
-        Nx = len(self.wallX[key][0])
-        self.wallXF[key] = np.zeros(np.shape(self.wallX[key]), dtype=complex)
-        for t in range(len(self.wallX[key])):
-            self.wallXF[key][t] = np.fft.fft(self.wallX[key][t]) / Nx
+    def computeWallFourier(self, key, direc, decim = 1):
+        self.loadWall(key, direc)
+        Nx = len(self.wall[direc][key][0])
+        ts = range(0,len(self.wall[direc][key]), decim)
+        self.wallF[direc][key] = np.zeros([len(ts), len(self.wall[direc][key][0,:])], dtype=complex)
+        c = 0
+        for t in ts:
+            self.wallF[direc][key][c] = np.fft.fft(self.wall[direc][key][t]) / Nx
+            c += 1
+        self.momenta_3d = np.asarray([ 2.0 * np.pi / float(Nx) * n for n in range(Nx)])
+            
     #Computes the time correlator of a given key.
+    #TODO: For now, compute only from one direction in fourier for all modes. Need to include other direction for non-zero k for better stat.
     def computeOtOtpBlocked(self, key, tMax, blockSizeT, errFunc, momNum = 0, conn = False):
         if not key in self.OtOttp_blocks.keys():
             if key != "phi0":
                 keys = [key + str(i) for i in [1,2,3]]
                 for k in keys:
-                    self.computeWallXFourier(k)
-                av = np.zeros(np.shape(self.wallXF[keys[0]][:,momNum]), dtype = self.wallXF[keys[0]][:,momNum].dtype)
+                    self.computeWallFourier(k,"X")
+                av = np.zeros(np.shape(self.wallF["X"][keys[0]][:,momNum]), dtype = self.wallF["X"][keys[0]][:,momNum].dtype)
                 for k in keys:
-                    av += self.wallXF[k][:,momNum]
+                    av += self.wallF["X"][k][:,momNum]
                 av /= 3.0
             else:
-                self.computeWallXFourier(key)
-                av = self.wallXF[key][:,momNum]
+                self.computeWallFourier(key,"X")
+                av = self.wallF["X"][key][:,momNum]
 
 
             nTMax = int(np.floor(tMax / self.dt))
             blockSize = int(np.floor(blockSizeT / self.dt))
 
-            self.OtOttp_blocks[key] = computeBlockedOtOtp(av,nTMax, blockSize, self.decim, conn = conn)
+            self.OtOttp_blocks[key] = computeBlockedOtOtp(av,nTMax, blockSize, decim = 1, conn = conn)
        
-        self.OtOttp_mean[key], self.OtOttp_err[key] = errFunc(self.OtOttp_blocks[key])
+        self.OtOttp[key] = StatResult(errFunc(self.OtOttp_blocks[key]))
         
         self.OtOttp_time[key] = np.arange(0,tMax, self.dt)
 
     #Compute the statistical correlator of a given key.
-    def computeStatCor(self, key, omMax, errFunc, filterFunc = lambda x : 1):
+    def computeStatisticalCor(self, key, omMax, errFunc, filterFunc = lambda x : 1):
         try :
-            if not key in self.OtOttp_blocks.keys():
+            print(key in self.OtOttp_blocks.keys())
+            if not (key in self.OtOttp_blocks.keys()):
                 raise ;
             else:
-                self.OtOttpSpecFunc_oms[key],self.OtOttpSpecFunc_mean[key],self.OtOttpSpecFunc_err[key] = toFourierBlocked(self.OtOttp_blocks[key], self.dt, omMax, errFunc, filterFunc)
+                self.OtOttpFourier_oms[key],self.OtOttpFourier[key] = toFourierBlocked(self.OtOttp_blocks[key], self.dt, omMax, errFunc, filterFunc)
         except:
             print("the two point function in time of {} was not computed. Need to call computeOtOtpBlocked first.".format(key))
             
-    #TODO: improve/ check: static correlator.  
-    def correlator0(self, key):
-        r = h5py.File(self.fn,'r')
-        self.wallX[key] = np.asarray(r[self.wkeys[key]])[self.thTime:]
-        self.wallXCorr[key] = []
-        for t in range(len(self.wallX[key])):
-            self.wallXCorr[key].append(twoPtAv(self.wallX[key][t]))
+            
+    def computeFourierPropagator(self, key, decim, errFunc):
+        if key != "phi0" and key != "dsigma":
+            keys = [key + str(i) for i in [1,2,3]]
+            for k in keys:
+                for d in self.directions:
+                    self.computeWallFourier(k, d, decim)
+            tmp = np.zeros(np.shape(self.wallF["X"][keys[0]]), dtype = self.wallF["X"][keys[0]].dtype)
+            for k in keys:
+                for d in self.directions:
+                    tmp += self.wallF[d][k] * np.conj(self.wallF[d][k])
+            tmp /= 3.0 / float(len(self.directions))
+        else:
+            for d in self.directions:
+                    self.computeWallFourier(key, d, decim)
+            tmp = np.zeros(np.shape(self.wallF["X"][key]), dtype = self.wallF["X"][key].dtype)
+            for d in self.directions:
+                tmp += self.wallF[d][key] * np.conj(self.wallF[d][key])
+            tmp /= 3.0 / float(len(self.directions))
+
+        self.wallFProp[key] = StatResult(errFunc(tmp))
+
+        
+class Plotter:
+    def __init__(self):
+        return
+
+    def plot(self, confRes, obs, key, xfact = 1.0, yfact = 1.0):
+        if obs == "OtOttp":
+            self.errorplot(xfact * confRes.OtOttp_time[key], confRes.OtOttp[key], yfact = yfact)
+        elif obs == "OtOttpFourier":
+            self.errorplot(xfact * confRes.OtOttpFourier_oms[key], confRes.OtOttpFourier[key], yfact = yfact)
+        elif obs == "propagator":
+            self.errorplot(xfact * confRes.momenta_3d, confRes.wallFProp[key], yfact = yfact)
 
 
+
+    def errorplot(self, x, statobj, yfact):
+        plt.errorbar(x, yfact * statobj.mean, yfact * statobj.err)
 
 ''' Deprecated, keep for the idea. Would be better o use the block structure above though.
 class EnsembleResults:
