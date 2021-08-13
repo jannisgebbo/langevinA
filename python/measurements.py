@@ -99,11 +99,11 @@ def computeOtOtp(arr1, arr2, statFunc, conn=False, nTMax=-1, decim=1):
 
 
 # Compute the O(t) O(0) correlator over blocks in time.
-def computeBlockedOtOtp(arr, nTMax, steps, decim=1, conn=False):
+def computeBlockedOtOtp(arr1, arr2, nTMax, steps, decim=1, conn=False):
     res = []
-    sMax = len(arr) - steps
+    sMax = len(arr1) - steps
     for s in range(0,sMax,steps):
-        tmpR, tmpE = computeOtOtp(arr[s:s+steps],arr[s:s+steps],lambda x : (np.mean(x),0) ,nTMax=nTMax,decim=decim,conn=conn)
+        tmpR, tmpE = computeOtOtp(arr1[s:s+steps],arr2[s:s+steps],lambda x : (np.mean(x),0) ,nTMax=nTMax,decim=decim,conn=conn)
         res.append(tmpR)
     return np.asarray(res)
 
@@ -306,7 +306,7 @@ class ConfResults:
             nTMax = int(np.floor(tMax / self.dt))
             blockSize = int(np.floor(blockSizeT / self.dt))
 
-            self.OtOttp_blocks[key] = computeBlockedOtOtp(av,nTMax, blockSize, decim = 1, conn = conn)
+            self.OtOttp_blocks[key] = computeBlockedOtOtp(av,av,nTMax, blockSize, decim = 1, conn = conn)
        
         self.OtOttp[key] = StatResult(errFunc(self.OtOttp_blocks[key]))
         
