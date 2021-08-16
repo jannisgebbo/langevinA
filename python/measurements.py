@@ -12,7 +12,7 @@ class StatResult:
         self.err = tup[1]
 
 #Functions
-def bootstrap(arr, nSamples=100):
+def bootstrap(arr, nSamples=100, func=lambda x : x):
     arr = np.asarray(arr)
     random.seed()
     bootstrapArr = []
@@ -20,23 +20,23 @@ def bootstrap(arr, nSamples=100):
         newArr = np.zeros(np.shape(arr), dtype=arr.dtype)
         for l in range(len(arr)):
             newArr[l] = arr[random.randrange(0,len(arr))]
-        bootstrapArr.append(np.mean(newArr,axis = 0))
+        bootstrapArr.append(np.mean(func(newArr),axis = 0))
 
     bootstrapArr = np.asarray(bootstrapArr)
 
     return (np.mean(bootstrapArr,axis = 0), np.std(bootstrapArr,axis = 0))
     #return (np.mean(arr,axis = 0), np.std(arr,axis = 0))
 
-def jackknife(arr, nBlock=10):
-    nSamples = int(len(arr) / nBlock)
+def jackknife(arr, nSamples=10, func = lambda x: x):
+    nBlock = int(len(arr) / nSamples)
     arr = np.asarray(arr)
     random.seed()
     bootstrapArr = []
     count = 0
-    thetaBar = np.mean(arr, axis=0)
+    thetaBar = np.mean(func(arr), axis=0)
     sigma2 = np.zeros(1 if len(np.shape(arr)) == 1 else np.shape(arr[0,:]), dtype=arr.dtype)
     for n in range(nSamples):
-        newArr = np.concatenate((arr[:count], arr[count+nBlock:]))
+        newArr = func(np.concatenate((arr[:count], arr[count+nBlock:])))
         bootstrapArr.append(np.mean(newArr,axis = 0))
         count+=nBlock
         sigma2 += (bootstrapArr[-1] - thetaBar)**2
@@ -189,7 +189,20 @@ class ConfResults:
         
         self.data_format = data_format
         
+        self.akeys = dict()
         self.wkeys = dict()
+        
+        self.akeys["phi0"] = 0
+        self.akeys["dsigma"] = 0
+        self.akeys["phi1"] = 1
+        self.akeys["phi2"] = 2
+        self.akeys["phi3"] = 3
+        self.akeys["A1"] = 4
+        self.akeys["A2"] = 5
+        self.akeys["A3"] = 6
+        self.akeys["V1"] = 7
+        self.akeys["V2"] = 8
+        self.akeys["V3"] = 9
         
         if self.data_format == "old":
             self.wkeys["phi0"] = "wallX_phi_0"
@@ -204,17 +217,8 @@ class ConfResults:
             self.wkeys["V2"] = "wallX_phi_8"
             self.wkeys["V3"] = "wallX_phi_9"
         else:
-            self.wkeys["phi0"] = 0
-            self.wkeys["dsigma"] = 0
-            self.wkeys["phi1"] = 1
-            self.wkeys["phi2"] = 2
-            self.wkeys["phi3"] = 3
-            self.wkeys["A1"] = 4
-            self.wkeys["A2"] = 5
-            self.wkeys["A3"] = 6
-            self.wkeys["V1"] = 7
-            self.wkeys["V2"] = 8
-            self.wkeys["V3"] = 9
+            self.wkeys = self.akeys.copy()
+            
         
         #The results are stored in dictionnary, to have a generic way to code between the different fields.
         
@@ -222,6 +226,10 @@ class ConfResults:
             self.directions = ["X"]
         else :
             self.directions = ["X","Y","Z"]
+        
+        self.av = dict()
+        self.meanValues = dict()
+        self.variances = dict()
         
         self.wall = dict()
         self.wallF = dict()
@@ -243,7 +251,33 @@ class ConfResults:
         self.OtOttpFourier_oms = dict()
         
         #self.momenta_3d we also define the momenta 3d below
-        
+    
+    def loadAv(self, key):
+        if not key in self.av.keys():
+            r = h5py.File(self.fn,'r')
+            self.av[key] = np.asarray(r["phi"][self.thTime:,self.akeys[key]])
+            if key == "dsigma":
+                bar = np.mean(self.av[key], axis = 0)
+                self.av[key] -= bar
+
+    
+    def computeFromMean(self, key, errFunc, func = lambda x: x):
+        if key == "phiH0":
+            self.loadAv("phi0")
+            av = self.av["phi0"]
+            for k in ["phi1", "phi2", "phi3"]:
+                self.loadAv(k)
+                av += self.av[k]
+            return  StatResult(errFunc(av / 4.0, func = func))
+        else: 
+            self.loadAv(key)
+            return  StatResult(errFunc(self.av[key], func = func))
+            
+    def computeMean(self, key, errFunc):
+        self.meanValues[key] = self.computeFromMean(key, errFunc, func = lambda x : x)            
+    def computeVar(self, key, errFunc):
+        self.variances[key] = self.computeFromMean(key, errFunc, func = lambda x : x**2 - np.mean(x)**2)
+    
     def loadWall(self,key, direc):
         r = h5py.File(self.fn,'r')
         try :
@@ -289,7 +323,7 @@ class ConfResults:
     #Computes the time correlator of a given key.
     #TODO: For now, compute only from one direction in fourier for all modes. Need to include other direction for non-zero k for better stat.
     def computeOtOtpBlocked(self, key, tMax, blockSizeT, errFunc, momNum = 0, conn = False):
-        if not key in self.OtOttp_blocks.keys():
+        if not key in self.OtOttp_blocks.keys() or True:
             if key != "phi0":
                 keys = [key + str(i) for i in [1,2,3]]
                 for k in keys:
@@ -306,7 +340,7 @@ class ConfResults:
             nTMax = int(np.floor(tMax / self.dt))
             blockSize = int(np.floor(blockSizeT / self.dt))
 
-            self.OtOttp_blocks[key] = computeBlockedOtOtp(av,av,nTMax, blockSize, decim = 1, conn = conn)
+            self.OtOttp_blocks[key] = computeBlockedOtOtp(av,np.conj(av),nTMax, blockSize, decim = 1, conn = conn)
        
         self.OtOttp[key] = StatResult(errFunc(self.OtOttp_blocks[key]))
         
@@ -334,14 +368,14 @@ class ConfResults:
             for k in keys:
                 for d in self.directions:
                     tmp += self.wallF[d][k] * np.conj(self.wallF[d][k])
-            tmp /= 3.0 / float(len(self.directions))
+            tmp /= (float(len(keys)) * float(len(self.directions)))
         else:
             for d in self.directions:
                     self.computeWallFourier(key, d, decim)
             tmp = np.zeros(np.shape(self.wallF["X"][key]), dtype = self.wallF["X"][key].dtype)
             for d in self.directions:
                 tmp += self.wallF[d][key] * np.conj(self.wallF[d][key])
-            tmp /= 3.0 / float(len(self.directions))
+            tmp /= float(len(self.directions))
 
         self.wallFProp[key] = StatResult(errFunc(tmp))
 
