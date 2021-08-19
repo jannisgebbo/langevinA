@@ -86,7 +86,7 @@ class FitResult:
         self.ndof= len(self.data.OtOttpFourier_oms["A"])-3
         self.averegechi2=self.AAfit.fval
         self.averegechi2reduce=self.AAfit.fval /self.ndof
-        return (self.averegechi2,self.averegechi2reduce,self.ndof)
+        return (self.averegechi2,self.averegechi2reduce,self.ndof,self.AAPPfit.values)
         
     
     def fitPP(self):
@@ -101,7 +101,7 @@ class FitResult:
         self.ndof= len(self.data.OtOttpFourier_oms["phi"])-3
         self.averegechi2=self.PPfit.fval
         self.averegechi2reduce=self.AAPPfit.fval/self.ndof
-        return (self.averegechi2,self.averegechi2reduce,self.ndof)
+        return (self.averegechi2,self.averegechi2reduce,self.ndof,self.PPfit.values)
         
     def fitAAPP(self):
         self.AAPPfit=Minuit(lambda x: self.chisquareaxialphi(x), (self.par["mp"],self.par["ampPhi"],self.par["ampCharge"],self.par["gammap"]),name=("mp","amplitudephi","amplitudecharge","gammap"))
@@ -116,7 +116,7 @@ class FitResult:
         self.ndof= len(self.data.OtOttpFourier_oms["phi"])+len(self.data.OtOttpFourier_oms["A"])-4
         self.averegechi2=self.AAPPfit.fval
         self.averegechi2reduce=self.AAPPfit.fval/self.ndof
-        return (self.averegechi2,self.averegechi2reduce,self.ndof)
+        return (self.averegechi2,self.averegechi2reduce,self.ndof,self.AAPPfit.values)
         
         
     def AApplot(self,mp=None,amplitudecharge=None,gammap=None):
