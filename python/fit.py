@@ -41,25 +41,38 @@ class FitResult:
         
     def chisquareaxial(self,parameter):
         (mp,amplitudecharge,gammap)=parameter
-        expdata=np.real(self.data.OtOttpSpecFunc_mean["A"])
-        prediction=axialprop(self.data.OtOttpSpecFunc_oms["A"],mp,amplitudecharge,gammap)
-        error= np.real(self.data.OtOttpSpecFunc_err["A"])
+        expdata=np.real(self.data.OtOttpFourier["A"].mean)
+        prediction=axialprop(self.data.OtOttpFourier_oms["A"],mp,amplitudecharge,gammap)
+        error= np.real(self.data.OtOttpFourier["A"].err)
         z = (expdata - prediction) / error
         return np.sum(np.square(z))
     
     def chisquarphi(self,parameter):
         (mp,amplitudephi,gammap)=parameter
-        expdata=np.real(self.data.OtOttpSpecFunc_mean["phi"])
-        prediction=phiprop(self.data.OtOttpSpecFunc_oms["phi"],mp,amplitudephi,gammap)
-        error= np.real(self.data.OtOttpSpecFunc_err["phi"])
+        expdata=np.real(self.data.OtOttpFourier["phi"].mean)
+        prediction=phiprop(self.data.OtOttpFourier_oms["phi"],mp,amplitudephi,gammap)
+        error= np.real(self.data.OtOttpFourier["phi"].err)
         z = (expdata - prediction) / error
+        return np.sum(np.square(z))
+        
+        
+    def chisquareaxialphi(self,parameter):
+        (mp,amplitudephi,amplitudecharge,gammap)=parameter
+        expdata=np.real(self.data.OtOttpFourier["A"].mean)
+        prediction=axialprop(self.data.OtOttpFourier_oms["A"],mp,amplitudecharge,gammap)
+        error= np.real(self.data.OtOttpFourier["A"].err)
+        z = (expdata - prediction) / error
+        expdata=np.real(self.data.OtOttpFourier["phi"].mean)
+        prediction=phiprop(self.data.OtOttpFourier_oms["phi"],mp,amplitudephi,gammap)
+        error= np.real(self.data.OtOttpFourier["phi"].err)
+        z+=(expdata - prediction) / error
         return np.sum(np.square(z))
     
     def modelaxial(self):
-        return axialprop(self.data.OtOttpSpecFunc_oms["A"],self.par["mp"],self.par["ampCharge"],self.par["gammap"])
+        return axialprop(self.data.OtOttpFourier_oms["A"],self.par["mp"],self.par["ampCharge"],self.par["gammap"])
         
     def modelphi(self):
-        return phiprop(self.data.OtOttpSpecFunc_oms["phi"],self.par["mp"],self.par["ampPhi"],self.par["gammap"])
+        return phiprop(self.data.OtOttpFourier_oms["phi"],self.par["mp"],self.par["ampPhi"],self.par["gammap"])
     
     def fitAA(self):
         self.AAfit=Minuit(lambda x: self.chisquareaxial(x), (self.par["mp"],self.par["ampCharge"],self.par["gammap"]),name=("mp","amplitudecharge","gammap"))
@@ -70,6 +83,10 @@ class FitResult:
         self.par["mp"]=self.AAfit.values[0]
         self.par["ampCharge"]=self.AAfit.values[1]
         self.par["gammap"]=self.AAfit.values[2]
+        self.ndof= len(self.data.OtOttpFourier_oms["A"])-3
+        self.averegechi2=self.AAfit.fval
+        self.averegechi2reduce=self.AAfit.fval /self.ndof
+        return (self.averegechi2,self.averegechi2reduce,self.ndof,self.AAPPfit.values)
         
     
     def fitPP(self):
@@ -81,6 +98,26 @@ class FitResult:
         self.par["mp"]=self.PPfit.values[0]
         self.par["ampPhi"]=self.PPfit.values[1]
         self.par["gammap"]=self.PPfit.values[2]
+        self.ndof= len(self.data.OtOttpFourier_oms["phi"])-3
+        self.averegechi2=self.PPfit.fval
+        self.averegechi2reduce=self.AAPPfit.fval/self.ndof
+        return (self.averegechi2,self.averegechi2reduce,self.ndof,self.PPfit.values)
+        
+    def fitAAPP(self):
+        self.AAPPfit=Minuit(lambda x: self.chisquareaxialphi(x), (self.par["mp"],self.par["ampPhi"],self.par["ampCharge"],self.par["gammap"]),name=("mp","amplitudephi","amplitudecharge","gammap"))
+        self.AAPPfit.errordef = Minuit.LEAST_SQUARES
+        self.AAPPfit.limits=[(0, None), (0, None),(0, None),(0, None)]
+        self.AAPPfit.migrad()
+        self.AAPPfit.minos()
+        self.par["mp"]=self.AAPPfit.values[0]
+        self.par["ampPhi"]=self.AAPPfit.values[1]
+        self.par["ampCharge"]=self.AAPPfit.values[2]
+        self.par["gammap"]=self.AAPPfit.values[3]
+        self.ndof= len(self.data.OtOttpFourier_oms["phi"])+len(self.data.OtOttpFourier_oms["A"])-4
+        self.averegechi2=self.AAPPfit.fval
+        self.averegechi2reduce=self.AAPPfit.fval/self.ndof
+        return (self.averegechi2,self.averegechi2reduce,self.ndof,self.AAPPfit.values)
+        
         
     def AApplot(self,mp=None,amplitudecharge=None,gammap=None):
         if mp is not None:
@@ -89,8 +126,8 @@ class FitResult:
             self.par["ampCharge"]=amplitudecharge
         if gammap is not None:
             self.par["gammap"]=  gammap
-        plt.errorbar(self.data.OtOttpSpecFunc_oms["A"], self.data.OtOttpSpecFunc_mean["A"], self.data.OtOttpSpecFunc_err["A"])
-        plt.plot(self.data.OtOttpSpecFunc_oms["A"],self.modelaxial())
+        plt.errorbar(self.data.OtOttpFourier_oms["A"], self.data.OtOttpFourier["A"].mean, self.data.OtOttpFourier["A"].err)
+        plt.plot(self.data.OtOttpFourier_oms["A"],self.modelaxial())
         
         
     def PPpplot(self,mp=None,amplitudephi=None,gammap=None):
@@ -100,8 +137,8 @@ class FitResult:
             self.par["ampPhi"]=amplitudephi
         if gammap is not None:
             self.par["gammap"]=gammap
-        plt.errorbar(self.data.OtOttpSpecFunc_oms["phi"], self.data.OtOttpSpecFunc_mean["phi"], self.data.OtOttpSpecFunc_err["phi"])
-        plt.plot(self.data.OtOttpSpecFunc_oms["phi"],self.modelphi())
+        plt.errorbar(self.data.OtOttpFourier_oms["phi"], self.data.OtOttpFourier["phi"].mean, self.data.OtOttpFourier["phi"].err)
+        plt.plot(self.data.OtOttpFourier_oms["phi"],self.modelphi())
             
 
     
