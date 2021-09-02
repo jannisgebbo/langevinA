@@ -86,7 +86,7 @@ class FitResult:
         self.ndof= len(self.data.OtOttpFourier_oms["A"])-3
         self.averegechi2=self.AAfit.fval
         self.averegechi2reduce=self.AAfit.fval /self.ndof
-        return (self.averegechi2,self.averegechi2reduce,self.ndof,self.AAPPfit.values)
+        return (self.averegechi2,self.averegechi2reduce,self.ndof,self.AAfit.values)
         
     
     def fitPP(self):
@@ -100,7 +100,7 @@ class FitResult:
         self.par["gammap"]=self.PPfit.values[2]
         self.ndof= len(self.data.OtOttpFourier_oms["phi"])-3
         self.averegechi2=self.PPfit.fval
-        self.averegechi2reduce=self.AAPPfit.fval/self.ndof
+        self.averegechi2reduce=self.PPfit.fval/self.ndof
         return (self.averegechi2,self.averegechi2reduce,self.ndof,self.PPfit.values)
         
     def fitAAPP(self):

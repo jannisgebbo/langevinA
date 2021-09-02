@@ -3,7 +3,7 @@ import time
 
 if __name__ == '__main__':
     hs = ["003000"]
-    fn = "../data/z1p214_N080_m-0471156_h003000_c00500.h5"
+    fn = "../data/zminus2_N080_m-0501265_h036840_c00500.h5"
     dt = 0.8
     
     print(fn)

@@ -462,7 +462,7 @@ class ConfResults:
 
         self.wallFProp[key] = StatResult(errFunc(tmp))
         
-    def getObs(self, obs, key, withX = True):
+    def getObs(self, obs, key, withX = True, withY = True):
         if obs == "OtOttp":
             x = self.OtOttp_time[key]
             y = self.OtOttp[key]
@@ -472,10 +472,12 @@ class ConfResults:
         elif obs == "propagator":
             x = self.momenta_3d
             y = self.wallFProp[key]
-        if withX == True:
+        if withX == True and withY ==True:
             return (x, y)
-        else:
+        elif withY == True and withX == False:
             return y
+        else:
+            return x
         
     def getDataFn(self, obs, key, direc):
         return direc + "/" + self.tag + "_" + obs + "_" + key + ".txt"
@@ -510,16 +512,16 @@ class Plotter:
     def __init__(self):
         return
 
-    def plot(self, confRes, obs, key, xfact = 1.0, yfact = 1.0):
+    def plot(self, confRes, obs, key, xfact = 1.0, yfact = 1.0, imOrReal = np.real):
         x,y = confRes.getObs(obs, key, withX = True)
-        self.errorplot(xfact * x, y, yfact = yfact)
+        self.errorplot(xfact * x, y, yfact = yfact, imOrReal = imOrReal)
         
 
-    def errorplot(self, x, statobj, yfact):
+    def errorplot(self, x, statobj, yfact, imOrReal = np.real):
         #plt.errorbar(x, yfact * statobj.mean, yfact * statobj.err)
-        plt.plot(x, yfact * statobj.mean,'-')
-        plt.fill_between(x, (np.asarray(yfact * statobj.mean) - np.asarray(yfact * statobj.err)),
-            (np.asarray(yfact * statobj.mean) + np.asarray(yfact * statobj.err)), linewidth=0, zorder=1)
+      #  plt.plot(x, yfact * imOrReal(statobj.mean),'-')
+        plt.fill_between(x, (np.asarray(yfact * imOrReal(statobj.mean)) - np.asarray(yfact * imOrReal(statobj.err))),
+            (np.asarray(yfact * imOrReal(statobj.mean)) + np.asarray(yfact * imOrReal(statobj.err))), linewidth=0, zorder=1)
 
 ''' Deprecated, keep for the idea. Would be better o use the block structure above though.
 class EnsembleResults:
