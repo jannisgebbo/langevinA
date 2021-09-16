@@ -3,21 +3,61 @@ import time
 
 if __name__ == '__main__':
     hs = ["003000"]
-    fn = "../data/zminus2_N080_m-0501265_h036840_c00500.h5"
+    fn1 = "../data/zminus2_N080_m-0501265_h003684_c00500.h5"
+    fn2 = "../data/zplus_N080_m-0445648_h003684_c00500.h5"
+    fn3 = "../data/zcritical_N080_m-0481100_h002000_c00500.h5"
+    fn4 = "../data/zcritical_N080_m-0481100_h004000_c00500.h5"
+    fn5 = "../data/zcritical_N080_m-0481100_h006000_c00500.h5"
+    fn6 = "../data/zcritical_N080_m-0481100_h010000_c00500.h5"
+    fn7 = "../data/zpseudocritical_N080_m-0470052_h003000_c00500.h5"
+    fn8 = "../data/z1p214_N080_m-0471156_h003000_c00500.h5"
+    fn9 = "../data/z1p2815_N080_m-0470604_h003000_c00500.h5"
+    fn10 = "../data/z1p079_N080_m-0472261_h003000_c00500.h5"
+    fn11 = "../data/z0p944_N080_m-0473366_h003000_c00500.h5"
+    fn12 = "../data/zm4p75_N080_m-0520000_h003000_c00500.h5"
+    fns = [fn1, fn2,fn3,fn4,fn5,fn6,fn7,fn8,fn9,fn10, fn11, fn12]
+    fns = [fn1]
+    #fns = [fn1,fn3, fn4, fn5, fn6,fn7, fn8, fn9, fn10, fn11]
+
     dt = 0.8
+    dec = 50
     
-    print(fn)
+    for fn in fns:
+        print(fn)
     
-    t0 = time.time()
+        t0 = time.time()
 
-    for k in ["A", "phi", "V", "phi0"]:
-    	 data = ConfResults(fn = fn,thTime=1000,dt=dt,  data_format="new")
-    	 data.computeOtOtpBlocked(k, momNum = 0, tMax = 5000.0, blockSizeT = 20000.0,  errFunc = lambda x : bootstrap(x,50), parallel=True)
+        for k in ["dsigma"]:
+        #for k in ["dsigma", "phi", "V"]:
+    	     data = ConfResults(fn = fn,thTime=10000,dt=dt,  data_format="new")
+    	     data.computeOtOtpBlocked(k, momNum = 0, tMax = 5000.0, nBlocks = 5,  decim = dec, errFunc = lambda x : (np.mean(x, axis = 0), np.std(x, axis = 0)), parallel=True)
     
-    	 data.computeStatisticalCor(k, omMax=0.1, errFunc=lambda x: bootstrap(x,100), filterFunc=lambda x : np.exp(-x / 3000.0))
-    	 print(time.time() - t0)
+    	     data.computeStatisticalCor(k, omMax=0.1, errFunc=lambda x: (np.mean(x, axis = 0), np.std(x, axis = 0)), filterFunc=lambda x : np.exp(-x / 2000.0))
+    	     #data.computeFourierPropagator(k, decim=dec, errFunc = lambda x: blocking(x,5))
+    	     print(time.time() - t0)
 
     
-    	 data.save("OtOttp",k)    
-    	 data.save("OtOttp_blocks",k)    
-    	 data.save("OtOttpFourier", k)
+    	     data.save("OtOttp",k)    
+    	     data.save("OtOttp_blocks",k)    
+    	     data.save("OtOttpFourier", k)
+    	     #data.save("propagator", k)
+
+#    for fn in [fn2]:
+#        print(fn)
+    
+#        t0 = time.time()
+
+#        for k in ["A", "V"]:
+        #for k in ["dsigma", "phi", "A"]:
+#    	     data = ConfResults(fn = fn,thTime=10000,dt=dt,  data_format="new")
+#    	     data.computeOtOtpBlocked(k, momNum = 0, tMax = 10000.0, nBlocks = 5,  decim = dec, errFunc = lambda x : (np.mean(x, axis = 0), np.std(x, axis = 0)), parallel=True)
+    
+#    	     data.computeStatisticalCor(k, omMax=0.1, errFunc=lambda x: (np.mean(x, axis = 0), np.std(x, axis = 0)), filterFunc=lambda x : np.exp(-x / 2000.0))
+    	     #data.computeFourierPropagator(k, decim=dec, errFunc = lambda x: blocking(x,5))
+#    	     print(time.time() - t0)
+
+    
+#    	     data.save("OtOttp",k)    
+#    	     data.save("OtOttp_blocks",k)    
+#   	     data.save("OtOttpFourier", k)
+    	     #data.save("propagator", k)

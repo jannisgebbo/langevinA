@@ -4,6 +4,9 @@ import numpy as np
 from numpy import linalg as LA
 from copy import deepcopy
 import matplotlib.pyplot as plt
+import matplotlib.style as style
+from scipy.interpolate import InterpolatedUnivariateSpline
+
 
 import multiprocessing as mp
 
@@ -19,19 +22,26 @@ class StatResult:
     def rescale(self, fact):
         self.mean *= fact
         self.err *= fact
-    def save_to_txt(self, fn, x = None):
+    def save_to_txt(self, fn, x = None, fmt = "python", decim = 1, tMin = 0, tMax = None, yfact = 1):
         if(len(np.shape(x)) == 0 and x==None):
-            np.savetxt(fn, np.column_stack([
-                (self.mean + 0.0j).view(float).reshape(-1, 2),
-                (self.err + 0.0j).view(float).reshape(-1, 2),
-            ]))        
+            toSave = np.column_stack([
+                (yfact * self.mean[tMin:tMax:decim] + 0.0j).view(float).reshape(-1, 2),
+                (yfact * self.err[tMin:tMax:decim] + 0.0j).view(float).reshape(-1, 2),
+            ])
+            if fmt == "python" or fmt == "gnuplot": 
+                np.savetxt(fn, toSave)
+            elif fmt == "latex":
+                np.savetxt(fn, toSave, header = "rey imy errrey errimy", comments = '')
         else:
-            #np.savetxt(fn, np.transpose([x, self.mean, self.err]),fmt='%s')
-            np.savetxt(fn, np.column_stack([
-                x,
-                (self.mean + 0.0j).view(float).reshape(-1, 2),
-                (self.err + 0.0j).view(float).reshape(-1, 2),
-            ]))
+            toSave = np.column_stack([
+                x[tMin:tMax:decim],
+                (yfact * self.mean[tMin:tMax:decim] + 0.0j).view(float).reshape(-1, 2),
+                (yfact * self.err[tMin:tMax:decim] + 0.0j).view(float).reshape(-1, 2),
+            ])
+            if fmt == "python" or fmt == "gnuplot":
+                np.savetxt(fn, toSave)
+            elif fmt == "latex":
+                np.savetxt(fn, toSave, header = "x rey imy errrey errimy", comments = '')
             
 def load_StatResult_from_txt(fn, withX = False):
     if withX:
@@ -79,48 +89,107 @@ def jackknife(arr, nSamples=10, func = lambda x: x):
     return (np.mean(bootstrapArr,axis = 0), np.sqrt((nSamples -1.0)/nSamples * sigma2))
     #return (np.mean(arr,axis = 0), np.std(arr,axis = 0))
 
+def blocking(arr, nBlock=10, func = lambda x: x):
+    blockSize = int(len(arr) / nBlock)
+    arr = np.asarray(arr)
+    blocks = []
+    count = 0
+    for n in range(nBlock):
+        blocks.append(np.mean(arr[n * blockSize: (n+1) * blockSize], axis = 0))
     
-def blockedBootstrap(arr, nSamplesJ=10, nSamplesB=10, func = lambda x: x):
-    nBlock = int(len(arr) / nSamplesJ)
+    return (np.mean(np.asarray(blocks),axis = 0), np.std(np.asarray(blocks),axis = 0))
+ 
+
+def blockedBootstrap(arr, nBlock=10, nSamples=100, func = lambda x: x):
+    blockSize = int(len(arr) / nBlock)
     arr = np.asarray(arr)
     random.seed()
-    jackknifeArr = []
+    blocks = []
     count = 0
-    thetaBar = np.mean(func(arr), axis=0)
-    sigma2 = np.zeros(1 if len(np.shape(arr)) == 1 else np.shape(arr[0,:]), dtype=arr.dtype)
-    for n in range(nSamplesJ):
-        newArr = func(np.concatenate((arr[:count], arr[count+nBlock:])))
-        jackknifeArr.append(np.mean(newArr,axis = 0))
-        count+=nBlock
+    for n in range(nBlock):
+        blocks.append(arr[n * blockSize: (n+1) * blockSize])
 
-    jackknifeArr = np.asarray(jackknifeArr)
-    
 
-    
-    return bootstrap(jackknifeArr, nSamplesB, lambda x : x)
-    
-    
-def autocorrelationFunction(arr):
-    mean2 = np.mean(arr,axis = 0)**2
-    X2 = np.mean(arr**2,axis = 0)
-    newArr = np.zeros(np.shape(arr), dtype=arr.dtype)
-    N = len(arr)
-    for t in range(N):
-        for i in range(N-t):
-            newArr[t] += arr[i] * arr[i+t]
-        newArr[t]/=float(N-t)
-        newArr[t] = (newArr[t] - mean2) / (X2 - mean2)
-    print(X2)
-    return  newArr
+    bootstrapArr = []
+    for n in range(nSamples):
+        newArr = []
+        for l in range(nBlock):
+            newArr.append(blocks[random.randrange(0,nBlock)])
+        bootstrapArr.append(np.mean(np.mean(func(newArr),axis = 0), axis=0))
+
+    bootstrapArr = np.asarray(bootstrapArr)
+
+    return (np.mean(bootstrapArr,axis = 0), np.std(bootstrapArr,axis = 0))
+ 
+
+# Adapted from Hauke Sandmeyer's routines. (AF)
+def autocorrelationFunction(data, tmax=1000, startvalue=0):
+    int_corr = 0.5
+    sq_sum = 0.0
+
+    corr_arr = []
+
+
+    norm = np.sum((data - np.mean(data,axis=0))**2)
+
+    mean = np.mean(data,axis=0)
+
+    for t in range(0, tmax):
+        corr = 0.0
+        for i in range(startvalue, len(data) - t):
+            corr += (data[i] - mean) * (data[i + t] - mean)
+        corr /= norm
+        corr_arr.append(corr)
+
+    return corr_arr
+
         
-#def intAutocorrrelationTime(arr):
-#    Ct = autocorrelationFunction(arr)
-#    res = 0.5
-#    count = 0
-    #while count < 5 * res:
-      #  res+=
+def intAutocorrrelationTime(arr, tmax = 1000, startvalue = 0, nMax = -1):
+    Ct = autocorrelationFunction(arr[:nMax], tmax, startvalue)
+    res = 0.5
+    count = 0
+    while float(count) < 5 * res and count < len(Ct) / 2.0:
+        res += Ct[count]
+        count += 1
+    return res
+
+# We don't need necessarily need the whole statistics to evaluate the autocorrelation time, nMax is the number of points we should use.
+def autocorrelatedErr(arr, tmax = 1000, startvalue = 0, nMax = -1):
+    mean = np.mean(arr, axis = 0)
+    naiveErr = np.std(arr, axis = 0)
+    tau = intAutocorrrelationTime(arr, tmax, startvalue, nMax)
+    return (mean, np.sqrt(2.0 * tau) * naiveErr)
+
+
+
 
 # Compute the correlator in time between arr1 and arr2. Can also substract the connected part.
+def computeOtOtpRaw(arr1, arr2, statFunc, conn=False, nTMax=-1, decim=1):
+    Npoints = len(arr1)
+    if nTMax==-1:
+        nTMax=Npoints
+        
+    
+    Cttp = np.zeros(nTMax, dtype=type(arr1[0]))
+    CttpErr = np.zeros(nTMax, dtype=type(arr1[0]))
+    
+    av1 = np.mean(arr1)
+    av2 = np.mean(arr2)
+    # Points over which we do the time average
+
+    for tt in range(nTMax): #tt is the time difference
+        counter = 0
+        nStarts = list(range(0, Npoints - tt, decim))
+        tmpArr = np.zeros(len(nStarts), dtype=type(arr1[0]))
+        
+        for t0 in nStarts: # t0 is the origin
+            tmpArr[counter] = arr1[t0 + tt] * arr2[t0]
+            if conn:
+                tmpArr[counter] -= av1 * av2
+            counter += 1    
+    return tmpArr
+
+
 def computeOtOtp(arr1, arr2, statFunc, conn=False, nTMax=-1, decim=1):
     Npoints = len(arr1)
     if nTMax==-1:
@@ -147,6 +216,8 @@ def computeOtOtp(arr1, arr2, statFunc, conn=False, nTMax=-1, decim=1):
         Cttp[tt], CttpErr[tt] = statFunc(tmpArr)
     
     return Cttp, CttpErr
+
+
 
 
 
@@ -180,15 +251,15 @@ def computeParallelBlockedOtOtp(arr1, arr2, nTMax, steps, decim=1, conn=False, n
 
 # "Slow" fourier transform in time. Used only for the one in time. Can apply a filter
 def ft(om, dt, arr2, filterFunc = lambda x : 1):
-    tmp = 0.0
-    for i in range(len(arr2)):
+    tmp =  arr2[0] * filterFunc(0) * dt
+    for i in range(1,len(arr2)):
         t = i * dt
-        tmp += arr2[i] * np.exp(1j * om * t) * filterFunc(t)
+        tmp += 2.0 * arr2[i] * np.cos(om * t) * filterFunc(t) * dt
     return tmp
 
 # transform a whole array to fourier space, with optimal sampling and up to oMax
-def toFourier(arr, dt, omMax, filterFunc = lambda x : 1):
-    tMax= len(arr)*dt
+def toFourier(arr, dt, omMax, myTmax = -1, filterFunc = lambda x : 1):
+    tMax=  len(arr)*dt if myTmax ==-1 else myTmax
     omegaIR = 2.0 * np.pi / tMax
     oms = np.arange(0, omMax, omegaIR)
     res = []
@@ -206,17 +277,45 @@ def symmetrizeArray(arr, sym = 1):
         res[i] = arr[i - len(arr) + 1]
     return res
 
+
+def quadratic_spline_roots(spl):
+    roots = []
+    knots = spl.get_knots()
+    for a, b in zip(knots[:-1], knots[1:]):
+        u, v, w = spl(a), spl((a+b)/2), spl(b)
+        t = np.roots([u+w-2*v, w-u, 2*v])
+        t = t[np.isreal(t) & (np.abs(t) <= 1)]
+        roots.extend(t*(b-a)/2 + (b+a)/2)
+    return np.array(roots)
+
+def findMin(x_axis, y_axis):#https://stackoverflow.com/a/50373953
+    f = InterpolatedUnivariateSpline(x_axis, y_axis, k=3)
+    cr_pts = quadratic_spline_roots(f.derivative())    
+    cr_pts = np.append(cr_pts, (x_axis[0], x_axis[-1]))  # also check the endpoints of the interval
+    cr_vals = f(cr_pts)
+    return cr_pts[np.argmin(cr_vals)]
+
+def findMax(x_axis, y_axis):#https://stackoverflow.com/a/50373953
+    f = InterpolatedUnivariateSpline(x_axis, y_axis, k=3)
+    cr_pts = quadratic_spline_roots(f.derivative())    
+    cr_pts = np.append(cr_pts, (x_axis[0], x_axis[-1]))  # also check the endpoints of the interval
+    cr_vals = f(cr_pts)
+    return cr_pts[np.argmax(cr_vals)]
+
 #Compute the Fourier transform over blocks of data.
-def toFourierBlocked(arr, dt, omMax, errFunc, filterFunc = lambda x : 1):
+def toFourierBlocked(arr, dt, omMax, errFunc, myTmax=-1, filterFunc = lambda x : 1):
     length = len(arr)
     res = []
+    resMaxOm = []
     for i in range(length):
-        oms, tmp = toFourier(arr[i], dt, omMax, filterFunc)
+        oms, tmp = toFourier(arr[i], dt, omMax, myTmax, filterFunc)
         res.append(tmp)
+        #resMaxOm.append(oms[np.argmax(tmp)])
+        resMaxOm.append(findMax(oms,tmp))
     f, ferr = errFunc(np.asarray(res))
     
     
-    return (symmetrizeArray(oms,-1), StatResult((symmetrizeArray(f),symmetrizeArray(ferr))))
+    return (symmetrizeArray(oms,-1), StatResult((symmetrizeArray(f),symmetrizeArray(ferr))), resMaxOm)
 
 
 
@@ -252,11 +351,14 @@ def twoPtAv(arr):
 
 #Work in proigress, store the results and call the corersponding measurements in a user friendly way.
 class ConfResults:
-    def __init__(self,fn, thTime , dt, data_format ="new"):
+    def __init__(self,fn, thTime , dt, data_format ="new", processedDir = './', plotDir = './'):
         self.fn = fn
         self.tag = self.fn.split('.')[-2].split('/')[-1]
         self.thTime = thTime
         self.dt = dt
+        
+        self.processedDir = processedDir
+        self.plotDir = plotDir
         
         self.data_format = data_format
         
@@ -268,6 +370,9 @@ class ConfResults:
         self.akeys["phi1"] = 1
         self.akeys["phi2"] = 2
         self.akeys["phi3"] = 3
+        self.akeys["dphi1"] = 1
+        self.akeys["dphi2"] = 2
+        self.akeys["dphi3"] = 3
         self.akeys["A1"] = 4
         self.akeys["A2"] = 5
         self.akeys["A3"] = 6
@@ -281,6 +386,9 @@ class ConfResults:
             self.wkeys["phi1"] = "wallX_phi_1"
             self.wkeys["phi2"] = "wallX_phi_2"
             self.wkeys["phi3"] = "wallX_phi_3"
+            self.wkeys["dphi1"] = "wallX_phi_1"
+            self.wkeys["dphi2"] = "wallX_phi_2"
+            self.wkeys["dphi3"] = "wallX_phi_3"
             self.wkeys["A1"] = "wallX_phi_4"
             self.wkeys["A2"] = "wallX_phi_5"
             self.wkeys["A3"] = "wallX_phi_6"
@@ -321,6 +429,7 @@ class ConfResults:
         #self.OtOttpFourier_blocks = dict()
         self.OtOttpFourier = dict()
         self.OtOttpFourier_oms = dict()
+        self.OtOttpFourier_omspeak_blocks = dict()
         
         #self.momenta_3d we also define the momenta 3d below
     
@@ -354,7 +463,9 @@ class ConfResults:
         self.o2[key] = self.computeFromMean(key, errFunc, func = lambda x : x**2)
        
     
-    def loadWall(self,key, direc):
+    def loadWall(self,key, direc = None):
+        if direc == None:
+            direc = self.processedDir
         r = h5py.File(self.fn,'r')
         try :
             if not (direc == "X" or  (self.data_format != "old" and self.data_format != "semiold")) :
@@ -365,8 +476,9 @@ class ConfResults:
                 elif self.data_format == "semiold":
                     self.wall[direc][key] = np.asarray(r["corrx"])[self.thTime:,self.wkeys[key],:] 
                 else:
-                    self.wall[direc][key] = np.asarray(r["wall{}".format(direc.lower())])[self.thTime:,self.wkeys[key],:]
-                if key == "dsigma":
+                    if not key in self.wall[direc].keys():
+                        self.wall[direc][key] = np.asarray(r["wall{}".format(direc.lower())])[self.thTime:,self.wkeys[key],:]
+                if key == "dsigma" or key == "dphi1" or key == "dphi2" or key == "dphi3":
                     self.wall[direc][key] -= np.mean(np.mean(self.wall[direc][key], axis = 0))
                 
         except:
@@ -395,51 +507,73 @@ class ConfResults:
             self.wallF[direc][key][c] = np.fft.fft(self.wall[direc][key][t]) / Nx
             c += 1
         self.momenta_3d = np.asarray([ 2.0 * np.pi / float(Nx) * n for n in range(Nx)])
-            
+
     #Computes the time correlator of a given key.
     #TODO: For now, compute only from one direction in fourier for all modes. Need to include other direction for non-zero k for better stat.
-    def computeOtOtpBlocked(self, key, tMax, blockSizeT, errFunc, momNum = 0, conn = False, parallel = False):
+    def computeOtOtpBlocked(self, key, tMax, nBlocks, errFunc, decim = 1, momNum = 0, conn = False, parallel = False):
+        nTMax = int(np.floor(tMax / self.dt))
+        
+        #blockSize = int(np.floor(blockSizeT / self.dt))
+
         if not key in self.OtOttp_blocks.keys():
-            if key != "phi0":
+            if key != "phi0" and key != "dsigma":
                 keys = [key + str(i) for i in [1,2,3]]
+                # Compute the spatial fourier transform
                 for k in keys:
                     self.computeWallFourier(k,"X")
+                    
+                #Get volume from the length of the vector and the maximum time as an integer.
+                blockSize = int(len(self.wallF["X"][keys[0]][:,0]) / nBlocks)
                 V = float(len(self.wallF["X"][keys[0]][0,:])**3)
-                av = np.zeros(np.shape(self.wallF["X"][keys[0]][:,momNum]), dtype = self.wallF["X"][keys[0]][:,momNum].dtype)
-                for k in keys:
-                    av += self.wallF["X"][k][:,momNum]
-                av /= 3.0
+
+                #Compute the correlator per block. First for a given flavor index (so we don't need to worry about the shape of the array). 
+                k = keys[0]
+                if(parallel == False):
+                    self.OtOttp_blocks[key] = V * computeBlockedOtOtp(self.wallF["X"][k][:,momNum],np.conj(self.wallF["X"][k][:,momNum]),nTMax, blockSize, decim = decim, conn = conn)
+                else:
+                    self.OtOttp_blocks[key] = V * computeParallelBlockedOtOtp(self.wallF["X"][k][:,momNum],np.conj(self.wallF["X"][k][:,momNum]),nTMax, blockSize, decim = decim, conn = conn, ncpus = mp.cpu_count())
+                    
+                #Then for the remaining two directions.               
+                for i in range(1,len(keys)):
+                    #av += self.wallF["X"][k][:,momNum]
+                    k = keys[i]
+                    if(parallel == False):
+                        self.OtOttp_blocks[key] += V * computeBlockedOtOtp(self.wallF["X"][k][:,momNum],np.conj(self.wallF["X"][k][:,momNum]),nTMax, blockSize, decim = decim, conn = conn)
+                    else:
+                        self.OtOttp_blocks[key] += V * computeParallelBlockedOtOtp(self.wallF["X"][k][:,momNum],np.conj(self.wallF["X"][k][:,momNum]),nTMax, blockSize, decim = decim, conn = conn, ncpus = mp.cpu_count())
+                self.OtOttp_blocks[key] /= 3.0
             else:
+                #For scalar quantities we have only one 
                 self.computeWallFourier(key,"X")
+                blockSize = int(len(self.wallF["X"][key][:,0]) / nBlocks)
                 V = float(len(self.wallF["X"][key][0,:])**3)
-                av = self.wallF["X"][key][:,momNum]
+
+                if(parallel == False):
+                    self.OtOttp_blocks[key] = V * computeParallelOtOtp(self.wallF["X"][key][:,momNum],np.conj(self.wallF["X"][key][:,momNum]),nTMax, blockSize, decim = decim, conn = conn)
+                else:
+                    self.OtOttp_blocks[key] = V * computeParallelBlockedOtOtp(self.wallF["X"][key][:,momNum],np.conj(self.wallF["X"][key][:,momNum]),nTMax, blockSize, decim = decim, conn = conn, ncpus = mp.cpu_count())
+                
 
 
-            nTMax = int(np.floor(tMax / self.dt))
-            blockSize = int(np.floor(blockSizeT / self.dt))
-
-            if(parallel == False):
-                self.OtOttp_blocks[key] = V * computeBlockedOtOtp(av,np.conj(av),nTMax, blockSize, decim = 1, conn = conn)
-            else:
-                self.OtOttp_blocks[key] = V * computeParallelBlockedOtOtp(av,np.conj(av),nTMax, blockSize, decim = 1, conn = conn, ncpus = mp.cpu_count())
 
         #We save the average wall. To get the correlator, need to multiply by a volume factor.    
         self.OtOttp[key] = StatResult(errFunc(self.OtOttp_blocks[key]))
-        #self.OtOttp[key].rescale(V)
         
         self.OtOttp_time[key] = np.asarray([self.dt * float(i) for i in range(len(self.OtOttp[key].mean))])
+        
 
+        
     #Compute the statistical correlator of a given key.
-    def computeStatisticalCor(self, key, omMax, errFunc, filterFunc = lambda x : 1):
+    def computeStatisticalCor(self, key, omMax, errFunc, myTmax = -1, filterFunc = lambda x : 1):
         try :
             print(key in self.OtOttp_blocks.keys())
             if not (key in self.OtOttp_blocks.keys()):
                 raise ;
             else:
-                self.OtOttpFourier_oms[key],self.OtOttpFourier[key] = toFourierBlocked(self.OtOttp_blocks[key], self.dt, omMax, errFunc, filterFunc)
+                self.OtOttpFourier_oms[key],self.OtOttpFourier[key], self.OtOttpFourier_omspeak_blocks[key] = toFourierBlocked(self.OtOttp_blocks[key], self.dt, omMax, errFunc, myTmax = myTmax, filterFunc=filterFunc)
         except:
             print("the two point function in time of {} was not computed. Need to call computeOtOtpBlocked first.".format(key))
-            
+                
             
     def computeFourierPropagator(self, key, decim, errFunc):
         if key != "phi0" and key != "dsigma":
@@ -479,21 +613,37 @@ class ConfResults:
         else:
             return x
         
-    def getDataFn(self, obs, key, direc):
-        return direc + "/" + self.tag + "_" + obs + "_" + key + ".txt"
+    def getDataFn(self, obs, key, direc, tag = ''):
+        return direc + "/" + self.tag + "_" + obs + "_" + key + tag +".txt"
     
-    def save(self, obs, key, direc = "./"):
-        fn = self.getDataFn(obs, key, direc)
+    def save(self, obs, key, direc = None, fmt = "python", decim = 1, tMin = 0, tMax = None, xfact = 1, yfact = 1, tag = ''):
+        if direc == None:
+            if fmt == "python":
+                direc = self.processedDir
+            elif fmt == "gnuplot" or fmt == "latex":
+                direc = self.plotDir
+        
+        fn = self.getDataFn(obs, key, direc, tag)
+        
         if not obs=="OtOttp_blocks":
             x, y = self.getObs(obs, key)
-            y.save_to_txt(fn, x = x)
+            y.save_to_txt(fn, x = xfact * x, fmt = fmt, decim = decim, tMin = tMin, tMax = tMax, yfact = yfact)
         else:
-            file = open(fn , 'wb')
-            pickle.dump(self.OtOttp_blocks[key], file)
-            file.close()
+            if fmt == "python":
+                file = open(fn , 'wb')
+                pickle.dump(self.OtOttp_blocks[key], file)
+                file.close()
+                if decim > 1:
+                    print("Warning, decim was ignored for the blocked correlator.")
+                elif xfact != 1 or yfact != 1:
+                    print("Can't rescale blocks to save, ignore.")
+            else: 
+                print("Blocks can only be saved in fmt = python.")
         
         
-    def load(self, obs, key, direc = "./"):
+    def load(self, obs, key, direc = None):
+        if direc == None:
+            direc = self.processedDir
         fn = self.getDataFn(obs, key, direc)
         if obs == "OtOttp":
             self.OtOttp_time[key], self.OtOttp[key] = load_StatResult_from_txt(fn, withX = True)
@@ -510,18 +660,23 @@ class ConfResults:
         
 class Plotter:
     def __init__(self):
+        style.use('seaborn-paper')
         return
 
-    def plot(self, confRes, obs, key, xfact = 1.0, yfact = 1.0, imOrReal = np.real):
+    def plot(self, confRes, obs, key, xfact = 1.0, yfact = 1.0, imOrReal = np.real, band = True, tMin = 0, tMax = None, prune = 1):
         x,y = confRes.getObs(obs, key, withX = True)
-        self.errorplot(xfact * x, y, yfact = yfact, imOrReal = imOrReal)
+        self.errorplot(xfact * x, y, yfact = yfact, imOrReal = imOrReal, band = band, tMin = tMin, tMax =tMax)
         
 
-    def errorplot(self, x, statobj, yfact, imOrReal = np.real):
-        #plt.errorbar(x, yfact * statobj.mean, yfact * statobj.err)
-      #  plt.plot(x, yfact * imOrReal(statobj.mean),'-')
-        plt.fill_between(x, (np.asarray(yfact * imOrReal(statobj.mean)) - np.asarray(yfact * imOrReal(statobj.err))),
-            (np.asarray(yfact * imOrReal(statobj.mean)) + np.asarray(yfact * imOrReal(statobj.err))), linewidth=0, zorder=1)
+    def errorplot(self, x, statobj, yfact, imOrReal = np.real, band = True, tMin = 0, tMax = None, prune = 1):
+        if not band :
+            plt.errorbar(x[tMin:tMax:prune], yfact * statobj.mean[tMin:tMax:prune], yfact * statobj.err[tMin:tMax:prune])
+        else:
+            plt.plot(x[tMin:tMax:prune], yfact * imOrReal(statobj.mean[tMin:tMax:prune]),'-')
+            plt.fill_between(x[tMin:tMax:prune], (np.asarray(yfact * imOrReal(statobj.mean[tMin:tMax:prune])) - np.asarray(yfact * imOrReal(statobj.err[tMin:tMax:prune]))),
+                (np.asarray(yfact * imOrReal(statobj.mean[tMin:tMax:prune])) + np.asarray(yfact * imOrReal(statobj.err[tMin:tMax:prune]))), linewidth=0, zorder=1)
+        
+
 
 ''' Deprecated, keep for the idea. Would be better o use the block structure above though.
 class EnsembleResults:

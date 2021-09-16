@@ -10,13 +10,13 @@ import matplotlib.pyplot as plt
 #Functions
 def axialprop(omega,parameters):
     (mp,amplitude,gammap) = parameters
-    numerator= amplitude
+    numerator= amplitude * gammap * mp**2
     denominator= np.square(-np.square(omega)+np.square(mp))+np.square(omega*gammap)
     return numerator/denominator
 
 def phiprop(omega, parameters):
     (mp,amplitude,gammap) = parameters
-    numerator= amplitude*np.square(omega)
+    numerator= amplitude*gammap*np.square(omega) / mp**2
     denominator= np.square(-np.square(omega)+np.square(mp))+np.square(omega*gammap)
     return numerator/denominator
     
@@ -56,6 +56,7 @@ class Fitter:
         self.averagechi2reduce = dict()
         self.func = dict()
         self.par = dict()
+        self.parErr = dict()
         self.parName = dict()
         self.parLims = dict()
         
@@ -66,6 +67,7 @@ class Fitter:
             self.averagechi2reduce[o] = dict()
             self.func[o] = dict()
             self.par[o] = dict()
+            self.parErr[o] = dict()
             self.parName[o] = dict()
             self.parLims[o] = dict()
 
@@ -76,6 +78,7 @@ class Fitter:
         self.baseKeys = dict()
         self.baseKeys["A"] = ["A"]
         self.baseKeys["phi"] = ["phi"]
+        self.baseKeys["dphi"] = ["dphi"]
         self.baseKeys["phi0"] = ["phi0"]
         self.baseKeys["Aphi"] = ["A", "phi"]
         
@@ -93,6 +96,7 @@ class Fitter:
         
         self.func["OtOttpFourier"]["A"] = lambda x, par : [axialprop(x, par)]
         self.func["OtOttpFourier"]["phi"] = lambda x, par : [phiprop(x, par)]
+        self.func["OtOttpFourier"]["dphi"] = lambda x, par : [phiprop(x, par)]
         self.func["OtOttpFourier"]["phi0"] = lambda x, par : [phi0prop(x, par)]
         
         self.func["OtOttpFourier"]["Aphi"] = lambda x, par : [axialprop(x, (par[0],par[1],par[3])), phiprop(x, (par[0],par[2],par[3]))]
@@ -107,6 +111,11 @@ class Fitter:
         self.par["OtOttpFourier"]["phi"] = np.zeros(3)
         self.parName["OtOttpFourier"]["phi"] = ["mp","amplitudephi","gammap"]
         self.parLims["OtOttpFourier"]["phi"] = [(0, None), (0, None),(0, None)]
+        
+        self.par["OtOttpFourier"]["dphi"] = np.zeros(3)
+        self.parName["OtOttpFourier"]["dphi"] = ["mp","amplitudephi","gammap"]
+        self.parLims["OtOttpFourier"]["dphi"] = [(0, None), (0, None),(0, None)]
+        
         
         self.par["OtOttpFourier"]["Aphi"] = np.zeros(4)
         self.parName["OtOttpFourier"]["Aphi"] = ["mp","amplitudeA","amplitudephi","gammap"]
@@ -142,12 +151,18 @@ class Fitter:
         c = 0
         for v in self.fits[obs][key].values:
             self.par[obs][key][c] = v
-            c += 1       
+            c += 1   
+            
+        c = 0
+        self.parErr[obs][key] = np.zeros(len(self.par[obs][key]))
+        for v in self.fits[obs][key].errors:
+            self.parErr[obs][key][c] = v
+            c += 1   
         
         return (self.averagechi2[obs][key], self.averagechi2reduce[obs][key], self.ndof[obs][key], self.fits[obs][key].values)
 
     
-    def plot(self, obs, key):
+    def plot(self, obs, key, color="b"):
         if obs in self.xs.keys():
             x = self.xs[obs]
         else:
@@ -156,4 +171,4 @@ class Fitter:
         print(self.par[obs][key])
         prediction = self.func[obs][key](x, self.par[obs][key])
         for p in prediction:
-            plt.plot(x, p)
+            plt.plot(x, p, color)
