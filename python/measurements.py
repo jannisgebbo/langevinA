@@ -22,6 +22,9 @@ class StatResult:
     def rescale(self, fact):
         self.mean *= fact
         self.err *= fact
+    def reduce(self, minInd=0, maxInd=None):
+        self.mean = self.mean[minInd:maxInd]
+        self.err = self.err[minInd:maxInd]
     def save_to_txt(self, fn, x = None, fmt = "python", decim = 1, tMin = 0, tMax = None, yfact = 1):
         if(len(np.shape(x)) == 0 and x==None):
             toSave = np.column_stack([
@@ -164,32 +167,29 @@ def autocorrelatedErr(arr, tmax = 1000, startvalue = 0, nMax = -1):
 
 
 # Compute the correlator in time between arr1 and arr2. Can also substract the connected part.
-def computeOtOtpRaw(arr1, arr2, statFunc, conn=False, nTMax=-1, decim=1):
-    Npoints = len(arr1)
-    if nTMax==-1:
-        nTMax=Npoints
+def computeOtOtpStatic(arr1, arr2, conn=False):
+    Npoints = np.shape(arr1)[1]
         
     
-    Cttp = np.zeros(nTMax, dtype=type(arr1[0]))
-    CttpErr = np.zeros(nTMax, dtype=type(arr1[0]))
+    Cttp = np.zeros(np.shape(arr1))
     
-    av1 = np.mean(arr1)
-    av2 = np.mean(arr2)
+    av1 = np.mean(np.mean(arr1, axis =1))
+    av2 = np.mean(np.mean(arr2, axis = 1))
     # Points over which we do the time average
 
-    for tt in range(nTMax): #tt is the time difference
+    for x in range(Npoints): #tt is the time difference
         counter = 0
-        nStarts = list(range(0, Npoints - tt, decim))
-        tmpArr = np.zeros(len(nStarts), dtype=type(arr1[0]))
-        
-        for t0 in nStarts: # t0 is the origin
-            tmpArr[counter] = arr1[t0 + tt] * arr2[t0]
+        tmpArr = arr1[:,(x)%Npoints] * arr2[:,0]
+        for x0 in range(1,Npoints): # t0 is the origin
+            tmpArr += arr1[:,(x0 + x)%Npoints] * arr2[:,x0]
             if conn:
-                tmpArr[counter] -= av1 * av2
-            counter += 1    
-    return tmpArr
+                tmpArr -= av1 * av2
+            counter += 1
+        Cttp[:,x] = tmpArr / Npoints
+    
+    return Cttp
 
-
+# Compute the correlator in time between arr1 and arr2. Can also substract the connected part.
 def computeOtOtp(arr1, arr2, statFunc, conn=False, nTMax=-1, decim=1):
     Npoints = len(arr1)
     if nTMax==-1:
@@ -250,22 +250,31 @@ def computeParallelBlockedOtOtp(arr1, arr2, nTMax, steps, decim=1, conn=False, n
 
 
 # "Slow" fourier transform in time. Used only for the one in time. Can apply a filter
-def ft(om, dt, arr2, filterFunc = lambda x : 1):
+def ft_cos(om, dt, arr2, filterFunc = lambda x : 1):
     tmp =  arr2[0] * filterFunc(0) * dt
     for i in range(1,len(arr2)):
         t = i * dt
         tmp += 2.0 * arr2[i] * np.cos(om * t) * filterFunc(t) * dt
     return tmp
+def ft_sin(om, dt, arr2, filterFunc = lambda x : 1):
+    tmp =  0.0#arr2[0] * filterFunc(0) * dt
+    for i in range(1,len(arr2)):
+        t = i * dt
+        tmp += 2.0 * 1j * arr2[i] * np.sin(om * t) * filterFunc(t) * dt
+    return tmp
 
 # transform a whole array to fourier space, with optimal sampling and up to oMax
-def toFourier(arr, dt, omMax, myTmax = -1, filterFunc = lambda x : 1):
+def toFourier(arr, dt, omMax, myTmax = -1, filterFunc = lambda x : 1, symFactor = 1):
     tMax=  len(arr)*dt if myTmax ==-1 else myTmax
     omegaIR = 2.0 * np.pi / tMax
     oms = np.arange(0, omMax, omegaIR)
     res = []
     for om in oms:
-        res.append(ft(om,dt,arr, filterFunc))
-
+        if symFactor == 1:
+            res.append(ft_cos(om,dt,arr, filterFunc))
+        elif symFactor == -1:
+            res.append(ft_sin(om,dt,arr, filterFunc))
+            
     return (oms, np.asarray(res))
 
 #assume first component is at zero and we don't want to double it.
@@ -303,19 +312,19 @@ def findMax(x_axis, y_axis):#https://stackoverflow.com/a/50373953
     return cr_pts[np.argmax(cr_vals)]
 
 #Compute the Fourier transform over blocks of data.
-def toFourierBlocked(arr, dt, omMax, errFunc, myTmax=-1, filterFunc = lambda x : 1):
+def toFourierBlocked(arr, dt, omMax, errFunc, myTmax=-1, filterFunc = lambda x : 1, symFactor = 1):
     length = len(arr)
     res = []
     resMaxOm = []
     for i in range(length):
-        oms, tmp = toFourier(arr[i], dt, omMax, myTmax, filterFunc)
+        oms, tmp = toFourier(arr[i], dt, omMax, myTmax, filterFunc, symFactor)
         res.append(tmp)
         #resMaxOm.append(oms[np.argmax(tmp)])
         resMaxOm.append(findMax(oms,tmp))
     f, ferr = errFunc(np.asarray(res))
     
     
-    return (symmetrizeArray(oms,-1), StatResult((symmetrizeArray(f),symmetrizeArray(ferr))), resMaxOm)
+    return (symmetrizeArray(oms,-1), StatResult((symmetrizeArray(f, symFactor),symmetrizeArray(ferr))), resMaxOm)
 
 
 
@@ -418,7 +427,7 @@ class ConfResults:
         for d in self.directions:
             self.wall[d] = dict()
             self.wallF[d] = dict()
-            self.wallCorr[d] = dict() 
+            #self.wallCorr[d] = dict() 
         
         self.OtOttp_blocks = dict()
         
@@ -426,12 +435,15 @@ class ConfResults:
         self.OtOttp = dict()
         self.OtOttp_time = dict()
         
+        
         #self.OtOttpFourier_blocks = dict()
         self.OtOttpFourier = dict()
         self.OtOttpFourier_oms = dict()
         self.OtOttpFourier_omspeak_blocks = dict()
         
         #self.momenta_3d we also define the momenta 3d below
+        #self.xs same
+        
     
     def loadAv(self, key):
         if not key in self.av.keys():
@@ -510,13 +522,44 @@ class ConfResults:
 
     #Computes the time correlator of a given key.
     #TODO: For now, compute only from one direction in fourier for all modes. Need to include other direction for non-zero k for better stat.
+    #TODO: Mixed correlator and same correlator can be coded as one.
     def computeOtOtpBlocked(self, key, tMax, nBlocks, errFunc, decim = 1, momNum = 0, conn = False, parallel = False):
         nTMax = int(np.floor(tMax / self.dt))
         
         #blockSize = int(np.floor(blockSizeT / self.dt))
 
         if not key in self.OtOttp_blocks.keys():
-            if key != "phi0" and key != "dsigma":
+            if '_' in key:
+                key1, key2 = key.split('_')
+                keys1 = [key1 + str(i) for i in [1,2,3]]
+                keys2 = [key2 + str(i) for i in [1,2,3]]
+                for k in keys1:
+                    self.computeWallFourier(k,"X")
+                for k in keys2:
+                    self.computeWallFourier(k,"X")
+                #Get volume from the length of the vector and the maximum time as an integer.
+                blockSize = int(len(self.wallF["X"][keys1[0]][:,0]) / nBlocks)
+                V = float(len(self.wallF["X"][keys1[0]][0,:])**3)
+                #Compute the correlator per block. First for a given flavor index (so we don't need to worry about the shape of the array). 
+                k1 = keys1[0]
+                k2 = keys2[0]
+                if(parallel == False):
+                    self.OtOttp_blocks[key] = V * computeBlockedOtOtp(self.wallF["X"][k1][:,momNum],np.conj(self.wallF["X"][k2][:,momNum]),nTMax, blockSize, decim = decim, conn = conn)
+                else:
+                    self.OtOttp_blocks[key] = V * computeParallelBlockedOtOtp(self.wallF["X"][k1][:,momNum],np.conj(self.wallF["X"][k2][:,momNum]),nTMax, blockSize, decim = decim, conn = conn, ncpus = mp.cpu_count())
+ 
+
+                #Then for the remaining two directions.               
+                for i in range(1,len(keys1)):
+                    #av += self.wallF["X"][k][:,momNum]
+                    k1 = keys1[i]
+                    k2 = keys2[i]
+                    if(parallel == False):
+                        self.OtOttp_blocks[key] += V * computeBlockedOtOtp(self.wallF["X"][k1][:,momNum],np.conj(self.wallF["X"][k2][:,momNum]),nTMax, blockSize, decim = decim, conn = conn)
+                    else:
+                        self.OtOttp_blocks[key] += V * computeParallelBlockedOtOtp(self.wallF["X"][k1][:,momNum],np.conj(self.wallF["X"][k2][:,momNum]),nTMax, blockSize, decim = decim, conn = conn, ncpus = mp.cpu_count())
+                self.OtOttp_blocks[key] /= 3.0         
+            elif key != "phi0" and key != "dsigma":
                 keys = [key + str(i) for i in [1,2,3]]
                 # Compute the spatial fourier transform
                 for k in keys:
@@ -566,11 +609,13 @@ class ConfResults:
     #Compute the statistical correlator of a given key.
     def computeStatisticalCor(self, key, omMax, errFunc, myTmax = -1, filterFunc = lambda x : 1):
         try :
-            print(key in self.OtOttp_blocks.keys())
             if not (key in self.OtOttp_blocks.keys()):
                 raise ;
             else:
-                self.OtOttpFourier_oms[key],self.OtOttpFourier[key], self.OtOttpFourier_omspeak_blocks[key] = toFourierBlocked(self.OtOttp_blocks[key], self.dt, omMax, errFunc, myTmax = myTmax, filterFunc=filterFunc)
+                symFactor = 1
+                if key == "A_phi":
+                    symFactor = -1
+                self.OtOttpFourier_oms[key],self.OtOttpFourier[key], self.OtOttpFourier_omspeak_blocks[key] = toFourierBlocked(self.OtOttp_blocks[key], self.dt, omMax, errFunc, myTmax = myTmax, filterFunc=filterFunc, symFactor = symFactor)
         except:
             print("the two point function in time of {} was not computed. Need to call computeOtOtpBlocked first.".format(key))
                 
@@ -595,6 +640,34 @@ class ConfResults:
             tmp /= float(len(self.directions))
 
         self.wallFProp[key] = StatResult(errFunc(tmp))
+    
+    def computePropagator(self, key, errFunc):
+        if key != "phi0" and key != "dsigma":
+            keys = [key + str(i) for i in [1,2,3]]
+            for k in keys:
+                for d in self.directions:
+                    self.loadWall(k, d)
+            V = float(len(self.wall["X"][keys[0]][0,:])**3)
+            tmp = []
+            for k in keys:
+                for d in self.directions:
+                    tmp.append(computeOtOtpStatic(self.wall[d][k], self.wall[d][k]))
+            #tmp /= (float(len(keys)) * float(len(self.directions)))
+        else:
+            for d in self.directions:
+                    self.loadWall(key, d)
+            V = float(len(self.wall["X"][key][0,:])**3)
+            tmp = []
+            for d in self.directions:
+                tmp.append(computeOtOtpStatic(self.wall[d][key], self.wall[d][key]))
+            #tmp /= float(len(self.directions))
+        
+        tmp = np.asarray(tmp)
+        tmp = np.reshape(tmp, (tmp.shape[0]*tmp.shape[1], tmp.shape[2]))
+
+        self.wallCorr[key] = StatResult(errFunc(tmp))
+        self.xs = np.arange(len(self.wallCorr[key].mean))
+        
         
     def getObs(self, obs, key, withX = True, withY = True):
         if obs == "OtOttp":
@@ -603,9 +676,12 @@ class ConfResults:
         elif obs == "OtOttpFourier":
             x = self.OtOttpFourier_oms[key]
             y = self.OtOttpFourier[key]
-        elif obs == "propagator":
+        elif obs == "propagatorF":
             x = self.momenta_3d
             y = self.wallFProp[key]
+        elif obs == "propagator":
+            x = self.xs
+            y = self.wallCorr[key]
         if withX == True and withY ==True:
             return (x, y)
         elif withY == True and withX == False:
@@ -650,6 +726,8 @@ class ConfResults:
         elif obs == "OtOttpFourier":
             self.OtOttpFourier_oms[key], self.OtOttpFourier[key] = load_StatResult_from_txt(fn, withX = True)
         elif obs == "propagator":
+            self.xs, self.wallCorr[key] =  load_StatResult_from_txt(fn, withX = True)
+        elif obs == "propagatorF":
             self.momenta_3d, self.wallFProp[key] =  load_StatResult_from_txt(fn, withX = True)
         elif obs == "OtOttp_blocks":
             file = open(fn , 'rb')
