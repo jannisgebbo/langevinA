@@ -33,11 +33,11 @@ if __name__ == '__main__':
     
         t0 = time.time()
 
-        for k in ["phi", "dsigma"]:
+        for k in ["phi"]:
         #for k in ["dsigma", "phi", "A", "V", "A_phi"]:
     	     data = ConfResults(fn = fn,thTime=10000,dt=dt,  data_format="new")
     	     #data.computeOtOtpBlocked(k, momNum = 0, tMax = 5000.0, nBlocks = 5,  decim = dec, errFunc = lambda x : (np.mean(x, axis = 0), np.std(x, axis = 0)), parallel=True)
-    	     data.computePropagator(k,errFunc = lambda x: jackknife(x,10))
+    	     data.computePropagator(k,errFunc = lambda x: jackknife(x,100))
     	     #data.computeStatisticalCor(k, omMax=0.1, errFunc=lambda x: (np.mean(x, axis = 0), np.std(np.real(x), axis = 0) + 1j*np.std(np.imag(x), axis = 0)), filterFunc=lambda x : np.exp(-x / 2000.0))
     	     #data.computeFourierPropagator(k, decim=dec, errFunc = lambda x: blocking(x,5))
     	     #print(time.time() - t0)
