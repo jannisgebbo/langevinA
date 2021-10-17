@@ -423,6 +423,7 @@ class ConfResults:
         self.wall = dict()
         self.wallF = dict()
         self.wallCorr = dict()
+        self.wallCorr_raw = dict()
         self.wallFProp = dict()
         for d in self.directions:
             self.wall[d] = dict()
@@ -454,7 +455,7 @@ class ConfResults:
                 self.av[key] -= bar
 
     
-    def computeFromMean(self, key, errFunc, func = lambda x: x):
+    def computeFromMean(self, key, errFunc, decim = 1, func = lambda x: x):
         if key == "phiH0":
             self.loadAv("phi0")
             av = []
@@ -465,14 +466,14 @@ class ConfResults:
             return  StatResult(errFunc(np.asarray(av).flatten(), func = func))
         else: 
             self.loadAv(key)
-            return  StatResult(errFunc(self.av[key], func = func))
+            return  StatResult(errFunc(self.av[key][:None:decim], func = func))
             
-    def computeMean(self, key, errFunc):
-        self.meanValues[key] = self.computeFromMean(key, errFunc, func = lambda x : x)            
-    def computeVar(self, key, errFunc):
-        self.variances[key] = self.computeFromMean(key, errFunc, func = lambda x : x**2 - np.mean(x)**2)
-    def computeO2(self, key, errFunc):
-        self.o2[key] = self.computeFromMean(key, errFunc, func = lambda x : x**2)
+    def computeMean(self, key, errFunc, decim = 1):
+        self.meanValues[key] = self.computeFromMean(key, errFunc, decim = decim, func = lambda x : x)            
+    def computeVar(self, key, errFunc, decim = 1):
+        self.variances[key] = self.computeFromMean(key, errFunc, decim = decim, func = lambda x : x**2 - np.mean(x)**2)
+    def computeO2(self, key, errFunc, decim = 1):
+        self.o2[key] = self.computeFromMean(key, errFunc, decim = decim, func = lambda x : x**2)
        
     
     def loadWall(self,key, direc = None):
@@ -641,31 +642,35 @@ class ConfResults:
 
         self.wallFProp[key] = StatResult(errFunc(tmp))
     
-    def computePropagator(self, key, errFunc):
-        if key != "phi0" and key != "dsigma":
-            keys = [key + str(i) for i in [1,2,3]]
-            for k in keys:
+    def computePropagator(self, key, errFunc, decim = 0, alreadyLoaded = False):
+        if not alreadyLoaded:
+            print("hi")
+            if key != "phi0" and key != "dsigma":
+                keys = [key + str(i) for i in [1,2,3]]
+                for k in keys:
+                    for d in self.directions:
+                        self.loadWall(k, d)
+                V = float(len(self.wall["X"][keys[0]][0,:])**3)
+                tmp = []
+                for k in keys:
+                    for d in self.directions:
+                        tmp.append(computeOtOtpStatic(self.wall[d][k], self.wall[d][k]))
+                #tmp /= (float(len(keys)) * float(len(self.directions)))
+            else:
                 for d in self.directions:
-                    self.loadWall(k, d)
-            V = float(len(self.wall["X"][keys[0]][0,:])**3)
-            tmp = []
-            for k in keys:
+                        self.loadWall(key, d)
+                V = float(len(self.wall["X"][key][0,:])**3)
+                tmp = []
                 for d in self.directions:
-                    tmp.append(computeOtOtpStatic(self.wall[d][k], self.wall[d][k]))
-            #tmp /= (float(len(keys)) * float(len(self.directions)))
-        else:
-            for d in self.directions:
-                    self.loadWall(key, d)
-            V = float(len(self.wall["X"][key][0,:])**3)
-            tmp = []
-            for d in self.directions:
-                tmp.append(computeOtOtpStatic(self.wall[d][key], self.wall[d][key]))
-            #tmp /= float(len(self.directions))
-        
-        tmp = np.asarray(tmp)
-        tmp = np.reshape(tmp, (tmp.shape[0]*tmp.shape[1], tmp.shape[2]))
+                    tmp.append(computeOtOtpStatic(self.wall[d][key][0:None:decim], self.wall[d][key][0:None:decim]))
+                #tmp /= float(len(self.directions))
 
-        self.wallCorr[key] = StatResult(errFunc(tmp))
+            tmp = np.asarray(tmp)
+            tmp = np.reshape(tmp, (tmp.shape[0]*tmp.shape[1], tmp.shape[2]))
+
+            self.wallCorr_raw[key] = tmp
+
+        self.wallCorr[key] = StatResult(errFunc(self.wallCorr_raw[key][:None:decim,:]))
         self.xs = np.arange(len(self.wallCorr[key].mean))
         
         
@@ -701,13 +706,16 @@ class ConfResults:
         
         fn = self.getDataFn(obs, key, direc, tag)
         
-        if not obs=="OtOttp_blocks":
+        if not obs=="OtOttp_blocks" and not obs == "propagator_raw":
             x, y = self.getObs(obs, key)
             y.save_to_txt(fn, x = xfact * x, fmt = fmt, decim = decim, tMin = tMin, tMax = tMax, yfact = yfact)
         else:
             if fmt == "python":
                 file = open(fn , 'wb')
-                pickle.dump(self.OtOttp_blocks[key], file)
+                if obs == "OtOttp_blocks":
+                    pickle.dump(self.OtOttp_blocks[key], file)
+                elif obs == "propagator_raw":
+                    pickle.dump(self.wallCorr_raw[key], file)
                 file.close()
                 if decim > 1:
                     print("Warning, decim was ignored for the blocked correlator.")
@@ -732,6 +740,10 @@ class ConfResults:
         elif obs == "OtOttp_blocks":
             file = open(fn , 'rb')
             self.OtOttp_blocks[key] = pickle.load(file)
+            file.close()
+        elif obs == "propagator_raw":
+            file = open(fn , 'rb')
+            self.wallCorr_raw[key] = pickle.load(file)
             file.close()
         
 

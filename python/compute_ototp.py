@@ -37,33 +37,34 @@ if __name__ == '__main__':
         #for k in ["dsigma", "phi", "A", "V", "A_phi"]:
     	     data = ConfResults(fn = fn,thTime=10000,dt=dt,  data_format="new")
     	     #data.computeOtOtpBlocked(k, momNum = 0, tMax = 5000.0, nBlocks = 5,  decim = dec, errFunc = lambda x : (np.mean(x, axis = 0), np.std(x, axis = 0)), parallel=True)
-    	     #data.computePropagator(k,errFunc = lambda x: blocking(x,5))
+    	     data.computePropagator(k,errFunc = lambda x: blocking(x,5))
     	     #data.computeStatisticalCor(k, omMax=0.1, errFunc=lambda x: (np.mean(x, axis = 0), np.std(np.real(x), axis = 0) + 1j*np.std(np.imag(x), axis = 0)), filterFunc=lambda x : np.exp(-x / 2000.0))
     	     #data.computeFourierPropagator(k, decim=dec, errFunc = lambda x: blocking(x,5))
     	     #print(time.time() - t0)
 
     	     #data.save("propagator", k)
+    	     data.save("propagator_raw", k)
     	     #data.save("OtOttp",k)    
     	     #data.save("OtOttp_blocks",k)    
     	     #data.save("OtOttpFourier", k)
     	     #data.save("propagator", k)
 
-    for fn in [fn16]:
-        print(fn)
+#    for fn in [fn16]:
+#        print(fn)
     
-        t0 = time.time()
+#        t0 = time.time()
 
-        for k in ["A"]:
+#        for k in ["A"]:
         #for k in ["dsigma", "phi", "A"]:
-    	     data = ConfResults(fn = fn,thTime=10000,dt=dt,  data_format="new")
-    	     data.computeOtOtpBlocked(k, momNum = 0, tMax = 20000.0, nBlocks = 5,  decim = dec, errFunc = lambda x : (np.mean(x, axis = 0), np.std(x, axis = 0)), parallel=True)
+#    	     data = ConfResults(fn = fn,thTime=10000,dt=dt,  data_format="new")
+#    	     data.computeOtOtpBlocked(k, momNum = 0, tMax = 20000.0, nBlocks = 5,  decim = dec, errFunc = lambda x : (np.mean(x, axis = 0), np.std(x, axis = 0)), parallel=True)
     
     	     #data.computeStatisticalCor(k, omMax=0.1, errFunc=lambda x: (np.mean(x, axis = 0), np.std(x, axis = 0)), filterFunc=lambda x : np.exp(-x / 2000.0))
     	     #data.computeFourierPropagator(k, decim=dec, errFunc = lambda x: blocking(x,5))
-    	     print(time.time() - t0)
+#    	     print(time.time() - t0)
 
     
-    	     data.save("OtOttp",k)    
-    	     data.save("OtOttp_blocks",k)    
+#    	     data.save("OtOttp",k)    
+#    	     data.save("OtOttp_blocks",k)    
    	     #data.save("OtOttpFourier", k)
     	     #data.save("propagator", k)
