@@ -35,8 +35,10 @@ def staticPhiPropK(k, parameters):
 
 def staticPhiProp(L,x, parameters):
     (cs, ms) = parameters
-    numerator =  1.0 / 2.0 / ms / cs / L**2 * (np.exp(- ms * x) + np.exp(- ms * (L-x)))
-    denominator = 1.0 - np.exp(-ms * L)
+    #numerator =  1.0 / 2.0 / ms / cs / L**2 * (np.exp(- ms * x) + np.exp(- ms * (L-x)))
+    #denominator = 1.0 - np.exp(-ms * L)
+    numerator =  1.0  / 2.0 / ms / cs / L**2 * (np.exp(- ms * x) + np.exp(- ms * (L-x)))
+    denominator = 1 - np.exp(-ms * L)
     return numerator / denominator
 
 def staticPhiPropKSusc(susc, k, parameters):

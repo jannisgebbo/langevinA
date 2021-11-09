@@ -481,12 +481,12 @@ class ConfResults:
             direc = self.processedDir
         r = h5py.File(self.fn,'r')
         try :
-            if not (direc == "X" or  (self.data_format != "old" and self.data_format != "semiold")) :
+            if not (direc == "X" or  (self.data_format != "old" and self.data_format != "semi_old")) :
                 raise
             else:
                 if self.data_format == "old":
                     self.wall[direc][key] = np.asarray(r[self.wkeys[key]])[self.thTime:] 
-                elif self.data_format == "semiold":
+                elif self.data_format == "semi_old":
                     self.wall[direc][key] = np.asarray(r["corrx"])[self.thTime:,self.wkeys[key],:] 
                 else:
                     if not key in self.wall[direc].keys():
@@ -642,13 +642,14 @@ class ConfResults:
 
         self.wallFProp[key] = StatResult(errFunc(tmp))
     
-    def computePropagator(self, key, errFunc, decim = 0, alreadyLoaded = False):
+    def computePropagator(self, key, errFunc, decim = 1, alreadyLoaded = False):
         if not alreadyLoaded:
             print("hi")
             if key != "phi0" and key != "dsigma":
                 keys = [key + str(i) for i in [1,2,3]]
                 for k in keys:
                     for d in self.directions:
+                        print(d)
                         self.loadWall(k, d)
                 V = float(len(self.wall["X"][keys[0]][0,:])**3)
                 tmp = []
