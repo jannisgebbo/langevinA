@@ -9,6 +9,18 @@ import matplotlib.pyplot as plt
 from copy import deepcopy
 
 #Functions
+def realtimeaxialcor(p,susc,t,parameters):
+    (a,b,c) = parameters
+   
+    #omegap2 = v2 * (m**2 + p**2)
+    #Delta = 0.5 * ( D * p**2 - Gamma * (p**2 + m**2))
+    #Gammap = (D + Gamma) * p**2 + Gamma * m**2
+    #Omegap= np.sqrt(np.complex(omegap2 - Delta**2))
+    
+    return np.real(np.exp(-0.5 * a * t) * (np.cos(b * t) - c * np.sin(b * t)))
+    #return np.real(np.exp(-0.5 * Gammap * t) * (np.cos(Omegap * t) - Delta / Omegap * np.sin(Omegap * t)))
+
+
 def axialprop(susc,omega,parameters):
     (mp,gammap) = parameters
     numerator= 2.0 * susc * gammap * mp**2
@@ -78,8 +90,8 @@ class Chi2:
 
     
 class Fitter:
-    def __init__(self, data, chi0, chiperp, L = 1):
-        obs = ["OtOttpFourier", "propagatorF", "propagator"]
+    def __init__(self, data, chi0, chiperp, L = 1, k = 0):
+        obs = ["OtOttp", "OtOttpFourier", "propagatorF", "propagator"]
         
         self.V = L**3
         
@@ -119,6 +131,9 @@ class Fitter:
         self.baseKeys["phi0"] = ["phi0"]
         self.baseKeys["Aphi"] = ["A", "phi"]
         
+        if k > 0:
+            self.baseKeys["Akk{}".format(k)] = ["Akk{}".format(k)]
+        
         self.xs = dict()
         
         
@@ -130,6 +145,14 @@ class Fitter:
         
         
         #TODO: Define the static correlators at this level. Can define
+
+        if k == 0:
+            self.func["OtOttp"]["A"] = lambda x, par : [realtimeaxialcor(0,self.chi0, x, par)]
+        else:
+            self.func["OtOttp"]["Akk{}".format(k)] = lambda x, par : [realtimeaxialcor(2 * np.pi * float(k) / float(L),self.chi0, x, par)]
+            
+        
+
         
         self.func["OtOttpFourier"]["A"] = lambda x, par : [axialprop(self.chi0, x, par)]
         self.func["OtOttpFourier"]["phi"] = lambda x, par : [phiprop(self.chiperp, x, par)]
@@ -148,6 +171,15 @@ class Fitter:
         
 
         # Below we define the size, name and limits of the parameters, per observables and per fitKeys.
+        
+        key = "A" if k == 0 else "Akk{}".format(k)
+        #self.par["OtOttp"][key] = np.zeros(4)
+        #self.parName["OtOttp"][key] = ["mp","Gamma", "D", "v2"]
+        #self.parLims["OtOttp"][key] = [(0, None),(0, None), (0, None), (0, None)]
+        self.par["OtOttp"][key] = np.zeros(3)
+        self.parName["OtOttp"][key] = ["a", "b", "c"]
+        self.parLims["OtOttp"][key] = [(0, None),(0, None), (0, None)]
+        
         
         self.par["OtOttpFourier"]["A"] = np.zeros(2)
         self.parName["OtOttpFourier"]["A"] = ["mp","gammap"]
