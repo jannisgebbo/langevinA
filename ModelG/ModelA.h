@@ -3,6 +3,7 @@
 
 #include "NoiseGenerator.h"
 #include "parameterparser/parameterparser.h"
+#include "json/json.h"
 #include <fstream>
 #include <petscdm.h>
 #include <petscdmda.h>
@@ -67,41 +68,40 @@ struct ModelAData {
   PetscInt saveFrequency;
   bool verboseMeasurements;
 
-  ModelAData(FCN::ParameterParser &params) {
+  ModelAData(const Json::Value &params) {
     // Lattice. By default, NY=NX and NZ=NX.
-    NX = params.get<int>("NX");
-    NY = params.get<int>("NY", NX);
-    NZ = params.get<int>("NZ", NX);
+    NX = params["NX"].asInt();
+    NY = NX;
+    NZ = NX;
 
     // By default, dx=dy=dz=1, namely LX=NX, LY=NY, LZ=NZ.
-
-    LX = params.get<double>("LX", NX);
-    LY = params.get<double>("LY", NY);
-    LZ = params.get<double>("LZ", NZ);
+    LX = params.get("LX", NX).asInt();
+    LY = LX;
+    LZ = LX;
 
     // Time Stepping
-    finaltime = params.get<double>("finaltime");
-    initialtime = params.get<double>("initialtime");
-    deltat = params.get<double>("deltat");
-    evolverType = params.get<int>("evolverType");
+    finaltime = params["finaltime"].asDouble();
+    initialtime = params["initialtime"].asDouble();
+    deltat = params["deltat"].asDouble();
+    evolverType = params["evolverType"].asInt();
 
     // Action
-    mass = params.get<double>("mass");
-    lambda = params.get<double>("lambda");
-    gamma = params.get<double>("gamma");
-    H = params.get<double>("H");
-    diffusion = params.get<double>("diffusion", 1./3.);
-    chi = params.get<double>("chi", 1.35);
+    mass = params["mass"].asDouble();
+    lambda = params["lambda"].asDouble();
+    gamma = params["gamma"].asDouble();
+    H = params["H"].asDouble();
+    diffusion = params.get("diffusion", 1./3.).asDouble();
+    chi = params.get("chi", 1.35).asDouble();
 
-    seed = (PetscInt)params.getSeed("seed");
+    seed = (PetscInt)params["seed"].asInt();
 
     // Control initialization
-    restart = params.get<bool>("restart", false) ;
+    restart = params.get("restart", false).asBool() ;
 
     // Control outputs
-    outputfiletag = params.get<std::string>("outputfiletag", "o4output");
-    saveFrequencyInTime = params.get<double>("saveFrequencyInTime");
-    verboseMeasurements = params.get<bool>("verboseMeasurements", false);
+    outputfiletag = params.get("outputfiletag", "o4output").asString();
+    saveFrequencyInTime = params["saveFrequencyInTime"].asDouble();
+    verboseMeasurements = params.get("verboseMeasurements", false).asBool();
     saveFrequency = saveFrequencyInTime / deltat;
 
     // In order to work in restart mode final time should be an integral number of saveFrequency

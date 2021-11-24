@@ -30,11 +30,11 @@ data = {
     "diffusion" : 0.3333333,
     "chi" : 2.,
     "seed" : 122335456,
-    "restart" : "false",
+    "restart" : False,
 
     #initial condition"
     "outputfiletag" : "grun",
-    "outputfolder" : "./", #this is interal to python and prepended to the outputfiletag
+    "outputfolder" : "./", #this is internal to python and prepended to the outputfiletag
     "saveFrequencyInTime" : 0.8,
 }
 
@@ -107,7 +107,9 @@ def find_program():
     return path + "/SuperPions.exe"
 
 
-# run on cori
+#########################################################################
+# Runs on cori
+#########################################################################
 def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=[], seed=None, parallel=False):
 
     prgm = find_program()
@@ -169,14 +171,12 @@ def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=[], seed=N
             data["seed"] = random.randint(1, 2000000000)
         else:
             data["seed"] = seed
-        # write the data to an inputfile
-        datatoinput()
         # write the data to an .json
         datatojson()
 
         # write the command that actually runds the program
-        print("srun --cpu_bind=cores %s input=%s" %
-              (prgm, data["outputfiletag"]+'.in'), end=' ', file=fh)
+        print("srun --cpu_bind=cores %s -input %s " %
+              (prgm, data["outputfiletag"]+'.json'), end=' ', file=fh)
         for opt in moreopts:
             print(opt, end=' ', file=fh)
         print(file=fh)
@@ -184,7 +184,7 @@ def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=[], seed=N
         # Write the inputfiles
         listname = tag + "_list.txt"
         pmakefiles("32", seed)
-        print("srun parallel --jobs 32 %s input={} < %s" %
+        print("srun parallel --jobs 32 %s -input {} < %s" %
               (prgm, listname), file=fh)
 
     print('date  "+%%x %%T" >> %s_time.out' %
@@ -198,8 +198,10 @@ def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=[], seed=N
     # return to the root directory
     dstack.popd()
 
+#########################################################################
 # Runs on seawulf  with time in batch time. One should set dry_run=False to
 # actually run the code
+#########################################################################
 def seawulfrun(time="00:02:00", debug=False, shared=False, dry_run=True, moreopts=[]) :
     nprocesses=24
     filenamesh = data["outputfiletag"] + '.sh'
@@ -233,13 +235,17 @@ def seawulfrun(time="00:02:00", debug=False, shared=False, dry_run=True, moreopt
         prgm = path + "/SuperPions.exe"
         # set the seed and the inputfile
         data["seed"] = random.randint(1,2000000000)
-        # write the data to an inputfile
-        datatoinput()
-        # write the data to an .json
+
+        # Write the data to an .json
+        #
+        # Prepend the directory to the filename
+        name = data["outputfiletag"]
+        data["outputfiletag"] = data["outputfolder"] + name
         datatojson()
+        data["outputfiletag"] = name
 
         #write the command that actually runds the program
-        print("mpirun -n {} {} input={} outputfiletag={}".format(nprocesses,prgm,data["outputfiletag"]+'.in', data["outputfolder"] + data["outputfiletag"]), end=' ', file=fh) 
+        print("mpirun -n {} {} -input {} ".format(nprocesses,prgm,data["outputfiletag"]+'.json'), end=' ', file=fh) 
         for opt in moreopts:
             print(opt,end=' ', file=fh)
         print(file=fh)
@@ -275,9 +281,8 @@ def pmakefiles(ncpus, seed=None):
         else:
             data["seed"] = seed + i
         data["outputfiletag"] = tag + "_%04d" % (i)
-        datatoinput()
         datatojson()
-        fh.write("%s.in\n" % data["outputfiletag"])
+        fh.write("%s.json\n" % data["outputfiletag"])
     fh.close()
 
     # restore the output
@@ -294,7 +299,7 @@ def prun(moreopts=[], dry_run=True, debug=True, time=0, seed=None, ncpus="4"):
     listname = tag + "_list.txt"
     pmakefiles(ncpus, seed)
 
-    cmd = "cat %s | parallel %s input={} -log_view > %s.log" % (
+    cmd = "cat %s | parallel %s -input {} -log_view > %s.log" % (
         listname, prgm, tag)
     print(cmd)
     if not dry_run:
@@ -302,8 +307,11 @@ def prun(moreopts=[], dry_run=True, debug=True, time=0, seed=None, ncpus="4"):
     dstack.popd()
 
 
-# runs the actual command current value of data  with mpiexec
-def run(moreopts=[], dry_run=True, time=0, seed=None, ncpus="4"):
+########################################################################
+# runs the program with current value of data  and mpiexec on local
+# mac.
+########################################################################
+def run(moreopts=[], dry_run=True, time=0, seed=None, ncpus="4",log_view=True):
 
     prgm = find_program()
     tag = data["outputfiletag"]
@@ -315,12 +323,13 @@ def run(moreopts=[], dry_run=True, time=0, seed=None, ncpus="4"):
     else:
         data["seed"] = seed
 
-    datatoinput()
     datatojson()
 
     # Execute the program
     opts = ["mpiexec", "-n", ncpus, prgm,
-            "input=" + tag + '.in', '-log_view']
+            "-input",  tag + '.json']
+    if log_view:
+        opts.append('-log_view')
     opts.extend(moreopts)
     print(opts)
     if not dry_run:

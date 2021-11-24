@@ -18,19 +18,32 @@
 #include "measurer.h"
 
 int main(int argc, char **argv) {
-  // Initialization
-  PetscErrorCode ierr;
-  std::string help = "Model A. Call ./ModelA-Beuler.exe input=input.in with "
-                     "input.in your input file.";
 
+  // Initialization of PETSc universe
+  PetscErrorCode ierr;
+  std::string help =
+      "Usage: \n\n\t ./SuperPions.exe -input input.json [options]\n\n";
   ierr = PetscInitialize(&argc, &argv, (char *)0, help.c_str());
   if (ierr) {
     return ierr;
   }
 
-  // Read the data form command line
-  FCN::ParameterParser params(argc, argv);
-  ModelAData inputdata(params);
+  // Open the input file and parse the inputs into the ModelAData
+  char filename[PETSC_MAX_PATH_LEN] = "";
+  ierr = PetscOptionsGetString(NULL, NULL, "-input", filename, sizeof(filename),
+                               NULL);
+  Json::Value inputs;
+  std::ifstream ifs(filename);
+  if (ifs) {
+    ifs >> inputs;
+  } else {
+    PetscPrintf(PETSC_COMM_WORLD, "Unable to open input file %s. Aborting...\n",
+                filename);
+    return PetscFinalize();
+  }
+
+  // Digest the inputs, some fields may be modified on ouptut
+  ModelAData inputdata(inputs);
 
   // If -quit flag, then just stop before we do anything but gather inputs.
   PetscBool quit = PETSC_FALSE;
@@ -74,7 +87,7 @@ int main(int argc, char **argv) {
     break;
   case 8:
     // ABB,ABB,ABB,C
-    std::array<unsigned int, 2> s={2,3};
+    std::array<unsigned int, 2> s = {2, 3};
     step = std::make_unique<PV2HBSplit>(model, s);
     break;
   }

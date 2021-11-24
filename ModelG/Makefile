@@ -53,8 +53,7 @@ LDLIBS := $(shell pkg-config --libs-only-l $(PACKAGES)) -lm
 
 
 HEADRS = ModelA.h Stepper.h NoiseGenerator.h measurer.h plotter.h O4AlgebraHelper.h
-OBJS = measurer.o Stepper.o NoiseGenerator.o 
-
+OBJS = measurer.o Stepper.o NoiseGenerator.o jsoncpp.o
 
 SuperPions.exe: SuperPions.o $(OBJS)
 	$(LINK.cc) -o $@ $^ $(LDLIBS) -lstdc++
@@ -95,6 +94,10 @@ q_heatbathtest.o: q_heatbathtest.cxx $(HEADRS)
 test_random.exe: test_random.cxx $(HEADRS)
 	$(COMPILE.cc) test_random.cxx
 	$(LINK.cc) -o test_random.exe test_random.o  $(LDLIBS) -lstdc++
+
+test_json.exe: jsoncpp.o test_json.cpp
+	$(COMPILE.cc) test_json.cpp
+	$(LINK.cc) -o test_json.exe test_json.o jsoncpp.o -lstdc++
 
 # If the file c.cxx needs to link with a C++ standard library -lstdc++ , then
 # you'll need to add it explicitly.  It can go in the rule above or be added to
