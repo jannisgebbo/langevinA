@@ -34,7 +34,6 @@ data = {
 
     #initial condition"
     "outputfiletag" : "grun",
-    "outputfolder" : "./", #this is internal to python and prepended to the outputfiletag
     "saveFrequencyInTime" : 0.8,
 }
 
@@ -237,15 +236,11 @@ def seawulfrun(time="00:02:00", debug=False, shared=False, dry_run=True, moreopt
         data["seed"] = random.randint(1,2000000000)
 
         # Write the data to an .json
-        #
-        # Prepend the directory to the filename
-        name = data["outputfiletag"]
-        data["outputfiletag"] = data["outputfolder"] + name
         datatojson()
-        data["outputfiletag"] = name
 
         #write the command that actually runds the program
-        print("mpirun -n {} {} -input {} ".format(nprocesses,prgm,data["outputfiletag"]+'.json'), end=' ', file=fh) 
+        basename = "./" + os.path.basename(data["outputfiletag"])
+        print("mpirun -n {} {} -input {} ".format(nprocesses,prgm, basename +'.json'), end=' ', file=fh)
         for opt in moreopts:
             print(opt,end=' ', file=fh)
         print(file=fh)
