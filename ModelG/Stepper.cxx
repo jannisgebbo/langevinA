@@ -164,7 +164,6 @@ bool IdealPV2::step(const double &dt) {
   bool success = true;
 
   // Do some setup for the accept reject procedure
-  oldEnergy = 0.;
   if (accept_reject) {
     VecCopy(model->solution, previoussolution);
     oldEnergy = computeEnergy(dt);
