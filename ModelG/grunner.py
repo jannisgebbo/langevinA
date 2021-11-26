@@ -19,35 +19,28 @@ data = {
     # Time stepping
     "finaltime" : 10,
     "initialtime" : 0,
-    "deltat" : 0.04,
-    "evolverType" : 7,
+    "deltat" : 0.24,
+    "evolverType" : "PV2HBSplit23",
 
     #Action
-    "mass" : -4.813,
+    "mass" : -4.70052,
     "lambda" : 4.,
     "gamma" : 1.,
-    "H" :0.004,
+    "H" :0.003,
     "diffusion" : 0.3333333,
-    "chi" : 2.,
+    "chi" : 5.,
     "seed" : 122335456,
     "restart" : False,
 
     #initial condition"
     "outputfiletag" : "grun",
-    "saveFrequencyInTime" : 0.8,
+    "saveFrequency" : 3,
 }
 
 
 # output is prepended with tag_...... For example if tag is set to "foo". Then
 # all outputs are of the form "foo_averages.txt"
 tag = "default"
-
-
-# dump the data into an input file
-def datatoinput():
-    with open(data["outputfiletag"] + '.in', 'w') as fh:
-        for key, value in data.items():
-            fh.write("%s = %s\n" % (key, value))
 
 
 # dump the data into a .json file
@@ -100,10 +93,10 @@ def setdefault_filename():
     data["outputfiletag"] = getdefault_filename()
 
 ########################################################################
-def find_program():
+def find_program(program_name="SuperPions.exe"):
     # find the program
     path = os.path.abspath(os.path.dirname(__file__))
-    return path + "/SuperPions.exe"
+    return path + "/" + program_name
 
 
 #########################################################################
@@ -306,10 +299,12 @@ def prun(moreopts=[], dry_run=True, debug=True, time=0, seed=None, ncpus="4"):
 # runs the program with current value of data  and mpiexec on local
 # mac.
 ########################################################################
-def run(moreopts=[], dry_run=True, time=0, seed=None, ncpus="4",log_view=True):
+def run(program_name = "SuperPions.exe", moreopts=[], dry_run=True, time=0, seed=None, ncpus="2",log_view=True):
 
-    prgm = find_program()
+    prgm = find_program(program_name)
     tag = data["outputfiletag"]
+
+    # Go to the directory 
     dstack.pushd(tag)
 
     # set the seed and the inputfile
@@ -329,6 +324,8 @@ def run(moreopts=[], dry_run=True, time=0, seed=None, ncpus="4",log_view=True):
     print(opts)
     if not dry_run:
         subprocess.run(opts)
+
+    # Go back to the working directory
     dstack.popd()
 
 

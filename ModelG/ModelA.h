@@ -2,7 +2,6 @@
 #define MODELASTRUCT
 
 #include "NoiseGenerator.h"
-#include "parameterparser/parameterparser.h"
 #include "json/json.h"
 #include <fstream>
 #include <petscdm.h>
@@ -21,9 +20,9 @@ struct ModelAData {
   PetscInt NZ = 16;
 
   // Lattice size
-  PetscReal LX = 1.;
-  PetscReal LY = 1.;
-  PetscReal LZ = 1.;
+  PetscReal LX = 16.;
+  PetscReal LY = 16.;
+  PetscReal LZ = 16.;
 
   // Lattice spacing in physical units
   PetscReal hX() const { return LX / NX; }
@@ -41,7 +40,7 @@ struct ModelAData {
   PetscReal initialtime = 0.;
   PetscReal deltat = 0.01;
   // 1 is BEuler, 2 is FEuler
-  PetscInt evolverType = 2;
+  std::string evolverType = "PV2HBSplit23";
 
   // The parameters for the action.
   // The mass in the action has 1/2 and is actually the mass squared and the
@@ -52,8 +51,8 @@ struct ModelAData {
   PetscReal H = 0.;
   PetscReal diffusion = 0.3333333;
   PetscReal chi = 1.1;
-  PetscReal sigma() const {return diffusion*chi;}
-  PetscReal D() const {return diffusion;}
+  PetscReal sigma() const { return diffusion * chi; }
+  PetscReal D() const { return diffusion; }
 
   // random seed
   PetscInt seed = 10;
@@ -64,11 +63,9 @@ struct ModelAData {
   // Options controlling the output. The outputfiletag
   // labells the run. All output files are tag_foo.txt, or tag_bar.h5
   std::string outputfiletag = "o4output";
-  PetscReal saveFrequencyInTime;
   PetscInt saveFrequency;
-  bool verboseMeasurements;
 
-  ModelAData(const Json::Value &params) {
+  ModelAData(Json::Value &params) {
     // Lattice. By default, NY=NX and NZ=NX.
     NX = params["NX"].asInt();
     NY = NX;
@@ -83,30 +80,32 @@ struct ModelAData {
     finaltime = params["finaltime"].asDouble();
     initialtime = params["initialtime"].asDouble();
     deltat = params["deltat"].asDouble();
-    evolverType = params["evolverType"].asInt();
+    evolverType = params["evolverType"].asString();
 
     // Action
     mass = params["mass"].asDouble();
     lambda = params["lambda"].asDouble();
     gamma = params["gamma"].asDouble();
     H = params["H"].asDouble();
-    diffusion = params.get("diffusion", 1./3.).asDouble();
+    diffusion = params.get("diffusion", 1. / 3.).asDouble();
     chi = params.get("chi", 1.35).asDouble();
 
     seed = (PetscInt)params["seed"].asInt();
 
     // Control initialization
-    restart = params.get("restart", false).asBool() ;
+    restart = params.get("restart", false).asBool();
 
     // Control outputs
     outputfiletag = params.get("outputfiletag", "o4output").asString();
-    saveFrequencyInTime = params["saveFrequencyInTime"].asDouble();
-    verboseMeasurements = params.get("verboseMeasurements", false).asBool();
-    saveFrequency = saveFrequencyInTime / deltat;
+    saveFrequency = params["saveFrequency"].asInt();
 
-    // In order to work in restart mode final time should be an integral number of saveFrequency
-    // So that the first action, upon reloading is to save the datastream.
-    finaltime = static_cast<int>(finaltime/(deltat * saveFrequency)) * deltat * saveFrequency ;
+    // In order to work in restart mode final time should be an integral number
+    // of saveFrequency. So that the first action, upon reloading is to save the
+    // datastream. After modifying the finaltime we record in the json structure
+    // so it is saved on output.
+    finaltime = static_cast<int>(finaltime / (deltat * saveFrequency)) *
+                deltat * saveFrequency;
+    params["finaltime"] = finaltime;
 
     // Printout
     int rank = 0;
@@ -130,7 +129,7 @@ struct ModelAData {
     PetscPrintf(PETSC_COMM_WORLD, "finaltime = %e\n", finaltime);
     PetscPrintf(PETSC_COMM_WORLD, "initialtime = %e\n", initialtime);
     PetscPrintf(PETSC_COMM_WORLD, "deltat  = %e\n", deltat);
-    PetscPrintf(PETSC_COMM_WORLD, "evolverType = %d\n", evolverType);
+    PetscPrintf(PETSC_COMM_WORLD, "evolverType = %s\n", evolverType.c_str());
 
     // Action
     PetscPrintf(PETSC_COMM_WORLD, "mass = %e\n", mass);
@@ -143,17 +142,13 @@ struct ModelAData {
     PetscPrintf(PETSC_COMM_WORLD, "seed = %d\n", seed);
 
     // Initialization
-    PetscPrintf(PETSC_COMM_WORLD, "restart = %s\n", (restart ? "true" : "false"));
+    PetscPrintf(PETSC_COMM_WORLD, "restart = %s\n",
+                (restart ? "true" : "false"));
 
     // Outputs
     PetscPrintf(PETSC_COMM_WORLD, "outputfiletag = %s\n",
                 outputfiletag.c_str());
-    PetscPrintf(PETSC_COMM_WORLD, "saveFrequencyInTime = %e\n",
-                saveFrequencyInTime);
-    PetscPrintf(PETSC_COMM_WORLD, "# saveFrequency = %d\n", saveFrequency);
-    PetscPrintf(PETSC_COMM_WORLD, "# Uncomment to print out every time step\n");
-    PetscPrintf(PETSC_COMM_WORLD, "# verboseMeasurements = %s\n",
-                (verboseMeasurements ? "true" : "false"));
+    PetscPrintf(PETSC_COMM_WORLD, "saveFrequency = %d\n", saveFrequency);
   }
 };
 
@@ -206,8 +201,8 @@ public:
 
     // Setup the random number generation
     ModelARndm = make_unique<NoiseGenerator>(data.seed);
-    if (data.restart) { 
-      ModelARndm->read(data.outputfiletag) ;
+    if (data.restart) {
+      ModelARndm->read(data.outputfiletag);
     }
 
     // Printout store the rank
@@ -215,8 +210,8 @@ public:
   }
 
   void finalize() {
-    ModelARndm->write(data.outputfiletag) ;
-    write(data.outputfiletag) ;
+    ModelARndm->write(data.outputfiletag);
+    write(data.outputfiletag);
     VecDestroy(&previoussolution);
     VecDestroy(&solution);
     DMDestroy(&domain);
@@ -228,43 +223,46 @@ public:
     std::string fname = fnamein + "_save.h5";
 #ifndef MODELA_NO_HDF5
     PetscViewer initViewer;
-    PetscBool flg ;
-    PetscErrorCode ierr = PetscTestFile(fname.c_str(), '\0' ,  &flg) ;
+    PetscBool flg;
+    PetscErrorCode ierr = PetscTestFile(fname.c_str(), '\0', &flg);
     if (!flg) {
-      throw(std::string("Unable to open file in restart mode with filename = ") + fname ) ;
+      throw(
+          std::string("Unable to open file in restart mode with filename = ") +
+          fname);
     }
     ierr = PetscViewerHDF5Open(PETSC_COMM_WORLD, fname.c_str(), FILE_MODE_READ,
-                        &initViewer);
-    CHKERRQ(ierr) ; 
+                               &initViewer);
+    CHKERRQ(ierr);
     PetscViewerSetFromOptions(initViewer);
     PetscObjectSetName((PetscObject)solution, "o4fields");
     ierr = VecLoad(solution, initViewer);
-    CHKERRQ(ierr) ;
+    CHKERRQ(ierr);
     PetscViewerDestroy(&initViewer);
-    return ierr ;
+    return ierr;
 #else
     throw("ModelA::read Unable to load from file without HDF5 support. \n");
     return 0;
 #endif
   }
-  
+
   //! Reads in a stored initial condition from Derek's file.
   //! This is a helper function for initialize
   PetscErrorCode write(const std::string fnamein) {
-    std::string fname = fnamein + "_save.h5" ;
+    std::string fname = fnamein + "_save.h5";
 #ifndef MODELA_NO_HDF5
     PetscViewer initViewer;
-    PetscErrorCode ierr = PetscViewerHDF5Open(PETSC_COMM_WORLD, fname.c_str(), FILE_MODE_WRITE,
-                        &initViewer);
-    CHKERRQ(ierr) ;
+    PetscErrorCode ierr = PetscViewerHDF5Open(PETSC_COMM_WORLD, fname.c_str(),
+                                              FILE_MODE_WRITE, &initViewer);
+    CHKERRQ(ierr);
     PetscViewerSetFromOptions(initViewer);
     PetscObjectSetName((PetscObject)solution, "o4fields");
     ierr = VecView(solution, initViewer);
-    CHKERRQ(ierr) ;
+    CHKERRQ(ierr);
     PetscViewerDestroy(&initViewer);
     return 0;
 #else
-    PetscPrintf("ModelA::write Unable to write to a file wihtout HDF5 support\n") ;
+    PetscPrintf(
+        "ModelA::write Unable to write to a file wihtout HDF5 support\n");
     return 0;
 #endif
   }
@@ -280,9 +278,9 @@ public:
 
     if (data.restart) {
       try {
-        read(data.outputfiletag) ;
+        read(data.outputfiletag);
         return (0);
-      } catch(const std::string &error) {
+      } catch (const std::string &error) {
         std::cout << error << std::endl;
         std::cout << "Continuing with zerostart mode." << std::endl;
       }

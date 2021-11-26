@@ -155,13 +155,16 @@ IdealPV2::IdealPV2(ModelA &in, const bool &accept_reject_in)
   if (accept_reject) {
     VecDuplicate(model->solution, &previoussolution);
   }
+  oldEnergy=0. ;
+  newEnergy=0. ;
+
 }
 
 bool IdealPV2::step(const double &dt) {
   bool success = true;
 
   // Do some setup for the accept reject procedure
-  PetscScalar oldEnergy = 0.;
+  oldEnergy = 0.;
   if (accept_reject) {
     VecCopy(model->solution, previoussolution);
     oldEnergy = computeEnergy(dt);
@@ -176,7 +179,7 @@ bool IdealPV2::step(const double &dt) {
   }
 
   // Do a metropolis accept reject for the ideal step
-  PetscScalar newEnergy = computeEnergy(dt);
+  newEnergy = computeEnergy(dt);
   PetscScalar deltaE = newEnergy - oldEnergy;
 
   PetscBool reject(PETSC_FALSE);
@@ -521,478 +524,6 @@ bool ForwardEuler::step(const double &dt) {
 
 /////////////////////////////////////////////////////////////////////////
 
-BackwardEuler::BackwardEuler(ModelA &in, bool wnoise)
-    : model(&in), withNoise(wnoise) {
-
-  VecDuplicate(model->solution, &auxsolution);
-  VecDuplicate(model->solution, &noise);
-  // Set the Jacobian matrix
-  DMSetMatType(model->domain, MATAIJ);
-  DMCreateMatrix(model->domain, &jacobian);
-
-  SNESCreate(PETSC_COMM_WORLD, &Solver);
-  SNESSetFunction(Solver, auxsolution, FormFunction, this);
-  SNESSetJacobian(Solver, jacobian, jacobian, FormJacobian, this);
-  SNESSetFromOptions(Solver);
-}
-void BackwardEuler::finalize() {
-  MatDestroy(&jacobian);
-  SNESDestroy(&Solver);
-  VecDestroy(&noise);
-  VecDestroy(&auxsolution);
-}
-
-bool BackwardEuler::step(const double &dt) {
-  deltat = dt;
-  if (withNoise) {
-    ModelARndm->fillVec(noise);
-  } else {
-    VecZeroEntries(noise);
-  }
-  SNESSolve(Solver, NULL, model->solution);
-  return true;
-}
-
-// Evaluate the rhs function for the nonlinear solver
-PetscErrorCode BackwardEuler::FormFunction(SNES snes, Vec U, Vec F, void *ptr) {
-
-  BackwardEuler *stepper = static_cast<BackwardEuler *>(ptr);
-  ModelA *model = stepper->model;
-  const ModelAData &data = model->data;
-  PetscInt i, j, k, l, xstart, ystart, zstart, xdimension, ydimension,
-      zdimension;
-  DM da = model->domain;
-
-  // define a local vector with boundary cells
-  Vec localU;
-  DMGetLocalVector(da, &localU);
-
-  // Get the Global dimension of the Grid
-  // Define the spaceing
-  PetscReal hx = data.hX();
-  PetscReal hy = data.hY();
-  PetscReal hz = data.hZ();
-
-  // take the global vector U and distribute to the local vector localU
-  DMGlobalToLocalBegin(da, U, INSERT_VALUES, localU);
-  DMGlobalToLocalEnd(da, U, INSERT_VALUES, localU);
-
-  // From the vector define the pointer for the field u and the rhs f
-  G_node ***phi, ***f;
-  DMDAVecGetArrayRead(da, localU, &phi);
-  DMDAVecGetArray(da, F, &f);
-
-  G_node ***gaussiannoise;
-  DMDAVecGetArrayRead(da, stepper->noise, &gaussiannoise);
-
-  G_node ***oldphi;
-  DMDAVecGetArrayRead(da, model->previoussolution, &oldphi);
-
-  // Get the local coordinates
-  DMDAGetCorners(da, &xstart, &ystart, &zstart, &xdimension, &ydimension,
-                 &zdimension);
-
-  // This actually computes the right hand side
-  PetscScalar uxx, uyy, uzz, ucentral, phisquare;
-  G_node phidotI = {};
-  for (k = zstart; k < zstart + zdimension; k++) {
-    for (j = ystart; j < ystart + ydimension; j++) {
-      for (i = xstart; i < xstart + xdimension; i++) {
-        phisquare = 0.;
-        for (l = 0; l < data.Nphi; l++) {
-          phisquare = phisquare + phi[k][j][i].f[l] * phi[k][j][i].f[l];
-        }
-        for (l = 0; l < data.Nphi; l++) {
-          ucentral = phi[k][j][i].f[l];
-          uxx = (-2.0 * ucentral + phi[k][j][i - 1].f[l] +
-                 phi[k][j][i + 1].f[l]) /
-                (hx * hx);
-          uyy = (-2.0 * ucentral + phi[k][j - 1][i].f[l] +
-                 phi[k][j + 1][i].f[l]) /
-                (hy * hy);
-          uzz = (-2.0 * ucentral + phi[k - 1][j][i].f[l] +
-                 phi[k + 1][j][i].f[l]) /
-                (hz * hz);
-
-          phidotI.f[l] =
-              data.gamma * (uxx + uyy + uzz) -
-              data.gamma * (data.mass + data.lambda * phisquare) * ucentral +
-              (l == 0 ? data.gamma * data.H : 0.) +
-              PetscSqrtReal(2. * data.gamma / stepper->deltat) *
-                  gaussiannoise[k][j][i].f[l];
-
-          // here you want to put the formula for the euler step F(phi)=0
-          f[k][j][i].f[l] = -phi[k][j][i].f[l] + oldphi[k][j][i].f[l] +
-                            stepper->deltat * phidotI.f[l];
-        }
-        // We are not updating the currents here
-        for (l = 0; l < data.NA; l++) {
-          f[k][j][i].A[l] = -phi[k][j][i].A[l] + oldphi[k][j][i].A[l];
-        }
-        for (l = 0; l < data.NV; l++) {
-          f[k][j][i].V[l] = -phi[k][j][i].V[l] + oldphi[k][j][i].V[l];
-        }
-      }
-    }
-  }
-  // We need to restore the vector in U and F
-  DMDAVecRestoreArrayRead(da, localU, &phi);
-
-  DMDAVecRestoreArray(da, F, &f);
-  DMRestoreLocalVector(da, &localU);
-  DMDAVecRestoreArrayRead(da, stepper->noise, &gaussiannoise);
-  DMDAVecRestoreArrayRead(da, model->previoussolution, &oldphi);
-
-  return (0);
-}
-// Form the Jacobian with Petsc Interface
-PetscErrorCode BackwardEuler::FormJacobian(SNES snes, Vec U, Mat J, Mat Jpre,
-                                           void *ptr) {
-  BackwardEuler *stepper = static_cast<BackwardEuler *>(ptr);
-  ModelA *model = stepper->model;
-  return FormJacobianGeneric(snes, U, J, Jpre, stepper->deltat, model);
-}
-
-// Form the Jacobian the Jabian generic interface
-PetscErrorCode BackwardEuler::FormJacobianGeneric(SNES snes, Vec U, Mat J,
-                                                  Mat Jpre, const double &dt,
-                                                  ModelA *model) {
-
-  DM da = model->domain;
-  const ModelAData &data = model->data;
-  DMDALocalInfo info;
-  PetscInt i, j, k, l;
-
-  // Get the local information and store in info
-  DMDAGetLocalInfo(da, &info);
-  Vec localU;
-  DMGetLocalVector(da, &localU);
-  // take the global vector U and distribute to the local vector localU
-  DMGlobalToLocalBegin(da, U, INSERT_VALUES, localU);
-  DMGlobalToLocalEnd(da, U, INSERT_VALUES, localU);
-
-  // From the vector define the pointer for the field phi
-  G_node ***phi;
-  DMDAVecGetArrayRead(da, localU, &phi);
-
-  // Define the spacing
-  PetscReal hx = data.hX();
-  PetscReal hy = data.hY();
-  PetscReal hz = data.hZ();
-
-  const double &gamma = data.gamma;
-  for (k = info.zs; k < info.zs + info.zm; k++) {
-    for (j = info.ys; j < info.ys + info.ym; j++) {
-      for (i = info.xs; i < info.xs + info.xm; i++) {
-        PetscScalar phisquare = 0.;
-        for (l = 0; l < ModelAData::Nphi; l++) {
-          phisquare = phisquare + phi[k][j][i].f[l] * phi[k][j][i].f[l];
-        }
-        for (l = 0; l < ModelAData::Nphi; l++) {
-          // we define the column
-          PetscInt nc = 0;
-          MatStencil row, column[10];
-          PetscScalar value[10];
-          // here we insert the position of the row
-          row.i = i;
-          row.j = j;
-          row.k = k;
-          row.c = l;
-          // here we define de position of the non-vansih column for the given
-          // row in total there are 7*4 entries and nc is the total number of
-          // column per row x direction
-          column[nc].i = i - 1;
-          column[nc].j = j;
-          column[nc].k = k;
-          column[nc].c = l;
-          value[nc++] = dt * gamma / (hx * hx);
-          column[nc].i = i + 1;
-          column[nc].j = j;
-          column[nc].k = k;
-          column[nc].c = l;
-          value[nc++] = dt * gamma / (hx * hx);
-          // y direction
-          column[nc].i = i;
-          column[nc].j = j - 1;
-          column[nc].k = k;
-          column[nc].c = l;
-          value[nc++] = dt * gamma / (hy * hy);
-          column[nc].i = i;
-          column[nc].j = j + 1;
-          column[nc].k = k;
-          column[nc].c = l;
-          value[nc++] = dt * gamma / (hy * hy);
-          // z direction
-          column[nc].i = i;
-          column[nc].j = j;
-          column[nc].k = k - 1;
-          column[nc].c = l;
-          value[nc++] = dt * gamma / (hz * hz);
-          column[nc].i = i;
-          column[nc].j = j;
-          column[nc].k = k + 1;
-          column[nc].c = l;
-          value[nc++] = dt * gamma / (hz * hz);
-          // The central element need a loop over the flavour index of the
-          // column (is a full matrix in the flavour index )
-          for (PetscInt m = 0; m < ModelAData::Nphi; m++) {
-            if (m == l) {
-              column[nc].i = i;
-              column[nc].j = j;
-              column[nc].k = k;
-              column[nc].c = l;
-              value[nc++] =
-                  -1. + dt * data.gamma *
-                            (-2.0 / (hy * hy) - 2.0 / (hx * hx) -
-                             2.0 / (hz * hz) - data.mass -
-                             data.lambda * (phisquare + 2. * phi[k][j][i].f[l] *
-                                                            phi[k][j][i].f[l]));
-            } else {
-              column[nc].i = i;
-              column[nc].j = j;
-              column[nc].k = k;
-              column[nc].c = m;
-              value[nc++] =
-                  dt * data.gamma *
-                  (-2. * data.lambda * phi[k][j][i].f[l] * phi[k][j][i].f[m]);
-            }
-          }
-          // here we set the matrix
-          MatSetValuesStencil(Jpre, 1, &row, nc, column, value, INSERT_VALUES);
-        }
-
-        // Put the minus the identity for non-evolved components
-        for (l = 0; l < ModelAData::NA; l++) {
-          PetscInt nc = 0; // number of non-zero entries
-          MatStencil row = {};
-          MatStencil column[1] = {};
-          PetscScalar value[1];
-          // here we insert the position of the row
-          row.i = i;
-          row.j = j;
-          row.k = k;
-          row.c = l + ModelAData::Nphi;
-          column[nc].i = i;
-          column[nc].j = j;
-          column[nc].k = k;
-          column[nc].c = row.c;
-          value[nc++] = -1.;
-
-          // here we set the matrix
-          MatSetValuesStencil(Jpre, 1, &row, nc, column, value, INSERT_VALUES);
-        }
-
-        // Put the minus the identity for non-evolved components
-        for (l = 0; l < ModelAData::NV; l++) {
-          PetscInt nc = 0; // number of non-zero entries
-          MatStencil row = {};
-          MatStencil column[1] = {};
-          PetscScalar value[1];
-          // here we insert the position of the row
-          row.i = i;
-          row.j = j;
-          row.k = k;
-          row.c = l + ModelAData::Nphi + ModelAData::NA;
-          column[nc].i = i;
-          column[nc].j = j;
-          column[nc].k = k;
-          column[nc].c = row.c;
-          value[nc++] = -1.;
-
-          // here we set the matrix
-          MatSetValuesStencil(Jpre, 1, &row, nc, column, value, INSERT_VALUES);
-        }
-      }
-    }
-  }
-  MatAssemblyBegin(Jpre, MAT_FINAL_ASSEMBLY);
-  MatAssemblyEnd(Jpre, MAT_FINAL_ASSEMBLY);
-  if (J != Jpre) {
-    MatAssemblyBegin(J, MAT_FINAL_ASSEMBLY);
-    MatAssemblyEnd(J, MAT_FINAL_ASSEMBLY);
-  }
-  DMDAVecRestoreArrayRead(da, localU, &phi);
-  DMRestoreLocalVector(da, &localU);
-
-  return (0);
-}
-
-/////////////////////////////////////////////////////////////////////////
-
-SemiImplicitBEuler::SemiImplicitBEuler(ModelA &in, bool wnoise)
-    : model(&in), withNoise(wnoise) {
-  VecDuplicate(model->solution, &rhs);
-  VecDuplicate(model->solution, &noise);
-  DMCreateMatrix(model->domain, &J);
-
-  double hx = model->data.hX();
-  double hy = model->data.hY();
-  double hz = model->data.hZ();
-  Form3PointLaplacian(model->domain, J, hx, hy, hz);
-
-  MatConvert(J, MATSAME, MAT_INITIAL_MATRIX, &A);
-  KSPCreate(PETSC_COMM_WORLD, &ksp);
-}
-
-void SemiImplicitBEuler::finalize() {
-  KSPDestroy(&ksp);
-  MatDestroy(&A);
-  MatDestroy(&J);
-  VecDestroy(&noise);
-  VecDestroy(&rhs);
-}
-
-bool SemiImplicitBEuler::step(const double &dt) {
-
-  if (withNoise) {
-    ModelARndm->fillVec(noise);
-  } else {
-    VecZeroEntries(noise);
-  }
-  // Compute the RHS of the equation to be solved
-
-  G_node ***bI;
-  DMDAVecGetArray(model->domain, rhs, &bI);
-
-  G_node ***phiI;
-  DMDAVecGetArray(model->domain, model->solution, &phiI);
-
-  G_node ***xiI;
-  DMDAVecGetArray(model->domain, noise, &xiI);
-
-  PetscInt i, j, k, l, xstart, ystart, zstart, xdimension, ydimension,
-      zdimension;
-
-  DMDAGetCorners(model->domain, &xstart, &ystart, &zstart, &xdimension,
-                 &ydimension, &zdimension);
-
-  const ModelAData &data = model->data;
-  double dtg = dt * data.gamma;
-  double m2 = data.mass;
-  double lambda = data.lambda;
-  double H[ModelAData::Nphi] = {data.H, 0, 0, 0};
-
-  for (k = zstart; k < zstart + zdimension; k++) {
-    for (j = ystart; j < ystart + ydimension; j++) {
-      for (i = xstart; i < xstart + xdimension; i++) {
-
-        G_node &phi = phiI[k][j][i];
-        G_node &b = bI[k][j][i];
-        G_node &xi = xiI[k][j][i];
-
-        double phi2 = 0.;
-        for (l = 0; l < ModelAData::Nphi; l++) {
-          phi2 += phi.f[l] * phi.f[l];
-        }
-
-        for (l = 0; l < ModelAData::Nphi; l++) {
-          b.f[l] = phi.f[l] / dtg - (m2 * phi.f[l] + lambda * phi2 * phi.f[l]) +
-                   H[l] + xi.f[l] * sqrt(2. / dtg);
-        }
-        for (l = 0; l < ModelAData::NA; l++) {
-          b.A[l] = phi.A[l] / dtg;
-        }
-        for (l = 0; l < ModelAData::NV; l++) {
-          b.V[l] = phi.V[l] / dtg;
-        }
-      }
-    }
-  }
-  DMDAVecRestoreArray(model->domain, noise, &xiI);
-  DMDAVecRestoreArray(model->domain, model->solution, &phiI);
-  DMDAVecRestoreArray(model->domain, rhs, &bI);
-
-  // Construct the matrix for the equation to be solved
-  MatCopy(J, A, SAME_NONZERO_PATTERN);
-  MatShift(A, 1. / dtg);
-
-  // Actually solve
-  KSPSetOperators(ksp, A, A);
-  KSPSetFromOptions(ksp);
-  KSPSolve(ksp, rhs, model->solution);
-
-  return true;
-}
-
-// Form the Jacobian the Jabian generic interface
-PetscErrorCode SemiImplicitBEuler::Form3PointLaplacian(DM da, Mat J,
-                                                       const double &hx,
-                                                       const double &hy,
-                                                       const double &hz) {
-  // Get the local information and store in info
-  DMDALocalInfo info;
-  DMDAGetLocalInfo(da, &info);
-  PetscInt i, j, k, l;
-  for (k = info.zs; k < info.zs + info.zm; k++) {
-    for (j = info.ys; j < info.ys + info.ym; j++) {
-      for (i = info.xs; i < info.xs + info.xm; i++) {
-        for (l = 0; l < ModelAData::Nphi; l++) {
-          // we define the column
-          PetscInt nc = 0;
-          MatStencil row, column[10];
-          PetscScalar value[10];
-          // here we insert the position of the row
-          row.i = i;
-          row.j = j;
-          row.k = k;
-          row.c = l;
-          // here we define de position of the non-vansih column for the given
-          // row in total there are 7*4 entries and nc is the total number of
-          // column per row x direction
-          column[nc].i = i - 1;
-          column[nc].j = j;
-          column[nc].k = k;
-          column[nc].c = l;
-          value[nc++] = -1. / (hx * hx);
-          column[nc].i = i + 1;
-          column[nc].j = j;
-          column[nc].k = k;
-          column[nc].c = l;
-          value[nc++] = -1. / (hx * hx);
-          // y direction
-          column[nc].i = i;
-          column[nc].j = j - 1;
-          column[nc].k = k;
-          column[nc].c = l;
-          value[nc++] = -1. / (hy * hy);
-          column[nc].i = i;
-          column[nc].j = j + 1;
-          column[nc].k = k;
-          column[nc].c = l;
-          value[nc++] = -1. / (hy * hy);
-          // z direction
-          column[nc].i = i;
-          column[nc].j = j;
-          column[nc].k = k - 1;
-          column[nc].c = l;
-          value[nc++] = -1. / (hz * hz);
-          column[nc].i = i;
-          column[nc].j = j;
-          column[nc].k = k + 1;
-          column[nc].c = l;
-          value[nc++] = -1. / (hz * hz);
-
-          // The central element need a loop over the flavour index of the
-          // column (is a full matrix in the flavour index )
-          column[nc].i = i;
-          column[nc].j = j;
-          column[nc].k = k;
-          column[nc].c = l;
-          value[nc++] = 2.0 / (hx * hx) + 2.0 / (hy * hy) + 2.0 / (hz * hz);
-
-          // here we set the matrix
-          MatSetValuesStencil(J, 1, &row, nc, column, value, INSERT_VALUES);
-        }
-      }
-    }
-  }
-  MatAssemblyBegin(J, MAT_FINAL_ASSEMBLY);
-  MatAssemblyEnd(J, MAT_FINAL_ASSEMBLY);
-  return (0);
-}
-
-/////////////////////////////////////////////////////////////////////////a
-
 EulerLangevinHB::EulerLangevinHB(ModelA &in)
     : model(&in), monitor("Phi HB Steps") {
   DMCreateLocalVector(model->domain, &phi_local);
@@ -1300,7 +831,7 @@ bool ModelGChargeCN::step(const double &dt) {
                  &ydimension, &zdimension);
 
   // Parameters needed
-  const PetscReal &dtD = dt * model->data.D() ;
+  const PetscReal &dtD = dt * model->data.D();
   ;
   const PetscReal &rxbyD = sqrt(2. * model->data.chi / dtD);
 
@@ -1483,14 +1014,14 @@ bool PV2HBSplit::step(const double &dt) {
   PetscLogEventRegister("QHBStep", 0, &qhb_log);
 
   // Format of steps is ABBB,ABBB,C  for (3,2)
-  for (size_t i1=0; i1 < stepcounts[1] ; i1++) {
+  for (size_t i1 = 0; i1 < stepcounts[1]; i1++) {
     PetscLogEventBegin(ideal_log, 0, 0, 0, 0);
-    pv2.step(dt/(stepcounts[1]));
+    pv2.step(dt / (stepcounts[1]));
     PetscLogEventEnd(ideal_log, 0, 0, 0, 0);
 
     PetscLogEventBegin(hb_log, 0, 0, 0, 0);
-    for (size_t i0=0; i0 < stepcounts[0] ; i0++)  {
-      hbPhi.step(dt/(stepcounts[0]*stepcounts[1]));
+    for (size_t i0 = 0; i0 < stepcounts[0]; i0++) {
+      hbPhi.step(dt / (stepcounts[0] * stepcounts[1]));
     }
     PetscLogEventEnd(hb_log, 0, 0, 0, 0);
   }

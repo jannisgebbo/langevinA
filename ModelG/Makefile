@@ -55,6 +55,12 @@ LDLIBS := $(shell pkg-config --libs-only-l $(PACKAGES)) -lm
 HEADRS = ModelA.h Stepper.h NoiseGenerator.h measurer.h plotter.h O4AlgebraHelper.h
 OBJS = measurer.o Stepper.o NoiseGenerator.o jsoncpp.o
 
+fixenergy.exe: fixenergy.o $(OBJS)
+	$(LINK.cc) -o $@ $^ $(LDLIBS) -lstdc++
+
+fixenergy.o: fixenergy.cpp $(HEADRS)
+	$(COMPILE.cc) $(OUTPUT_OPTION) $<
+
 SuperPions.exe: SuperPions.o $(OBJS)
 	$(LINK.cc) -o $@ $^ $(LDLIBS) -lstdc++
 

@@ -11,9 +11,6 @@
 #include "Stepper.h"
 #include "make_unique.h"
 
-// Homemade parser
-#include "parameterparser/parameterparser.h"
-
 // Measurer, where the Petsc are included
 #include "measurer.h"
 
@@ -63,33 +60,23 @@ int main(int argc, char **argv) {
   // Initialize the stepper
   std::unique_ptr<Stepper> step;
 
-  switch (model.data.evolverType) {
-  case 1:
-    step = make_unique<BackwardEuler>(model);
-    break;
-  case 2:
-    step = make_unique<ForwardEuler>(model);
-    break;
-  case 3:
-    step = make_unique<SemiImplicitBEuler>(model);
-    break;
-  case 4:
+  std::string &s = model.data.evolverType;
+  if (s == "EulerLangevinHB") {
+    // Just take the Langevin updates of scalars
     step = make_unique<EulerLangevinHB>(model);
-    break;
-  case 5:
-    step = make_unique<IdealLF>(model);
-    break;
-  case 6:
-    step = make_unique<LFHBSplit>(model);
-    break;
-  case 7:
+  } else if (s == "IdealPV2") {
+    // Just Ideal Steps
+    step = make_unique<IdealPV2>(model);
+  } else if (s == "ModelGChargeHB") {
+    // Just take a langevin step for the charges
+    step = make_unique<ModelGChargeHB>(model);
+  } else if (s == "PV2HBSplit11") {
+    // ABC
     step = make_unique<PV2HBSplit>(model);
-    break;
-  case 8:
+  } else if (s == "PV2HBSplit23") {
     // ABB,ABB,ABB,C
     std::array<unsigned int, 2> s = {2, 3};
     step = std::make_unique<PV2HBSplit>(model, s);
-    break;
   }
 
   PetscInt steps = 0;

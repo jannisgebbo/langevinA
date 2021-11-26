@@ -8,8 +8,6 @@ measurer_output_hdf5::measurer_output_hdf5(Measurer *in) : measure(in) {
   VecCreateSeq(PETSC_COMM_SELF, measure->NScalars, &vecSaverScalars);
   VecCreateSeq(PETSC_COMM_SELF, measure->N, &vecSaverCors);
 
-  // Set the parameters controlling the output
-  verbosity = model->data.verboseMeasurements;
 
   // filename is foo.h5
   std::string name = model->data.outputfiletag + ".h5";
@@ -66,12 +64,9 @@ void measurer_output_hdf5::save(const std::string &what) {
   for (PetscInt i = 0; i < measure->NObs; ++i) {
     tmp = what + "_" + std::to_string(i);
     saveCorLike(measure->sliceAveragesX[i], "wallX_" + tmp);
-    if (verbosity)
-      saveCorLike(measure->sliceAveragesY[i], "wallY_" + tmp);
-    if (verbosity)
-      saveCorLike(measure->sliceAveragesZ[i], "wallZ_" + tmp);
-    if (verbosity)
-      saveCorLike(measure->isotropicWallToWallCii[i], "Cii_" + tmp);
+    saveCorLike(measure->sliceAveragesY[i], "wallY_" + tmp);
+    saveCorLike(measure->sliceAveragesZ[i], "wallZ_" + tmp);
+    saveCorLike(measure->isotropicWallToWallCii[i], "Cii_" + tmp);
   }
   saveScalarsLike(measure->OAverage, what);
 }

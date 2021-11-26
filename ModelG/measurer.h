@@ -22,6 +22,8 @@ public:
 };
 
 #ifndef MODELA_NO_HDF5
+
+//Older hdf5 outputclass
 class measurer_output_hdf5 : public measurer_output {
 public:
   measurer_output_hdf5(Measurer *in);
@@ -32,7 +34,6 @@ public:
 private:
   Measurer *measure;
   PetscViewer viewer;
-  bool verbosity;
 
   // These temporary local petsc vectors are to simplify the using petsc
   // routines for writing to HDF5. See the routines saveCorLike and
@@ -44,6 +45,7 @@ private:
   void saveCorLike(std::vector<PetscScalar> &arr, const std::string &name);
 };
 
+//Newer hdf5 ouputclass
 class measurer_output_fasthdf5 : public measurer_output {
 public:
   measurer_output_fasthdf5(Measurer *in);
@@ -61,7 +63,7 @@ private:
 };
 #endif
 
-// Minimal output of scalar array
+// Minimal output of scalar array to a text file
 class measurer_output_txt : public measurer_output {
 public:
   measurer_output_txt(Measurer *in);
@@ -213,6 +215,7 @@ public:
   }
 
   std::array<PetscScalar, 4> getEnergy() const { return energy; }
+  const std::vector<PetscScalar> &getOAverage() const { return OAverage; }
 
 private:
   void computeSliceAverage(Vec *solution) {
