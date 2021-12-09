@@ -17,7 +17,7 @@ PETSc.pc := PETSc
 
 
 # Additional libraries that support pkg-config can be added to the list of PACKAGES below.
-PACKAGES := $(PETSc.pc) gsl
+PACKAGES := $(PETSc.pc) gsl hdf5
 
 CC := $(shell pkg-config --variable=ccompiler $(PACKAGES))
 CXX := $(shell pkg-config --variable=cxxcompiler $(PACKAGES))

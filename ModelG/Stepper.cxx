@@ -2,6 +2,7 @@
 #include "ModelA.h"
 #include "O4AlgebraHelper.h"
 #include <cstdio>
+#include <algorithm>
 
 IdealLF::IdealLF(ModelA &in) : model(&in) {}
 
