@@ -116,7 +116,7 @@ class IdealPV2 : public Stepper {
 public:
   // If accept_reject is false then the step is done without
   // the metropolis accept reject
-  IdealPV2(ModelA &in, const bool &accept_reject_in = true);
+  IdealPV2(ModelA &in, const bool &accept_reject_in = false);
   void finalize() override;
   bool step(const double &dt) override;
 

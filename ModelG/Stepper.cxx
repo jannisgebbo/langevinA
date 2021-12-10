@@ -2,6 +2,7 @@
 #include "ModelA.h"
 #include "O4AlgebraHelper.h"
 #include <cstdio>
+#include <algorithm>
 
 IdealLF::IdealLF(ModelA &in) : model(&in) {}
 
@@ -166,18 +167,14 @@ bool IdealPV2::step(const double &dt) {
   // Do some setup for the accept reject procedure
   if (accept_reject) {
     VecCopy(model->solution, previoussolution);
-    oldEnergy = computeEnergy(dt);
   }
+  oldEnergy = computeEnergy(dt);
 
   // Take the proposal
   success = step_no_reject(dt);
 
-  // If we are not doing the accept reject, we are done
-  if (!accept_reject) {
-    return success;
-  }
-
-  // Do a metropolis accept reject for the ideal step
+  // Do a metropolis accept reject for the ideal step.  Even if we are not
+  // doing the accept reject we keep track of the statistics.
   newEnergy = computeEnergy(dt);
   PetscScalar deltaE = newEnergy - oldEnergy;
 
@@ -197,10 +194,14 @@ bool IdealPV2::step(const double &dt) {
       monitor.increment_down(deltaE);
     }
   }
-  MPI_Bcast(&reject, 1, MPIU_BOOL, 0, MPI_COMM_WORLD);
 
-  if (reject) {
-    VecCopy(previoussolution, model->solution);
+  // If we doing the accept reject, we need to acctualy reject
+  if (accept_reject) {
+     MPI_Bcast(&reject, 1, MPIU_BOOL, 0, MPI_COMM_WORLD);
+
+     if (reject) {
+       VecCopy(previoussolution, model->solution);
+     }
   }
   return success;
 }
