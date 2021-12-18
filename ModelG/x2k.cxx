@@ -1,0 +1,90 @@
+
+#include <fftw3.h>
+#include "hdf5.h"
+#include "ntuple.h"
+#include <array>
+#include <fstream>
+#include <vector>
+
+inline bool exists_test (const std::string& name) {
+   std::ifstream f(name.c_str());
+   return f.good();
+}
+
+int main(int argc, char **argv) {
+
+  if (argc < 3) {
+     std::cout << "Usage x2k filename.h5 datasetname" << std::endl ;
+     exit(0) ;
+  }
+
+  std::string fin(argv[1]) ;
+  std::string dsetin(argv[2]) ;
+
+  std::string fout ;
+  auto idx=fin.rfind(".h5") ;
+  if (idx != std::string::npos) {
+     fout = fin.substr(0,idx)  + "_out.h5" ;
+  } else{ 
+     std::cout << "x2k input file -- " << fin << " -- does not have a .h5 extension" << std::endl ;
+     return EXIT_FAILURE;
+  }
+  std::cout << fout << std::endl;
+  std::string dsetout = dsetin + "_k" ;
+
+
+  // Open the filespace and grab the ntuples
+  hid_t filein_id = H5Fopen(fin.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+  ntuple<2> in(dsetin, filein_id);
+
+  // get the dimension of the N
+  auto N = in.getN() ;
+
+  hid_t fileout_id ;
+  if (exists_test(fout)) {
+     fileout_id = H5Fopen(fout.c_str(), H5F_ACC_RDWR, H5P_DEFAULT) ; 
+  } else {
+     fileout_id = H5Fcreate(fout.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT) ; 
+  }
+
+  // The dimensions of the output object are two longer than the input
+  auto NK = N ;
+  NK[1] = 2*(N[1]/2 + 1)  ;
+  ntuple<2> out(NK, dsetout, fileout_id); 
+
+  // Create the storage space for the plan
+  std::vector<double> in_ptr(N[1],0.) ;
+  std::vector<double> out_ptr(NK[1],0.) ;
+
+  // Create the plane for the fourier transform
+  fftw_plan p = fftw_plan_dft_r2c_1d(N[1], in_ptr.data(), reinterpret_cast<fftw_complex *>(out_ptr.data()), FFTW_MEASURE);
+
+  for (size_t i=0 ; i < in.nrows(); i++) {
+    in.readrow(i);
+    for (int i0 = 0; i0 < N[0]; i0++) {
+      // Copy the data to the in_ptr of the fouier transform
+      for (int i1 = 0; i1 < N[1]; i1++) {
+        size_t k = in.at({i0, i1});
+        in_ptr[i1] = in.row[k] ;
+      }
+
+      fftw_execute(p) ;
+
+      // Compy the data to the out_ptr of the fourier transform
+      for (int i1 = 0; i1 < NK[1]; i1++) {
+        size_t k = out.at({i0, i1});
+        out.row[k] = out_ptr[i1] ;
+      }
+    }
+    out.fill() ;
+  }
+  fftw_destroy_plan(p);
+
+  // close the filespace
+  out.close();
+  H5Fclose(fileout_id);
+
+  in.close();
+  H5Fclose(filein_id);
+  return 0;
+}
