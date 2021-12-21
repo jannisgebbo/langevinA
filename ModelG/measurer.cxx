@@ -1,102 +1,6 @@
 #include "measurer.h"
 
 #ifndef MODELA_NO_HDF5
-measurer_output_hdf5::measurer_output_hdf5(Measurer *in) : measure(in) {
-
-  ModelA *model = measure->model;
-  // Create temporary petsc arrays for holding scalars
-  VecCreateSeq(PETSC_COMM_SELF, measure->NScalars, &vecSaverScalars);
-  VecCreateSeq(PETSC_COMM_SELF, measure->N, &vecSaverCors);
-
-
-  // filename is foo.h5
-  std::string name = model->data.outputfiletag + ".h5";
-
-  // Check if we are supposed to, and are able to, restart the measurements
-  PetscBool restartflg = PETSC_FALSE;
-  if (model->data.restart) {
-    PetscTestFile(name.c_str(), '\0', &restartflg);
-    if (!restartflg) {
-      std::cout << "measurer_output_hdf5::measurer_output_hdf5: Unable to open "
-                   "measurement file "
-                << name
-                << " while in restart mode. Creating a new measurement file. "
-                << std::endl;
-    }
-  }
-
-  // Restart the measurements
-  if (restartflg) {
-    PetscErrorCode ierr;
-    ierr = PetscViewerHDF5Open(PETSC_COMM_SELF, name.c_str(), FILE_MODE_APPEND,
-                               &viewer);
-    CHKERRV(ierr);
-    PetscInt timestep;
-    ierr = PetscViewerHDF5ReadAttribute(viewer, NULL, "Timestep", PETSC_INT,
-                                        &timestep);
-    CHKERRV(ierr);
-    PetscViewerSetFromOptions(viewer);
-    PetscViewerHDF5SetTimestep(viewer, timestep);
-  } else { // Start a new measurement file
-    std::string name(model->data.outputfiletag + ".h5");
-    PetscViewerHDF5Open(PETSC_COMM_SELF, name.c_str(), FILE_MODE_WRITE,
-                        &viewer);
-    PetscViewerSetFromOptions(viewer);
-    PetscViewerHDF5SetTimestep(viewer, 0);
-  }
-}
-
-measurer_output_hdf5::~measurer_output_hdf5() {
-  PetscInt timestep;
-  PetscViewerHDF5GetTimestep(viewer, &timestep);
-  PetscViewerHDF5WriteAttribute(viewer, NULL, "Timestep", PETSC_INT, &timestep);
-  VecDestroy(&vecSaverCors);
-  VecDestroy(&vecSaverScalars);
-  PetscViewerDestroy(&viewer);
-};
-
-void measurer_output_hdf5::update() {
-  PetscViewerHDF5IncrementTimestep(viewer);
-}
-
-void measurer_output_hdf5::save(const std::string &what) {
-  std::string tmp;
-  for (PetscInt i = 0; i < measure->NObs; ++i) {
-    tmp = what + "_" + std::to_string(i);
-    saveCorLike(measure->sliceAveragesX[i], "wallX_" + tmp);
-    saveCorLike(measure->sliceAveragesY[i], "wallY_" + tmp);
-    saveCorLike(measure->sliceAveragesZ[i], "wallZ_" + tmp);
-    saveCorLike(measure->isotropicWallToWallCii[i], "Cii_" + tmp);
-  }
-  saveScalarsLike(measure->OAverage, what);
-}
-// Save instance of scalars like object into a hdf5 file
-void measurer_output_hdf5::saveScalarsLike(std::vector<PetscScalar> &arr,
-                                           const std::string &name) {
-
-  PetscScalar *v;
-  VecGetArray(vecSaverScalars, &v);
-  for (PetscInt i = 0; i < measure->NScalars; ++i) {
-    v[i] = arr[i];
-  }
-  VecRestoreArray(vecSaverScalars, &v);
-  PetscObjectSetName((PetscObject)vecSaverScalars, name.c_str());
-  VecView(vecSaverScalars, viewer);
-}
-// Save instance of a correlator like object into a hdf5 file
-void measurer_output_hdf5::saveCorLike(std::vector<PetscScalar> &arr,
-                                       const std::string &name) {
-
-  PetscScalar *v;
-  VecGetArray(vecSaverCors, &v);
-  for (PetscInt i = 0; i < measure->N; ++i) {
-    v[i] = arr[i];
-  }
-  VecRestoreArray(vecSaverCors, &v);
-
-  PetscObjectSetName((PetscObject)vecSaverCors, name.c_str());
-  VecView(vecSaverCors, viewer);
-}
 /////////////////////////////////////////////////////////////////////////
 
 measurer_output_fasthdf5::measurer_output_fasthdf5(Measurer *in) : measure(in) {
@@ -117,9 +21,9 @@ measurer_output_fasthdf5::measurer_output_fasthdf5(Measurer *in) : measure(in) {
   }
 
   if (restartflg) {
-     file_id = H5Fopen(name.c_str(), H5F_ACC_RDWR, H5P_DEFAULT);
+    file_id = H5Fopen(name.c_str(), H5F_ACC_RDWR, H5P_DEFAULT);
   } else {
-     file_id = H5Fcreate(name.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    file_id = H5Fcreate(name.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
   }
 
   std::array<size_t, 1> NN1{Measurer::NScalars};
@@ -154,7 +58,7 @@ void measurer_output_fasthdf5::save(const std::string &what) {
 #endif
 
 /////////////////////////////////////////////////////////////////////////
-//! Helper routine for o4_run_create, which opens the ASCII viewer with a
+//! Helper routine which opens the ASCII viewer with a
 //! specific mode
 PetscErrorCode PetscViewerASCIIOpenMode(MPI_Comm comm, const char *name,
                                         PetscFileMode mode,

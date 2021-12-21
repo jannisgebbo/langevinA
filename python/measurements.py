@@ -248,51 +248,6 @@ def computeOtOtp(arr1, arr2, statFunc, conn=False, nTMax=-1, decim=1):
     if nTMax == -1:  #nTMax was not passed
         nTMax = Npoints
 
-    Cttp = np.zeros(nTMax, dtype=type(arr1[0]))
-    CttpErr = np.zeros(nTMax, dtype=type(arr1[0]))
-
-    av1 = np.mean(arr1)
-    av2 = np.mean(arr2)
-
-    # Points over which we do the time average
-    for tt in range(nTMax):  # tt is the time difference
-        counter = 0
-        nStarts = list(range(0, Npoints - tt, decim))
-        tmpArr = np.zeros(len(nStarts), dtype=type(arr1[0]))
-
-        for t0 in nStarts:  # t0 is the origin
-            tmpArr[counter] = arr1[t0 + tt] * arr2[t0]
-            if conn:
-                tmpArr[counter] -= av1 * av2
-            counter += 1
-
-        # Use the passed statistical function to evaluate the correlator
-        Cttp[tt], CttpErr[tt] = statFunc(tmpArr)
-
-    return Cttp, CttpErr
-
-
-# Compute the correlator in time between arr1 and arr2.
-#
-# The correlation function is computed over the full range if nTMax is not
-# passed as an optional argument. If nTMax is passd then the maximum range of
-# the correlator is between 0...nTMax - 1.
-#
-# The routine will also substract the connected part by setting conn (for
-# connected) to True
-#
-# The statistical method for computing the average is passed as the third
-# arguement.  The simplest case, which neglects the error is,
-#
-# lambda x: (np.mean(x), 0)
-#
-def computeOtOtp(arr1, arr2, statFunc, conn=False, nTMax=-1, decim=1):
-
-    # Take the full possible range if nTMax is not passed
-    Npoints = len(arr1)
-    if nTMax == -1:  #nTMax was not passed
-        nTMax = Npoints
-
     # Allocate space for the result
     Cttp = np.zeros(nTMax, dtype=type(arr1[0]))
     CttpErr = np.zeros(nTMax, dtype=type(arr1[0]))
