@@ -13,7 +13,144 @@
 #endif
 #include "make_unique.h"
 
-struct ModelAData {
+// POD structure for recording the time stepping
+struct ModelATime {
+  PetscReal finaltime = 10.;
+  PetscReal initialtime = 0.;
+  PetscReal deltat = 0.24;
+  PetscReal time = 0.;
+
+  PetscReal t() const { return time; }
+  PetscReal dt() const { return deltat; }
+  PetscReal initial() const { return initialtime; }
+  PetscReal final() const { return finaltime; }
+  void operator+=(const double &dtin) { time += dtin; }
+  void reset() { time = initialtime; }
+
+  // The finaltime is be adjusted so that the total number of time steps is an
+  // integral number of saveFrequency*dt() units.  The new finaltime is
+  // returned.
+  PetscReal adjust_finaltime(const int &saveFrequency) {
+    finaltime = initialtime + deltat * saveFrequency *
+                                  static_cast<int>((finaltime - initialtime) /
+                                                   (deltat * saveFrequency));
+    return finaltime;
+  }
+
+  void read(const Json::Value &params) {
+    finaltime = params.get("finaltime", finaltime).asDouble();
+    initialtime = params.get("initialtime", initialtime).asDouble();
+    deltat = params.get("deltat", deltat).asDouble();
+    time = initialtime;
+  }
+
+  void print() {
+    // Time Stepping
+    PetscPrintf(PETSC_COMM_WORLD, "finaltime = %e\n", finaltime);
+    PetscPrintf(PETSC_COMM_WORLD, "initialtime = %e\n", initialtime);
+    PetscPrintf(PETSC_COMM_WORLD, "deltat  = %e\n", deltat);
+  }
+};
+
+// POD structure for the thermodynamic and transport coefficients.
+struct ModelACoefficients {
+
+  PetscReal mass0 = -4.70052;
+  PetscReal dmassdt = 0.;
+
+  PetscReal lambda = 4.;
+  PetscReal H = 0.003;
+  PetscReal chi = 5;
+
+  PetscReal gamma = 1.;
+  PetscReal diffusion = 0.3333333;
+
+  // Returns the value of the mass at a given time t.
+  PetscReal mass(const double &t) const { return mass0 + dmassdt * t; }
+
+  PetscReal sigma() const { return diffusion * chi; }
+  PetscReal D() const { return diffusion; }
+
+  void read(const Json::Value &params) {
+    mass0 = params.get("mass0", mass0).asDouble();
+    dmassdt = params.get("dmassdt", 0.).asDouble();
+
+    lambda = params.get("lambda", lambda).asDouble();
+    H = params.get("H", H).asDouble();
+    chi = params.get("chi", chi).asDouble();
+
+    gamma = params.get("gamma", gamma).asDouble();
+    diffusion = params.get("diffusion", 1. / 3. * gamma).asDouble();
+  }
+
+  void print() {
+    PetscPrintf(PETSC_COMM_WORLD, "mass0 = %e\n", mass0);
+    PetscPrintf(PETSC_COMM_WORLD, "dmassdt = %e\n", dmassdt);
+
+    PetscPrintf(PETSC_COMM_WORLD, "lambda = %e\n", lambda);
+    PetscPrintf(PETSC_COMM_WORLD, "H = %e\n", H);
+    PetscPrintf(PETSC_COMM_WORLD, "chi = %e\n", chi);
+    PetscPrintf(PETSC_COMM_WORLD, "gamma = %e\n", gamma);
+    PetscPrintf(PETSC_COMM_WORLD, "diffusion = %e\n", diffusion);
+  }
+};
+
+struct ModelAHandlerData {
+
+  std::string evolverType = "PV2HBSplit23";
+
+  // random seed
+  PetscInt seed = 10;
+
+  // If we are to restore
+  bool restart = false;
+
+  // Options controlling the output. The outputfiletag labells the run. All
+  // output files are tag_foo.txt, or tag_bar.h5
+  std::string outputfiletag = "o4output";
+  PetscInt saveFrequency = 3;
+
+  bool eventmode = false;
+  int nevents = 1;
+  int last_stored_event = -1;
+  int current_event = 0;
+
+  void read(Json::Value &params) {
+    evolverType = params.get("evolverType", evolverType).asString();
+    seed = (PetscInt)params.get("seed", seed).asInt();
+    restart = params.get("restart", false).asBool();
+    outputfiletag = params.get("outputfiletag", "o4output").asString();
+    saveFrequency = params.get("saveFrequency", saveFrequency).asInt();
+
+    eventmode = params.get("eventmode", eventmode).asBool();
+    nevents = params.get("nevents", nevents).asInt();
+    last_stored_event = params.get("last_stored_event", -1).asInt();
+
+    current_event = last_stored_event + 1;
+    // This is for restart mode
+    params["last_stored_event"] = last_stored_event + nevents;
+  }
+
+  void print() {
+    PetscPrintf(PETSC_COMM_WORLD, "evolverType = %s\n", evolverType.c_str());
+    PetscPrintf(PETSC_COMM_WORLD, "seed = %d\n", seed);
+    PetscPrintf(PETSC_COMM_WORLD, "restart = %s\n",
+                (restart ? "true" : "false"));
+    PetscPrintf(PETSC_COMM_WORLD, "outputfiletag = %s\n",
+                outputfiletag.c_str());
+    PetscPrintf(PETSC_COMM_WORLD, "saveFrequency = %d\n", saveFrequency);
+
+    PetscPrintf(PETSC_COMM_WORLD, "eventmode = %s\n",
+                (eventmode ? "true" : "false"));
+    PetscPrintf(PETSC_COMM_WORLD, "nevents = %d\n", nevents);
+    PetscPrintf(PETSC_COMM_WORLD, "last_stored_event = %d\n",
+                last_stored_event);
+  }
+};
+
+class ModelAData {
+
+public:
   // Lattice dimension
   PetscInt NX = 16;
   PetscInt NY = 16;
@@ -35,36 +172,18 @@ struct ModelAData {
   static const PetscInt NV = 3;
   static const PetscInt Ndof = Nphi + NA + NV;
 
-  // Options controlling the time stepping:
-  PetscReal finaltime = 20.;
-  PetscReal initialtime = 0.;
-  PetscReal deltat = 0.01;
-  // 1 is BEuler, 2 is FEuler
-  std::string evolverType = "PV2HBSplit23";
+  // Options controlling the clock
+  ModelATime atime;
 
-  // The parameters for the action.
-  // The mass in the action has 1/2 and is actually the mass squared and the
-  // quartic has intead 1/4.
-  PetscReal mass = -5.;
-  PetscReal lambda = 5.;
-  PetscReal gamma = 1.;
-  PetscReal H = 0.;
-  PetscReal diffusion = 0.3333333;
-  PetscReal chi = 1.1;
-  PetscReal sigma() const { return diffusion * chi; }
-  PetscReal D() const { return diffusion; }
+  // Thermodynamic and transport coefficients
+  ModelACoefficients acoefficients;
+  // Convenience function for returnin the mass at the current time
+  PetscReal mass() const { return acoefficients.mass(atime.t()); }
 
-  // random seed
-  PetscInt seed = 10;
+  // Options for management ;
+  ModelAHandlerData ahandler;
 
-  // Options controlling the initial condition
-  bool restart = false;
-
-  // Options controlling the output. The outputfiletag
-  // labells the run. All output files are tag_foo.txt, or tag_bar.h5
-  std::string outputfiletag = "o4output";
-  PetscInt saveFrequency;
-
+public:
   ModelAData(Json::Value &params) {
     // Lattice. By default, NY=NX and NZ=NX.
     NX = params["NX"].asInt();
@@ -77,34 +196,12 @@ struct ModelAData {
     LZ = LX;
 
     // Time Stepping
-    finaltime = params["finaltime"].asDouble();
-    initialtime = params["initialtime"].asDouble();
-    deltat = params["deltat"].asDouble();
-    evolverType = params["evolverType"].asString();
+    atime.read(params);
+    acoefficients.read(params);
+    ahandler.read(params);
 
-    // Action
-    mass = params["mass"].asDouble();
-    lambda = params["lambda"].asDouble();
-    gamma = params["gamma"].asDouble();
-    H = params["H"].asDouble();
-    diffusion = params.get("diffusion", 1. / 3.).asDouble();
-    chi = params.get("chi", 1.35).asDouble();
-
-    seed = (PetscInt)params["seed"].asInt();
-
-    // Control initialization
-    restart = params.get("restart", false).asBool();
-
-    // Control outputs
-    outputfiletag = params.get("outputfiletag", "o4output").asString();
-    saveFrequency = params["saveFrequency"].asInt();
-
-    // In order to work in restart mode final time should be an integral number
-    // of saveFrequency. So that the first action, upon reloading is to save the
-    // datastream. After modifying the finaltime we record in the json structure
-    // so it is saved on output.
-    finaltime = static_cast<int>(finaltime / (deltat * saveFrequency)) *
-                deltat * saveFrequency;
+    // Micro adjust the final time
+    double finaltime = atime.adjust_finaltime(ahandler.saveFrequency);
     params["finaltime"] = finaltime;
 
     // Printout
@@ -126,29 +223,13 @@ struct ModelAData {
     PetscPrintf(PETSC_COMM_WORLD, "LZ = %e\n", LZ);
 
     // Time Stepping
-    PetscPrintf(PETSC_COMM_WORLD, "finaltime = %e\n", finaltime);
-    PetscPrintf(PETSC_COMM_WORLD, "initialtime = %e\n", initialtime);
-    PetscPrintf(PETSC_COMM_WORLD, "deltat  = %e\n", deltat);
-    PetscPrintf(PETSC_COMM_WORLD, "evolverType = %s\n", evolverType.c_str());
+    atime.print();
 
-    // Action
-    PetscPrintf(PETSC_COMM_WORLD, "mass = %e\n", mass);
-    PetscPrintf(PETSC_COMM_WORLD, "lambda = %e\n", lambda);
-    PetscPrintf(PETSC_COMM_WORLD, "gamma = %e\n", gamma);
-    PetscPrintf(PETSC_COMM_WORLD, "H = %e\n", H);
-    PetscPrintf(PETSC_COMM_WORLD, "diffusion = %e\n", diffusion);
-    PetscPrintf(PETSC_COMM_WORLD, "chi = %e\n", chi);
+    // Transport and thermodynamic coefficients
+    acoefficients.print();
 
-    PetscPrintf(PETSC_COMM_WORLD, "seed = %d\n", seed);
-
-    // Initialization
-    PetscPrintf(PETSC_COMM_WORLD, "restart = %s\n",
-                (restart ? "true" : "false"));
-
-    // Outputs
-    PetscPrintf(PETSC_COMM_WORLD, "outputfiletag = %s\n",
-                outputfiletag.c_str());
-    PetscPrintf(PETSC_COMM_WORLD, "saveFrequency = %d\n", saveFrequency);
+    // Mangement parameters
+    ahandler.print();
   }
 };
 
@@ -200,9 +281,10 @@ public:
     VecDuplicate(solution, &previoussolution);
 
     // Setup the random number generation
-    ModelARndm = make_unique<NoiseGenerator>(data.seed);
-    if (data.restart) {
-      ModelARndm->read(data.outputfiletag);
+    const auto &ahandler = data.ahandler;
+    ModelARndm = make_unique<NoiseGenerator>(ahandler.seed);
+    if (ahandler.restart) {
+      ModelARndm->read(ahandler.outputfiletag);
     }
 
     // Printout store the rank
@@ -210,8 +292,9 @@ public:
   }
 
   void finalize() {
-    ModelARndm->write(data.outputfiletag);
-    write(data.outputfiletag);
+    const auto &ahandler = data.ahandler;
+    ModelARndm->write(ahandler.outputfiletag);
+    write(ahandler.outputfiletag);
     VecDestroy(&previoussolution);
     VecDestroy(&solution);
     DMDestroy(&domain);
@@ -276,9 +359,10 @@ public:
                                            void *params) = 0,
                             void *params = 0) {
 
-    if (data.restart) {
+    const auto &ahandler = data.ahandler;
+    if (ahandler.restart) {
       try {
-        read(data.outputfiletag);
+        read(ahandler.outputfiletag);
         return (0);
       } catch (const std::string &error) {
         std::cout << error << std::endl;

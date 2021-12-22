@@ -1,8 +1,8 @@
 #include "Stepper.h"
 #include "ModelA.h"
 #include "O4AlgebraHelper.h"
-#include <cstdio>
 #include <algorithm>
+#include <cstdio>
 
 IdealLF::IdealLF(ModelA &in) : model(&in) {}
 
@@ -17,7 +17,8 @@ bool IdealLF::step(const double &dt) {
   DMGlobalToLocalBegin(da, model->previoussolution, INSERT_VALUES, localU);
   DMGlobalToLocalEnd(da, model->previoussolution, INSERT_VALUES, localU);
 
-  const ModelAData &data = model->data;
+  const auto &data = model->data;
+  const auto &coeff = data.acoefficients;
 
   G_node ***phi;
   DMDAVecGetArrayRead(da, localU, &phi);
@@ -25,7 +26,7 @@ bool IdealLF::step(const double &dt) {
   G_node ***phinew;
   DMDAVecGetArray(da, model->solution, &phinew);
 
-  const PetscReal H[4] = {data.H, 0., 0., 0.};
+  const PetscReal H[4] = {coeff.H, 0., 0., 0.};
   const PetscReal axx = pow(1. / data.hX(), 2);
   const PetscReal ayy = pow(1. / data.hY(), 2);
   const PetscReal azz = pow(1. / data.hZ(), 2);
@@ -116,12 +117,12 @@ bool IdealLF::step(const double &dt) {
 
         for (PetscInt s = 0; s < ModelAData::NV; s++) {
 
-          vectormu[s] = -phinew[k][j][i].V[s] / data.chi * dt;
+          vectormu[s] = -phinew[k][j][i].V[s] / coeff.chi * dt;
         }
 
         for (PetscInt s = 0; s < ModelAData::NA; s++) {
 
-          axialmu[s] = -phinew[k][j][i].A[s] / data.chi * dt;
+          axialmu[s] = -phinew[k][j][i].A[s] / coeff.chi * dt;
         }
 
         O4AlgebraHelper::O4Rotation(vectormu, axialmu, phinew[k][j][i].f);
@@ -156,9 +157,8 @@ IdealPV2::IdealPV2(ModelA &in, const bool &accept_reject_in)
   if (accept_reject) {
     VecDuplicate(model->solution, &previoussolution);
   }
-  oldEnergy=0. ;
-  newEnergy=0. ;
-
+  oldEnergy = 0.;
+  newEnergy = 0.;
 }
 
 bool IdealPV2::step(const double &dt) {
@@ -197,11 +197,11 @@ bool IdealPV2::step(const double &dt) {
 
   // If we doing the accept reject, we need to acctualy reject
   if (accept_reject) {
-     MPI_Bcast(&reject, 1, MPIU_BOOL, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&reject, 1, MPIU_BOOL, 0, MPI_COMM_WORLD);
 
-     if (reject) {
-       VecCopy(previoussolution, model->solution);
-     }
+    if (reject) {
+      VecCopy(previoussolution, model->solution);
+    }
   }
   return success;
 }
@@ -225,7 +225,8 @@ bool IdealPV2::step_no_reject(const double &dt) {
   G_node ***phi;
   DMDAVecGetArrayRead(da, localU, &phi);
 
-  const PetscReal H[4] = {data.H, 0., 0., 0.};
+  const auto &coeff = data.acoefficients;
+  const PetscReal H[4] = {coeff.H, 0., 0., 0.};
   const PetscReal axx = pow(1. / data.hX(), 2);
   const PetscReal ayy = pow(1. / data.hY(), 2);
   const PetscReal azz = pow(1. / data.hZ(), 2);
@@ -316,6 +317,8 @@ bool IdealPV2::step_no_reject(const double &dt) {
 }
 
 void IdealPV2::rotatePhi(G_node ***phinew, double dt) {
+
+  const auto &coeff = data.acoefficients;
   for (PetscInt k = zstart; k < zstart + zdimension; k++) {
     for (PetscInt j = ystart; j < ystart + ydimension; j++) {
       for (PetscInt i = xstart; i < xstart + xdimension; i++) {
@@ -325,12 +328,12 @@ void IdealPV2::rotatePhi(G_node ***phinew, double dt) {
 
         for (PetscInt s = 0; s < ModelAData::NV; s++) {
 
-          vectormu[s] = -phinew[k][j][i].V[s] / data.chi * dt;
+          vectormu[s] = -phinew[k][j][i].V[s] / coeff.chi * dt;
         }
 
         for (PetscInt s = 0; s < ModelAData::NA; s++) {
 
-          axialmu[s] = -phinew[k][j][i].A[s] / data.chi * dt;
+          axialmu[s] = -phinew[k][j][i].A[s] / coeff.chi * dt;
         }
 
         O4AlgebraHelper::O4Rotation(vectormu, axialmu, phinew[k][j][i].f);
@@ -350,12 +353,13 @@ PetscScalar IdealPV2::computeEnergy(double dt) {
   DMGlobalToLocalBegin(da, model->solution, INSERT_VALUES, localUNew);
   DMGlobalToLocalEnd(da, model->solution, INSERT_VALUES, localUNew);
 
-  const ModelAData &data = model->data;
+  const auto &data = model->data;
+  const auto &coeff = data.acoefficients;
 
   G_node ***phiNew;
   DMDAVecGetArrayRead(da, localUNew, &phiNew);
 
-  const PetscReal H[4] = {data.H, 0., 0., 0.};
+  const PetscReal H[4] = {coeff.H, 0., 0., 0.};
 
   PetscInt xstart, ystart, zstart, xdimension, ydimension, zdimension;
   DMDAGetCorners(da, &xstart, &ystart, &zstart, &xdimension, &ydimension,
@@ -390,7 +394,7 @@ PetscScalar IdealPV2::computeEnergy(double dt) {
     }
   }
 
-  localEnergy += 0.5 / data.chi * nab2;
+  localEnergy += 0.5 / coeff.chi * nab2;
   localEnergy += 0.5 * grad2;
   localEnergy -= hEn;
 
@@ -473,11 +477,12 @@ bool ForwardEuler::step(const double &dt) {
                  &zdimension);
 
   // Parameters for loop
-  const PetscReal dtg = data.gamma * dt;
+  const auto &coeff = data.acoefficients;
+  const PetscReal dtg = coeff.gamma * dt;
   const PetscReal xdtg = sqrt(2. / dtg);
-  const PetscReal &m2 = data.mass;
-  const PetscReal &lambda = data.lambda;
-  const PetscReal H[4] = {data.H, 0., 0., 0.};
+  const PetscReal &m2 = data.mass();
+  const PetscReal &lambda = coeff.lambda;
+  const PetscReal H[4] = {coeff.H, 0., 0., 0.};
   const PetscReal axx = pow(1. / data.hX(), 2);
   const PetscReal ayy = pow(1. / data.hY(), 2);
   const PetscReal azz = pow(1. / data.hZ(), 2);
@@ -546,10 +551,11 @@ bool EulerLangevinHB::step(const double &dt) {
   G_node phi_o = {};
   G_node phi_n = {};
 
-  const double &Lambda2 = 0.5 * (2. * 3. + model->data.mass); // mass term
-  const double &lambda = model->data.lambda;
-  const double &H = model->data.H;
-  const PetscReal rdtg = sqrt(2. * dt * model->data.gamma);
+  const auto &coeff = model->data.acoefficients;
+  const double &Lambda2 = 0.5 * (2. * 3. + model->data.mass()); // mass term
+  const double &lambda = coeff.lambda;
+  const double &H = coeff.H;
+  const PetscReal rdtg = sqrt(2. * dt * coeff.gamma);
 
   PetscLogEvent communication, random, loop;
   PetscLogEventRegister("Communication", 0, &communication);
@@ -705,8 +711,9 @@ bool ModelGChargeHB::step(const double &dt) {
   PetscInt ixs, iys, izs, nx, ny, nz;
   DMDAGetCorners(model->domain, &ixs, &iys, &izs, &nx, &ny, &nz);
 
-  const PetscReal rdtsigma = sqrt(2. * dt * model->data.sigma());
-  const PetscReal chi = model->data.chi;
+  const auto &coeff = model->data.acoefficients;
+  const PetscReal rdtsigma = sqrt(2. * dt * coeff.sigma());
+  const PetscReal chi = coeff.chi;
 
   // Shuffle the order of xyz and the order of even and odd
   // to eliminate potential bias.
@@ -831,9 +838,10 @@ bool ModelGChargeCN::step(const double &dt) {
                  &ydimension, &zdimension);
 
   // Parameters needed
-  const PetscReal &dtD = dt * model->data.D();
+  const auto &coeff = model->data.acoefficients;
+  const PetscReal &dtD = dt * coeff.D();
   ;
-  const PetscReal &rxbyD = sqrt(2. * model->data.chi / dtD);
+  const PetscReal &rxbyD = sqrt(2. * coeff.chi / dtD);
 
   // Compute the divergence of the noise
   VecSet(noise_local, 0.);

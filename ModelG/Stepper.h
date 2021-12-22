@@ -255,7 +255,7 @@ public:
     hbPhi.finalize();
     hbN.finalize();
   }
-  const IdealPV2 &getIdealPV2() const {return pv2;}
+  const IdealPV2 &getIdealPV2() const { return pv2; }
 
   ~PV2HBSplit() { ; }
 

@@ -4,26 +4,38 @@
 /////////////////////////////////////////////////////////////////////////
 
 measurer_output_fasthdf5::measurer_output_fasthdf5(Measurer *in) : measure(in) {
-  // filename is foo.h5
-  std::string name = measure->model->data.outputfiletag + ".h5";
 
-  // Check if we are supposed to, and are able to, restart the measurements
-  PetscBool restartflg = PETSC_FALSE;
-  if (measure->model->data.restart) {
-    PetscTestFile(name.c_str(), '\0', &restartflg);
-    if (!restartflg) {
-      std::cout << "measurer_output_hdf5::measurer_output_hdf5: Unable to open "
-                   "measurement file "
-                << name
-                << " while in restart mode. Creating a new measurement file. "
-                << std::endl;
-    }
+  const auto &ahandler = measure->model->data.ahandler;
+
+  std::string name;
+  if (ahandler.eventmode) {
+    std::stringstream namestream;
+    namestream << ahandler.outputfiletag << "_" << std::setw(6)
+               << std::setfill('0') << ahandler.current_event << ".h5";
+    name = namestream.str();
+  } else {
+    name = ahandler.outputfiletag + ".h5";
   }
 
-  if (restartflg) {
-    file_id = H5Fopen(name.c_str(), H5F_ACC_RDWR, H5P_DEFAULT);
-  } else {
+  if (ahandler.eventmode) {
+    // Each event is stored in a separate file
     file_id = H5Fcreate(name.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+  } else {
+    // Check if we are supposed to, and are able to, restart the measurements
+    PetscBool restartflg = PETSC_FALSE;
+    if (ahandler.restart && !ahandler.eventmode) {
+      PetscTestFile(name.c_str(), '\0', &restartflg);
+    }
+
+    if (restartflg and !ahandler.eventmode) {
+      // File exists and we are in restart mode,  so open it for readwrite
+      file_id = H5Fopen(name.c_str(), H5F_ACC_RDWR, H5P_DEFAULT);
+    } else {
+      // File either doesn't exist or we are not in restart mode, create a new
+      // file
+      file_id =
+          H5Fcreate(name.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    }
   }
 
   std::array<size_t, 1> NN1{Measurer::NScalars};
@@ -72,7 +84,8 @@ PetscErrorCode PetscViewerASCIIOpenMode(MPI_Comm comm, const char *name,
 
 measurer_output_txt::measurer_output_txt(Measurer *in) : measure(in) {
 
-  std::string name(measure->model->data.outputfiletag + "_averages.txt");
+  const auto &ahandler = measure->model->data.ahandler;
+  std::string name(ahandler.outputfiletag + "_averages.txt");
   PetscInt ierr = PetscViewerASCIIOpenMode(
       PETSC_COMM_SELF, name.c_str(), FILE_MODE_WRITE, &averages_asciiviewer);
   CHKERRV(ierr);

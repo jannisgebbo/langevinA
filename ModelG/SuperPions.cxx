@@ -60,7 +60,8 @@ int main(int argc, char **argv) {
   // Initialize the stepper
   std::unique_ptr<Stepper> step;
 
-  std::string &s = model.data.evolverType;
+  const auto &ahandler = model.data.ahandler;
+  const std::string &s = ahandler.evolverType;
   if (s == "EulerLangevinHB") {
     // Just take the Langevin updates of scalars
     step = make_unique<EulerLangevinHB>(model);
@@ -95,19 +96,19 @@ int main(int argc, char **argv) {
   //
   // Thus restarting the program will give the same data
   // stream, as if there was no interuption.
-  PetscReal time = model.data.initialtime;
+
   const double tiny = 1.e-10;
-  while (time < model.data.finaltime - tiny) {
+  auto &atime = model.data.atime;
+  while (atime.t() < atime.final() - tiny) {
 
     // measure the solution
-    if (steps % model.data.saveFrequency == 0) {
+    if (steps % ahandler.saveFrequency == 0) {
       PetscLogEventBegin(measurements, 0, 0, 0, 0);
       measurer.measure(&model.solution);
       // Print some information to not get bored during the running:
       PetscPrintf(PETSC_COMM_WORLD,
                   "Timestep %D: step size = %g, time = %g, final = %g\n", steps,
-                  (double)model.data.deltat, (double)time,
-                  (double)model.data.finaltime);
+                  (double)atime.dt(), (double)atime.t(), (double)atime.final());
       PetscLogEventEnd(measurements, 0, 0, 0, 0);
     }
 
@@ -116,11 +117,11 @@ int main(int argc, char **argv) {
 
     // Do the actual steps
     PetscLogEventBegin(stepmonitor, 0, 0, 0, 0);
-    step->step(model.data.deltat);
+    step->step(atime.dt());
     PetscLogEventEnd(stepmonitor, 0, 0, 0, 0);
 
     steps++;
-    time += model.data.deltat;
+    atime += atime.dt();
   }
 
   // Destroy everything

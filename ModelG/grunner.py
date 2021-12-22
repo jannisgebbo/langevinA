@@ -20,21 +20,27 @@ data = {
     "finaltime" : 10,
     "initialtime" : 0,
     "deltat" : 0.24,
-    "evolverType" : "PV2HBSplit23",
 
     #Action
-    "mass" : -4.70052,
+    "mass0" : -4.70052,
+    "dmassdt" : 0 ,
+
     "lambda" : 4.,
-    "gamma" : 1.,
     "H" :0.003,
-    "diffusion" : 0.3333333,
     "chi" : 5.,
-    "seed" : 122335456,
-    "restart" : False,
+    "gamma" : 1.,
+    "diffusion" : 0.3333333,
 
     #initial condition"
+    "evolverType" : "PV2HBSplit23",
+    "seed" : 122335456,
+    "restart" : False,
     "outputfiletag" : "grun",
     "saveFrequency" : 3,
+
+    "eventmode": False,
+    "nevents" : 1
+    "last_stored_event": -1 
 }
 
 
