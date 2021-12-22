@@ -34,7 +34,8 @@ void run_event(ModelA* const model,Stepper* const step)
   PetscLogEventRegister("Measurements", 0, &measurements);
   PetscLogEventRegister("Steps", 0, &stepmonitor);
 
-  // initialize the measurments and measure the initial condition
+  // Initialize the measurments and measure the initial condition for this event.
+  // The data for each event is stored in a sepaarate file
   Measurer measurer(model);
 
   // Start the loop
