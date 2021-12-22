@@ -2,11 +2,11 @@
     "NX": 32,
 
     "finaltime": 30,
-    "initialtime": 0,
+    "initialtime": -30,
     "deltat": 0.24,
 
     "mass0": -4.70052,
-    "dmassdt": 0,
+    "dmassdt": 0.00,
 
     "lambda": 4,
     "H": 0.002,
@@ -19,6 +19,7 @@
     "restart": false,
     "outputfiletag": "testrun",
     "saveFrequency": 3,
+    "thermalization_time": 0.0 ,
 
     "eventmode": false,
     "nevents": 1,

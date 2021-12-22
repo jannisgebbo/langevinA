@@ -14,6 +14,57 @@
 // Measurer, where the Petsc are included
 #include "measurer.h"
 
+void run_event(ModelA* const model,Stepper* const step) 
+{
+
+  const auto &ahandler = model->data.ahandler ;
+  auto &atime = model->data.atime ;
+
+  atime.reset() ;
+
+  // Thermalize the state in memory at the initial time ;
+  int nsteps  = static_cast<int>(ahandler.thermalization_time / atime.dt()) ;
+  PetscPrintf(PETSC_COMM_WORLD, "Thermalizing event %D\n", ahandler.current_event); 
+  for (int i = 0 ; i < nsteps ; i++) {
+    step->step(atime.dt()) ;
+  }
+
+  PetscInt steps = 0;
+  PetscLogEvent measurements, stepmonitor;
+  PetscLogEventRegister("Measurements", 0, &measurements);
+  PetscLogEventRegister("Steps", 0, &stepmonitor);
+
+  // initialize the measurments and measure the initial condition
+  Measurer measurer(model);
+
+  // Start the loop
+  const double tiny = 1.e-10;
+  while (atime.t() < atime.tfinal() - tiny) {
+
+    // measure the solution
+    if (steps % ahandler.saveFrequency == 0) {
+      PetscLogEventBegin(measurements, 0, 0, 0, 0);
+      measurer.measure(&model->solution);
+      // Print some information to not get bored during the running:
+      PetscPrintf(PETSC_COMM_WORLD,
+                  "Event/Timestep %D/%D: step size = %g, time = %g, final = %g\n", ahandler.current_event, steps,
+                  (double)atime.dt(), (double)atime.t(), (double)atime.tfinal());
+      PetscLogEventEnd(measurements, 0, 0, 0, 0);
+    }
+
+    // Do the actual steps
+    PetscLogEventBegin(stepmonitor, 0, 0, 0, 0);
+    step->step(atime.dt());
+    PetscLogEventEnd(stepmonitor, 0, 0, 0, 0);
+
+    steps++;
+    atime += atime.dt();
+  }
+  measurer.finalize();
+
+}
+
+
 int main(int argc, char **argv) {
 
   // Initialization of PETSc universe
@@ -52,81 +103,27 @@ int main(int argc, char **argv) {
 
   // allocate the grid and initialize
   ModelA model(inputdata);
-  model.initialize();
 
-  // initialize the measurments and measure the initial condition
-  Measurer measurer(&model);
+  // Read in the initial conditions or initialize to zero 
+  model.initialize() ;
 
-  // Initialize the stepper
+  // Construct the stepper 
   std::unique_ptr<Stepper> step;
+  std::array<unsigned int, 2> s = {2, 3};
+  step = std::make_unique<PV2HBSplit>(model, s);
 
-  const auto &ahandler = model.data.ahandler;
-  const std::string &s = ahandler.evolverType;
-  if (s == "EulerLangevinHB") {
-    // Just take the Langevin updates of scalars
-    step = make_unique<EulerLangevinHB>(model);
-  } else if (s == "IdealPV2") {
-    // Just Ideal Steps
-    step = make_unique<IdealPV2>(model);
-  } else if (s == "ModelGChargeHB") {
-    // Just take a langevin step for the charges
-    step = make_unique<ModelGChargeHB>(model);
-  } else if (s == "PV2HBSplit11") {
-    // ABC
-    step = make_unique<PV2HBSplit>(model);
-  } else if (s == "PV2HBSplit23") {
-    // ABB,ABB,ABB,C
-    std::array<unsigned int, 2> s = {2, 3};
-    step = std::make_unique<PV2HBSplit>(model, s);
-  }
-
-  PetscInt steps = 0;
-  PetscLogEvent measurements, stepmonitor;
-  PetscLogEventRegister("Measurements", 0, &measurements);
-  PetscLogEventRegister("Steps", 0, &stepmonitor);
-
-  // This is the loop for the time step. It goes
-  //
-  // PRE-Loop
-  //
-  // Loop:
-  // measure&step, step, step,  measure&step, step step,
-  //
-  // POST-Loop
-  //
-  // Thus restarting the program will give the same data
-  // stream, as if there was no interuption.
-
-  const double tiny = 1.e-10;
-  auto &atime = model.data.atime;
-  while (atime.t() < atime.final() - tiny) {
-
-    // measure the solution
-    if (steps % ahandler.saveFrequency == 0) {
-      PetscLogEventBegin(measurements, 0, 0, 0, 0);
-      measurer.measure(&model.solution);
-      // Print some information to not get bored during the running:
-      PetscPrintf(PETSC_COMM_WORLD,
-                  "Timestep %D: step size = %g, time = %g, final = %g\n", steps,
-                  (double)atime.dt(), (double)atime.t(), (double)atime.final());
-      PetscLogEventEnd(measurements, 0, 0, 0, 0);
+  auto &ahandler = model.data.ahandler ;
+  if (ahandler.eventmode) { 
+    for (int i = 0 ;  i < ahandler.nevents ; i++ )  {
+      run_event(&model, step.get()) ;
+      ahandler.current_event++ ;
     }
-
-    // Copy the solution to have the current and previous step in memory
-    VecCopy(model.solution, model.previoussolution);
-
-    // Do the actual steps
-    PetscLogEventBegin(stepmonitor, 0, 0, 0, 0);
-    step->step(atime.dt());
-    PetscLogEventEnd(stepmonitor, 0, 0, 0, 0);
-
-    steps++;
-    atime += atime.dt();
+  } else  {
+    run_event(&model, step.get()) ;
   }
 
   // Destroy everything
   step->finalize();
-  measurer.finalize();
   model.finalize();
   return PetscFinalize();
 }

@@ -37,7 +37,9 @@ data = {
     "restart" : False,
     "outputfiletag" : "grun",
     "saveFrequency" : 3,
+    "thermalization_time" : 0.0 ,
 
+    # For running multi-events 
     "eventmode": False,
     "nevents" : 1
     "last_stored_event": -1 

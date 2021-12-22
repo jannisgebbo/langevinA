@@ -45,6 +45,10 @@ measurer_output_fasthdf5::measurer_output_fasthdf5(Measurer *in) : measure(in) {
   wallx = std::make_unique<ntuple<2>>(NN2, "wallx", file_id);
   wally = std::make_unique<ntuple<2>>(NN2, "wally", file_id);
   wallz = std::make_unique<ntuple<2>>(NN2, "wallz", file_id);
+
+  std::array<size_t, 1> NN3{2} ;
+  timeout = std::make_unique<ntuple<1>>(NN3, "timeout", file_id) ;
+
 }
 
 measurer_output_fasthdf5::~measurer_output_fasthdf5() { H5Fclose(file_id); }
@@ -61,11 +65,15 @@ void measurer_output_fasthdf5::save(const std::string &what) {
       wally->row[k] = measure->sliceAveragesY[i][j];
       wallz->row[k] = measure->sliceAveragesZ[i][j];
     }
-  }
+  } 
+  timeout->row[0] = measure->model->data.atime.t() ; 
+  timeout->row[1] = measure->model->data.mass() ;
+
   scalars->fill();
   wallx->fill();
   wally->fill();
   wallz->fill();
+  timeout->fill() ;
 }
 #endif
 

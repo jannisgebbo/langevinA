@@ -22,8 +22,8 @@ struct ModelATime {
 
   PetscReal t() const { return time; }
   PetscReal dt() const { return deltat; }
-  PetscReal initial() const { return initialtime; }
-  PetscReal final() const { return finaltime; }
+  PetscReal tinitial() const { return initialtime; }
+  PetscReal tfinal() const { return finaltime; }
   void operator+=(const double &dtin) { time += dtin; }
   void reset() { time = initialtime; }
 
@@ -114,6 +114,7 @@ struct ModelAHandlerData {
   int nevents = 1;
   int last_stored_event = -1;
   int current_event = 0;
+  double thermalization_time = 0. ;
 
   void read(Json::Value &params) {
     evolverType = params.get("evolverType", evolverType).asString();
@@ -121,14 +122,16 @@ struct ModelAHandlerData {
     restart = params.get("restart", false).asBool();
     outputfiletag = params.get("outputfiletag", "o4output").asString();
     saveFrequency = params.get("saveFrequency", saveFrequency).asInt();
+    thermalization_time = params.get("thermalization_time", thermalization_time).asDouble() ;
 
     eventmode = params.get("eventmode", eventmode).asBool();
     nevents = params.get("nevents", nevents).asInt();
     last_stored_event = params.get("last_stored_event", -1).asInt();
+    current_event = last_stored_event + 1; 
 
-    current_event = last_stored_event + 1;
     // This is for restart mode
     params["last_stored_event"] = last_stored_event + nevents;
+
   }
 
   void print() {
@@ -139,6 +142,8 @@ struct ModelAHandlerData {
     PetscPrintf(PETSC_COMM_WORLD, "outputfiletag = %s\n",
                 outputfiletag.c_str());
     PetscPrintf(PETSC_COMM_WORLD, "saveFrequency = %d\n", saveFrequency);
+    PetscPrintf(PETSC_COMM_WORLD, "thermalization_time = %e\n",
+                thermalization_time);
 
     PetscPrintf(PETSC_COMM_WORLD, "eventmode = %s\n",
                 (eventmode ? "true" : "false"));

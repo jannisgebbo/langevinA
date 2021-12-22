@@ -38,6 +38,7 @@ private:
   std::unique_ptr<ntuple<2>> wallx;
   std::unique_ptr<ntuple<2>> wally;
   std::unique_ptr<ntuple<2>> wallz;
+  std::unique_ptr<ntuple<1>> timeout;
 };
 #endif
 
