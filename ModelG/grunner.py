@@ -41,7 +41,7 @@ data = {
 
     # For running multi-events 
     "eventmode": False,
-    "nevents" : 1
+    "nevents" : 1,
     "last_stored_event": -1 
 }
 
@@ -60,7 +60,7 @@ def datatojson():
 # Canonicalize the names for a given set of parameters
 def getdefault_filename():
     name = "%s_N%03d_m%08d_h%06d_c%05d" % (tag, data["NX"], round(
-        100000*data["mass"]), round(1000000*data["H"]), round(100*data["chi"]))
+        100000*data["mass0"]), round(1000000*data["H"]), round(100*data["chi"]))
     return name
 
 
@@ -76,7 +76,7 @@ def getdefault_filename_m2change():
 def getdefault_filename_Hchange():
     s = "xxxxxxxxxxxxx"
     name = "%s_N%03d_m%08d_h%.6s_c%05d" % (tag, data["NX"], round(
-        100000*data["mass"]), s, round(100*data["chi"]))
+        100000*data["mass0"]), s, round(100*data["chi"]))
     return name
 
 
@@ -84,7 +84,7 @@ def getdefault_filename_Hchange():
 def getdefault_filename_Nchange():
     s = "xxxxxxxxxxxxx"
     name = "%s_N%.3s_m%08d_h%06d_c%05d" % (tag, s, round(
-        100000*data["mass"]), round(1000000*data["H"]), round(100*data["chi"]))
+        100000*data["mass0"]), round(1000000*data["H"]), round(100*data["chi"]))
     return name
 
 
@@ -92,7 +92,7 @@ def getdefault_filename_Nchange():
 def getdefault_filename_chichange():
     s = "xxxxxxxxxxxxx"
     name = "%s_N%03d_m%08d_h%06d_c%.5s" % (tag, data["NX"], round(
-        100000*data["mass"]), round(1000000*data["H"]), s)
+        100000*data["mass0"]), round(1000000*data["H"]), s)
     return name
 
 
