@@ -1,3 +1,6 @@
+#include <iomanip>
+#include <iostream>
+#include <sstream>
 #include "measurer.h"
 
 #ifndef MODELA_NO_HDF5
