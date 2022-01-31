@@ -22,9 +22,9 @@ class StatResult:
     def rescale(self, fact):
         self.mean *= fact
         self.err *= fact
-    def reduce(self, minInd=0, maxInd=None):
-        self.mean = self.mean[minInd:maxInd]
-        self.err = self.err[minInd:maxInd]
+    def reduce(self, minInd=0, maxInd=None,prune=1):
+        self.mean = self.mean[minInd:maxInd:prune]
+        self.err = self.err[minInd:maxInd:prune]
     def save_to_txt(self, fn, x = None, fmt = "python", decim = 1, tMin = 0, tMax = None, yfact = 1):
         if(len(np.shape(x)) == 0 and x==None):
             toSave = np.column_stack([

@@ -8,8 +8,14 @@ import matplotlib.pyplot as plt
 
 from copy import deepcopy
 
-#Functions
-def realtimeaxialcor(p,susc,t,parameters):
+#In this file we define a general fit class that allows to fit all different things we want to fit.
+
+
+
+#Functions: different fit models, real time correlator, fourier transform, static, different channel and so on... See below how the parameters are initialized and handled by the fitting routine (constructor of Fitter class).
+
+# If you want a new type of fit, change, add here.
+def realtimeaxialcor(susc,t,parameters):
     (a,b,c) = parameters
    
     #omegap2 = v2 * (m**2 + p**2)
@@ -17,7 +23,7 @@ def realtimeaxialcor(p,susc,t,parameters):
     #Gammap = (D + Gamma) * p**2 + Gamma * m**2
     #Omegap= np.sqrt(np.complex(omegap2 - Delta**2))
     
-    return np.real(np.exp(-0.5 * a * t) * (np.cos(b * t) - c * np.sin(b * t)))
+    return susc * np.exp(-0.5 * a * t) * (np.cos(b * t) - c * np.sin(b * t))
     #return np.real(np.exp(-0.5 * Gammap * t) * (np.cos(Omegap * t) - Delta / Omegap * np.sin(Omegap * t)))
 
 
@@ -71,6 +77,8 @@ def staticDSigmaPropK(k, parameters):
     
 #classes
 
+#Define the ch2 called by Minuit. Should not need to change. If you do simultanous fit, maybe need to double check.
+
 class Chi2:
     def __init__(self):
         self.z = np.empty(0)
@@ -89,6 +97,7 @@ class Chi2:
         return np.sum(np.square(z))    
 
     
+#Actual Fitter class.
 class Fitter:
     def __init__(self, data, chi0, chiperp, L = 1, k = 0):
         obs = ["OtOttp", "OtOttpFourier", "propagatorF", "propagator"]
@@ -143,13 +152,16 @@ class Fitter:
         # evaluated at x, one per observable fitted (so one for a simple fit and more for combined fit, equal to the length of baseKeys).
         # Can define a fit for any observable which is also defined in the measurements; we use meas.getObs(...) to retriee the data.
         
-        
+        #ignore
         #TODO: Define the static correlators at this level. Can define
 
+        
+        #Note to Alex: if you want to change the fit function, that is where you do it. You can also introduce new keys "Abiskk#" if for instance. If you do that, need to add the keys above as well.
+        
         if k == 0:
-            self.func["OtOttp"]["A"] = lambda x, par : [realtimeaxialcor(0,self.chi0, x, par)]
+            self.func["OtOttp"]["A"] = lambda x, par : [realtimeaxialcor(self.chi0, x, par)]
         else:
-            self.func["OtOttp"]["Akk{}".format(k)] = lambda x, par : [realtimeaxialcor(2 * np.pi * float(k) / float(L),self.chi0, x, par)]
+            self.func["OtOttp"]["Akk{}".format(k)] = lambda x, par : [realtimeaxialcor(self.chi0, x, par)]
             
         
 
@@ -168,7 +180,7 @@ class Fitter:
         
         
         
-        
+        #Note to Alex: That's where the parameters are defined. If you change them in the function, you may have to change here, especially if you cahnge the number of params.
 
         # Below we define the size, name and limits of the parameters, per observables and per fitKeys.
         
@@ -178,7 +190,7 @@ class Fitter:
         #self.parLims["OtOttp"][key] = [(0, None),(0, None), (0, None), (0, None)]
         self.par["OtOttp"][key] = np.zeros(3)
         self.parName["OtOttp"][key] = ["a", "b", "c"]
-        self.parLims["OtOttp"][key] = [(0, None),(0, None), (0, None)]
+        self.parLims["OtOttp"][key] = [(-100, 100),(-100, 100), (-100, 100)]
         
         
         self.par["OtOttpFourier"]["A"] = np.zeros(2)
@@ -218,15 +230,16 @@ class Fitter:
     def setParValues(self, obs, key, pars):
         self.par[obs][key] = pars
       
-    def fit(self, obs, key, minInd = 0, maxInd = None):                                      
+    def fit(self, obs, key, minInd = 0, maxInd = None, prune = 1):                                      
         chi2 = Chi2()
         
         for k in self.baseKeys[key]:
             (tmpx, tmpfx) = self.data.getObs(obs, k)
             x = deepcopy(tmpx)
             fx = deepcopy(tmpfx)
-            x = x[minInd:maxInd]
-            fx.reduce(minInd, maxInd)
+            x = x[minInd:maxInd:prune]
+            fx.reduce(minInd, maxInd,prune)
+            print(fx.mean)
             chi2.add(fx)
             self.xs[obs] = x
                                            
