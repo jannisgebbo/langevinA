@@ -99,6 +99,18 @@ test_json.exe: jsoncpp.o test_json.cpp
 	$(COMPILE.cc) test_json.cpp
 	$(LINK.cc) -o test_json.exe test_json.o jsoncpp.o -lstdc++
 
+x2k.exe : x2k.o $(OBJS)
+	$(LINK.cc) -o $@ $^ $(LDLIBS) -lstdc++
+
+x2k.o: x2k.cxx $(HEADRS)
+	$(COMPILE.cc) $(OUTPUT_OPTION) $<
+
+test_ntuple.exe: test_ntuple.o $(OBJS) 
+	$(LINK.cc) -o $@ $^ $(LDLIBS) -lstdc++
+
+test_ntuple.o: test_ntuple.cxx $(HEADRS)
+	$(COMPILE.cc) $(OUTPUT_OPTION) $<
+
 # If the file c.cxx needs to link with a C++ standard library -lstdc++ , then
 # you'll need to add it explicitly.  It can go in the rule above or be added to
 # a target-specific variable by uncommenting the line below.
