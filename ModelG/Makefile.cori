@@ -1,5 +1,5 @@
 HEADRS = ModelA.h Stepper.h NoiseGenerator.h measurer.h plotter.h O4AlgebraHelper.h
-OBJS = measurer.o Stepper.o NoiseGenerator.o 
+OBJS = measurer.o Stepper.o NoiseGenerator.o  jsoncpp.o
 
 SuperPions.exe: SuperPions.o $(OBJS)
 	CC -o $@ $^ $(LDLIBS) 
@@ -16,7 +16,9 @@ measurer.o: measurer.cxx $(HEADRS)
 NoiseGenerator.o: NoiseGenerator.cxx NoiseGenerator.h
 	CC -c  $<
 
-	
+jsoncpp.o: jsoncpp.cpp
+	CC -c  $<
+
 
 clean:
 	rm *.o

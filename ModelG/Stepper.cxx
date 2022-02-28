@@ -1008,8 +1008,10 @@ bool LFHBSplit::step(const double &dt) {
   return true;
 }
 
-PV2HBSplit::PV2HBSplit(ModelA &in, const std::array<unsigned int, 2> &scounts)
-    : model(&in), pv2(in), hbPhi(in), hbN(in), stepcounts(scounts) {}
+PV2HBSplit::PV2HBSplit(ModelA &in, const std::array<unsigned int, 2> &scounts,
+                       const bool &nodiffuse, const bool &onlydiffuse)
+    : model(&in), pv2(in), hbPhi(in), hbN(in), stepcounts(scounts),
+      nodiffusion(nodiffuse), onlydiffusion(onlydiffuse) {}
 
 bool PV2HBSplit::step(const double &dt) {
 
@@ -1017,26 +1019,36 @@ bool PV2HBSplit::step(const double &dt) {
   // Record the energy for the accept reject step
 
   PetscLogEvent ideal_log, hb_log, qhb_log;
-  PetscLogEventRegister("IdealStep", 0, &ideal_log);
-  PetscLogEventRegister("HBStep", 0, &hb_log);
-  PetscLogEventRegister("QHBStep", 0, &qhb_log);
 
   // Format of steps is ABBB,ABBB,C  for (3,2)
-  for (size_t i1 = 0; i1 < stepcounts[1]; i1++) {
-    PetscLogEventBegin(ideal_log, 0, 0, 0, 0);
-    pv2.step(dt / (stepcounts[1]));
-    PetscLogEventEnd(ideal_log, 0, 0, 0, 0);
+  if (onlydiffusion) {
+    // pass
+  } else {
+    PetscLogEventRegister("IdealStep", 0, &ideal_log);
+    PetscLogEventRegister("HBStep", 0, &hb_log);
 
-    PetscLogEventBegin(hb_log, 0, 0, 0, 0);
-    for (size_t i0 = 0; i0 < stepcounts[0]; i0++) {
-      hbPhi.step(dt / (stepcounts[0] * stepcounts[1]));
+    for (size_t i1 = 0; i1 < stepcounts[1]; i1++) {
+      PetscLogEventBegin(ideal_log, 0, 0, 0, 0);
+      pv2.step(dt / (stepcounts[1]));
+      PetscLogEventEnd(ideal_log, 0, 0, 0, 0);
+
+      PetscLogEventBegin(hb_log, 0, 0, 0, 0);
+      for (size_t i0 = 0; i0 < stepcounts[0]; i0++) {
+        hbPhi.step(dt / (stepcounts[0] * stepcounts[1]));
+      }
+      PetscLogEventEnd(hb_log, 0, 0, 0, 0);
     }
-    PetscLogEventEnd(hb_log, 0, 0, 0, 0);
   }
 
-  PetscLogEventBegin(qhb_log, 0, 0, 0, 0);
-  hbN.step(dt);
-  PetscLogEventEnd(qhb_log, 0, 0, 0, 0);
+  if (nodiffusion) {
+    // pass
+  } else {
+    PetscLogEventRegister("QHBStep", 0, &qhb_log);
+
+    PetscLogEventBegin(qhb_log, 0, 0, 0, 0);
+    hbN.step(dt);
+    PetscLogEventEnd(qhb_log, 0, 0, 0, 0);
+  }
 
   return true;
 }

@@ -109,18 +109,25 @@ int main(int argc, char **argv) {
   model.initialize() ;
 
   // Construct the stepper 
-  std::unique_ptr<Stepper> step;
-  
-  bool onlyDiff = false;
-  onlyDiff = inputs.get("diffusiononly", onlyDiff).asBool();
-  std::cout << "only" << onlyDiff << std::endl;
-
-  std::array<unsigned int, 2> s =  {2, 3};
-  if(onlyDiff){
-    s[0] = 0;
-    s[1] = 0;
+  std::unique_ptr<Stepper> step; 
+  auto &etype = inputdata.ahandler.evolverType ;
+  if (etype == "PV2HBSplit23") {
+     std::array<unsigned int, 2> s = {2, 3};
+     step = std::make_unique<PV2HBSplit>(model, s);
+  } else if (etype == "PV2HBSplit23NoDiffuse") {
+     std::array<unsigned int, 2> s = {2, 3};
+     const bool nodiffuse = true ;
+     step = std::make_unique<PV2HBSplit>(model, s, nodiffuse);
+  } else if (etype == "PV2HBSplit23OnlyDiffuse") {
+     std::array<unsigned int, 2> s = {2, 3};
+     const bool nodiffuse = false;
+     const bool onlydiffuse = true ;
+     step = std::make_unique<PV2HBSplit>(model, s, nodiffuse, onlydiffuse);
+  } else {
+    PetscPrintf(PETSC_COMM_WORLD, "Unrecognized stepper type %s. Aborting...\n",
+                etype.c_str());
+    return PetscFinalize();
   }
-  step = std::make_unique<PV2HBSplit>(model, s);
 
   auto &ahandler = model.data.ahandler ;
   if (ahandler.eventmode) { 
