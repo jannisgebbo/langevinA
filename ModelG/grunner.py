@@ -42,7 +42,8 @@ data = {
     # For running multi-events 
     "eventmode": False,
     "nevents" : 1,
-    "last_stored_event": -1 
+    "last_stored_event": -1,
+    "diffusiononly": False 
 }
 
 
@@ -110,7 +111,7 @@ def find_program(program_name="SuperPions.exe"):
 #########################################################################
 # Runs on cori
 #########################################################################
-def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=[], seed=None, parallel=False):
+def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=[], seed=None, nnodes=1, parallel=False):
 
     prgm = find_program()
 
@@ -142,7 +143,7 @@ def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=[], seed=N
     else:
         print("#SBATCH -q regular", file=fh)
         print("#SBATCH -t %s" % (str(round(time*60))), file=fh)
-        print("#SBATCH -N 1", file=fh)
+        print("#SBATCH -N %d" % (nnodes), file=fh)
         print("#SBATCH --ntasks=32", file=fh)
         print("#SBATCH --cpus-per-task=2", file=fh)
     print("#SBATCH -C haswell", file=fh)
@@ -153,6 +154,7 @@ def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=[], seed=N
     print("", file=fh)
     print("module load gsl", file=fh)
     print("module load cray-petsc", file=fh)
+    print("module load cray-hdf5-parallel", file=fh)
 
     if parallel:
         print("module load paralel", file=fh)
@@ -222,6 +224,7 @@ def seawulfrun(time="00:02:00", debug=False, shared=False, dry_run=True, moreopt
         print("module load shared",file=fh) 
         print("module load gcc-stack",file=fh) 
         print("module load hdf5/1.10.5-parallel",file=fh) 
+        print("module load fftw3",file=fh) 
         print("module load cmake",file=fh) 
         print("module load gsl",file=fh)
         print("export PKG_CONFIG_PATH={}".format(GLOBAL_PETSCPKG_PATH_SEAWULF), file=fh) 

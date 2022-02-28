@@ -123,9 +123,25 @@ int main(int argc, char **argv) {
   model.initialize() ;
 
   // Construct the stepper 
-  std::unique_ptr<Stepper> step;
-  std::array<unsigned int, 2> s = {2, 3};
-  step = std::make_unique<PV2HBSplit>(model, s);
+  std::unique_ptr<Stepper> step; 
+  auto &etype = inputdata.ahandler.evolverType ;
+  if (etype == "PV2HBSplit23") {
+     std::array<unsigned int, 2> s = {2, 3};
+     step = std::make_unique<PV2HBSplit>(model, s);
+  } else if (etype == "PV2HBSplit23NoDiffuse") {
+     std::array<unsigned int, 2> s = {2, 3};
+     const bool nodiffuse = true ;
+     step = std::make_unique<PV2HBSplit>(model, s, nodiffuse);
+  } else if (etype == "PV2HBSplit23OnlyDiffuse") {
+     std::array<unsigned int, 2> s = {2, 3};
+     const bool nodiffuse = false;
+     const bool onlydiffuse = true ;
+     step = std::make_unique<PV2HBSplit>(model, s, nodiffuse, onlydiffuse);
+  } else {
+    PetscPrintf(PETSC_COMM_WORLD, "Unrecognized stepper type %s. Aborting...\n",
+                etype.c_str());
+    return PetscFinalize();
+  }
 
   auto &ahandler = model.data.ahandler ;
   if (ahandler.eventmode) { 

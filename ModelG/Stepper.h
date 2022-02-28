@@ -241,14 +241,19 @@ private:
 /////////////////////////////////////////////////////////////////////////
 class PV2HBSplit : public Stepper {
 public:
-  // The ideal step is A, heat bath step is B, charge step is C.
+  // The ideal step is A, heat bath step is B, the diffusion step is C.
   //
   // The format for  scounts = {inner, outer}.
   // With scounts  {1, 1} the stepping is (AB)C
   // With scounts  {3, 1} the stepping is (ABBB)C
   // With scounts  {1, 2} the stepping is (AB)(AB) C
   // With scounts  {2, 3} the stepping is (ABB)(ABB) (ABB) C
-  PV2HBSplit(ModelA &in, const std::array<unsigned int, 2> &scounts = {1, 1});
+  //
+  // One can switch off the diffusion step by setting nodiffuse=true
+  //
+  // One can only do diffusion by setting onlydiffuse=true
+  PV2HBSplit(ModelA &in, const std::array<unsigned int, 2> &scounts = {1, 1},
+             const bool &nodiffuse = false, const bool &onlydiffuse = false);
   bool step(const double &dt) override;
   void finalize() override {
     pv2.finalize();
@@ -265,6 +270,9 @@ private:
   IdealPV2 pv2;
   EulerLangevinHB hbPhi;
   ModelGChargeHB hbN;
+
+  bool nodiffusion;
+  bool onlydiffusion;
 
   std::array<unsigned int, 2> stepcounts;
 };
