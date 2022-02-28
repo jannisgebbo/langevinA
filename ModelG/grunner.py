@@ -42,7 +42,8 @@ data = {
     # For running multi-events 
     "eventmode": False,
     "nevents" : 1,
-    "last_stored_event": -1 
+    "last_stored_event": -1,
+    "diffusiononly": False 
 }
 
 
@@ -222,6 +223,7 @@ def seawulfrun(time="00:02:00", debug=False, shared=False, dry_run=True, moreopt
         print("module load shared",file=fh) 
         print("module load gcc-stack",file=fh) 
         print("module load hdf5/1.10.5-parallel",file=fh) 
+        print("module load fftw3",file=fh) 
         print("module load cmake",file=fh) 
         print("module load gsl",file=fh)
         print("export PKG_CONFIG_PATH={}".format(GLOBAL_PETSCPKG_PATH_SEAWULF), file=fh) 

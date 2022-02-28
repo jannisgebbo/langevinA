@@ -15,4 +15,4 @@ pp.pprint(grun.data)
 
 grun.data["NX"] =32
 grun.data["outputfiletag"]=grun.getdefault_filename()
-grun.run(dry_run=False, ncpus="1")
+grun.run(dry_run=True, ncpus="1")

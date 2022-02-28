@@ -110,7 +110,16 @@ int main(int argc, char **argv) {
 
   // Construct the stepper 
   std::unique_ptr<Stepper> step;
-  std::array<unsigned int, 2> s = {2, 3};
+  
+  bool onlyDiff = false;
+  onlyDiff = inputs.get("diffusiononly", onlyDiff).asBool();
+  std::cout << "only" << onlyDiff << std::endl;
+
+  std::array<unsigned int, 2> s =  {2, 3};
+  if(onlyDiff){
+    s[0] = 0;
+    s[1] = 0;
+  }
   step = std::make_unique<PV2HBSplit>(model, s);
 
   auto &ahandler = model.data.ahandler ;
