@@ -110,7 +110,7 @@ def find_program(program_name="SuperPions.exe"):
 #########################################################################
 # Runs on cori
 #########################################################################
-def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=[], seed=None, parallel=False):
+def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=[], seed=None, nnodes=1, parallel=False):
 
     prgm = find_program()
 
@@ -142,7 +142,7 @@ def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=[], seed=N
     else:
         print("#SBATCH -q regular", file=fh)
         print("#SBATCH -t %s" % (str(round(time*60))), file=fh)
-        print("#SBATCH -N 1", file=fh)
+        print("#SBATCH -N %d" % (nnodes), file=fh)
         print("#SBATCH --ntasks=32", file=fh)
         print("#SBATCH --cpus-per-task=2", file=fh)
     print("#SBATCH -C haswell", file=fh)
@@ -153,6 +153,7 @@ def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=[], seed=N
     print("", file=fh)
     print("module load gsl", file=fh)
     print("module load cray-petsc", file=fh)
+    print("module load cray-hdf5-parallel", file=fh)
 
     if parallel:
         print("module load paralel", file=fh)
