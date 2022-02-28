@@ -462,7 +462,8 @@ class ConfResults:
                  dt,
                  data_format="new",
                  processedDir='./',
-                 plotDir='./'):
+                 plotDir='./',
+                 loadFourierBool = False):
         # filename
         self.fn = fn
         # tag
@@ -471,6 +472,9 @@ class ConfResults:
         self.thTime = thTime
         # dt
         self.dt = dt
+        #bool to say if fourier transform of wall is saved
+        self.loadFourierBool = loadFourierBool
+        
 
         self.processedDir = processedDir
         self.plotDir = plotDir
@@ -591,7 +595,7 @@ class ConfResults:
 
     def loadWall(self, key, direc=None):
         if direc == None:
-            direc = self.processedDir
+            direc = "X"
         r = h5py.File(self.fn, 'r')
         try:
             if not (direc == "X" or (self.data_format != "old" and
@@ -616,6 +620,27 @@ class ConfResults:
             print(
                 "You tried to load a wall in a direction that does not exist in your data format."
             )
+    
+    def loadWallFourier(self, key, direc=None):
+        if direc == None:
+            direc = "X"
+        r = h5py.File(self.fn.split('.')[-2]+"_out.h5", 'r')
+        #try:
+            #if (self.data_format == "old" or
+                                     #self.data_format != "semi_old")):
+                #raise
+            #else:
+        if not key in self.wallF[direc].keys():
+            self.wallF[direc][key] = np.asarray(r["wall{}_k".format(
+                direc.lower())])[self.thTime:, self.wkeys[key], :, 0] + 1j * np.asarray(r["wall{}_k".format(
+                direc.lower())])[self.thTime:, self.wkeys[key], :, 1]
+                #if key == "dsigma" or key == "dphi1" or key == "dphi2" or key == "dphi3":
+                    #raise
+
+        #except:
+        #    print(
+        #        "You tried to load a wallF in a direction that does not exist in your data format. You may also have tried to load the fourier transform of a connected key"
+        #    )
 
     # TODO: Change the way we handle the average.
     def readAv(self):
@@ -632,19 +657,23 @@ class ConfResults:
     def computeWallFourier(self, key, direc, decim=1):
         if not direc in self.wallF.keys() or not key in self.wallF[direc].keys(
         ):
-            print("Computing Fourier")
-            self.loadWall(key, direc)
-            Nx = len(self.wall[direc][key][0])
-            ts = range(0, len(self.wall[direc][key]), decim)
-            self.wallF[direc][key] = np.zeros(
-                [len(ts), len(self.wall[direc][key][0, :])], dtype=complex)
-            c = 0
-            for t in ts:
-                self.wallF[direc][key][c] = np.fft.fft(
-                    self.wall[direc][key][t]) / Nx
-                c += 1
-            self.momenta_3d = np.asarray(
-                [2.0 * np.pi / float(Nx) * n for n in range(Nx)])
+            if(self.loadFourierBool == True):
+                print("Loading Fourier, no decim applied.")
+                self.loadWallFourier(key, direc)
+            else:
+                print("Computing Fourier")
+                self.loadWall(key, direc)
+                Nx = len(self.wall[direc][key][0])
+                ts = range(0, len(self.wall[direc][key]), decim)
+                self.wallF[direc][key] = np.zeros(
+                    [len(ts), len(self.wall[direc][key][0, :])], dtype=complex)
+                c = 0
+                for t in ts:
+                    self.wallF[direc][key][c] = np.fft.fft(
+                        self.wall[direc][key][t]) / Nx
+                    c += 1
+                self.momenta_3d = np.asarray(
+                    [2.0 * np.pi / float(Nx) * n for n in range(Nx)])
 
     # Computes the time correlator of a given key.
     #

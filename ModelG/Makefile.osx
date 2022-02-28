@@ -17,7 +17,7 @@ PETSc.pc := PETSc
 
 
 # Additional libraries that support pkg-config can be added to the list of PACKAGES below.
-PACKAGES := $(PETSc.pc) gsl
+PACKAGES := $(PETSc.pc) gsl fftw3l
 
 CC := $(shell pkg-config --variable=ccompiler $(PACKAGES))
 CXX := $(shell pkg-config --variable=cxxcompiler $(PACKAGES))
@@ -29,7 +29,7 @@ FFLAGS := $(shell pkg-config --variable=fflags_extra $(PACKAGES))
 CPPFLAGS := $(shell pkg-config --cflags-only-I $(PACKAGES))
 LDFLAGS := $(shell pkg-config --libs-only-L --libs-only-other $(PACKAGES))
 LDFLAGS += $(patsubst -L%, $(shell pkg-config --variable=ldflag_rpath $(PACKAGES))%, $(shell pkg-config --libs-only-L $(PACKAGES)))
-LDLIBS := $(shell pkg-config --libs-only-l $(PACKAGES)) -lm
+LDLIBS := $(shell pkg-config --libs-only-l $(PACKAGES)) -lm -lfftw3
 
 #CXXFLAGS += -DMODELA_NO_HDF5 -DMODELA_NO_MAKE_UNIQUE
 

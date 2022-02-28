@@ -3,6 +3,8 @@
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
+#include <iomanip>
+#include <sstream>
 #include <memory>
 #include <vector>
 
@@ -27,11 +29,15 @@ void run_event(ModelA* const model,Stepper* const step)
   PetscPrintf(PETSC_COMM_WORLD, "Thermalizing event %D\n", ahandler.current_event); 
   for (int i = 0 ; i < nsteps ; i++) {
     step->step(atime.dt()) ;
+    PetscPrintf(PETSC_COMM_WORLD,
+                "Event/Timestep %D/%D: step size = %g, time = %g, final = %g\n", ahandler.current_event, i,
+                  (double)atime.dt(), (double)atime.t(), (double)atime.tfinal());
   }
 
   PetscInt steps = 0;
-  PetscLogEvent measurements, stepmonitor;
+  PetscLogEvent measurements, stepmonitor, saving;
   PetscLogEventRegister("Measurements", 0, &measurements);
+  PetscLogEventRegister("Saving the fields", 0, &saving);
   PetscLogEventRegister("Steps", 0, &stepmonitor);
 
   // Initialize the measurments and measure the initial condition for this event.
@@ -51,6 +57,14 @@ void run_event(ModelA* const model,Stepper* const step)
                   "Event/Timestep %D/%D: step size = %g, time = %g, final = %g\n", ahandler.current_event, steps,
                   (double)atime.dt(), (double)atime.t(), (double)atime.tfinal());
       PetscLogEventEnd(measurements, 0, 0, 0, 0);
+    }
+
+    if(ahandler.writeFrequency > 0 and steps % ahandler.writeFrequency == 0) {
+      PetscLogEventBegin(saving, 0, 0, 0, 0);
+      std::ostringstream tString;
+      tString << std::setprecision(4) <<"_t_" << atime.t();
+      model->write(ahandler.outputfiletag + tString.str());
+      PetscLogEventEnd(saving, 0, 0, 0, 0);
     }
 
     // Do the actual steps

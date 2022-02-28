@@ -109,6 +109,7 @@ struct ModelAHandlerData {
   // output files are tag_foo.txt, or tag_bar.h5
   std::string outputfiletag = "o4output";
   PetscInt saveFrequency = 3;
+  PetscInt writeFrequency = -1;
 
   bool eventmode = false;
   int nevents = 1;
@@ -122,13 +123,14 @@ struct ModelAHandlerData {
     restart = params.get("restart", false).asBool();
     outputfiletag = params.get("outputfiletag", "o4output").asString();
     saveFrequency = params.get("saveFrequency", saveFrequency).asInt();
+    writeFrequency = params.get("writeFrequency", writeFrequency).asInt();
     thermalization_time = params.get("thermalization_time", thermalization_time).asDouble() ;
 
     eventmode = params.get("eventmode", eventmode).asBool();
     nevents = params.get("nevents", nevents).asInt();
     last_stored_event = params.get("last_stored_event", -1).asInt();
     current_event = last_stored_event + 1; 
-
+//
     // This is for restart mode
     params["last_stored_event"] = last_stored_event + nevents;
 
