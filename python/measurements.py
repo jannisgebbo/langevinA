@@ -621,7 +621,8 @@ class ConfResults:
                 "You tried to load a wall in a direction that does not exist in your data format."
             )
     
-    def loadWallFourier(self, key, direc=None):
+    # Load C generated x2f file, not in use
+    def loadWallFourier_derek(self, key, direc=None):
         if direc == None:
             direc = "X"
         r = h5py.File(self.fn.split('.')[-2]+"_out.h5", 'r')
@@ -642,6 +643,15 @@ class ConfResults:
         #        "You tried to load a wallF in a direction that does not exist in your data format. You may also have tried to load the fourier transform of a connected key"
         #    )
 
+    # Load python generated fourier file.
+    def loadWallFourier(self, key, direc=None):
+        if direc == None:
+            direc = "X"
+        f = h5py.File(self.processedDir + "/" + self.tag + "_fourier.h5", 'r')
+        if not key in self.wallF[direc].keys():
+            self.wallF[direc][key] = np.asarray(f[direc][key])
+
+
     # TODO: Change the way we handle the average.
     def readAv(self):
         r = h5py.File(self.fn, 'r')
@@ -652,6 +662,9 @@ class ConfResults:
         self.readAv()
         self.mag, self.magErr = bootstrap(self.phi[:, direc], 100)
 
+        
+    
+    
     # Compute the fourier transform of a given wall, specified by the
     # appropriate key.
     def computeWallFourier(self, key, direc, decim=1):
@@ -674,7 +687,19 @@ class ConfResults:
                     c += 1
                 self.momenta_3d = np.asarray(
                     [2.0 * np.pi / float(Nx) * n for n in range(Nx)])
-
+             
+            
+    # Save fourier to hdf5
+    def saveWallFourier(self, key, direc):
+        f = h5py.File(self.processedDir + "/" + self.tag + "_fourier.h5", 'a')
+        if not direc in f.keys():
+            grp = f.create_group(direc)
+        else:
+            grp = f[direc]
+        
+        if not key in grp.keys():
+            grp.create_dataset(key, data=self.wallF[direc][key])
+        
     # Computes the time correlator of a given key.
     #
     # TODO: For now, compute only from one direction in fourier for all modes.
