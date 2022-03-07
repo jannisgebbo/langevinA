@@ -23,8 +23,14 @@ def realtimeaxialcor(susc,t,parameters):
     #Gammap = (D + Gamma) * p**2 + Gamma * m**2
     #Omegap= np.sqrt(np.complex(omegap2 - Delta**2))
     
-    return susc * np.exp(-0.5 * a * t) * (np.cos(b * t) - c * np.sin(b * t))
+    return susc * np.exp(-0.5 * a * t) * (np.cos(b * t) -c * np.sin(b* t))
     #return np.real(np.exp(-0.5 * Gammap * t) * (np.cos(Omegap * t) - Delta / Omegap * np.sin(Omegap * t)))
+    
+def realtimevec(susc,t,parameters):
+    (a,b) = parameters
+   
+    return susc * np.exp(-a * t-b*t**2)
+    
 
 
 def axialprop(susc,omega,parameters):
@@ -134,6 +140,7 @@ class Fitter:
         # This is a mapping between the fit key on the left and the actual quantity (ies) we are fitting. Allow to define combined fit in this way.
         self.baseKeys = dict()
         self.baseKeys["A"] = ["A"]
+        self.baseKeys["V"] = ["V"]
         self.baseKeys["phi"] = ["phi"]
         self.baseKeys["dsigma"] = ["dsigma"]
         self.baseKeys["dphi"] = ["dphi"]
@@ -142,6 +149,7 @@ class Fitter:
         
         if k > 0:
             self.baseKeys["Akk{}".format(k)] = ["Akk{}".format(k)]
+            self.baseKeys["Vkk{}".format(k)] = ["Vkk{}".format(k)]
         
         self.xs = dict()
         
@@ -160,8 +168,10 @@ class Fitter:
         
         if k == 0:
             self.func["OtOttp"]["A"] = lambda x, par : [realtimeaxialcor(self.chi0, x, par)]
+            self.func["OtOttp"]["V"] = lambda x, par : [realtimevec(self.chi0, x, par)]
         else:
             self.func["OtOttp"]["Akk{}".format(k)] = lambda x, par : [realtimeaxialcor(self.chi0, x, par)]
+            self.func["OtOttp"]["Vkk{}".format(k)] = lambda x, par : [realtimevec(self.chi0, x, par)]
             
         
 
@@ -184,13 +194,19 @@ class Fitter:
 
         # Below we define the size, name and limits of the parameters, per observables and per fitKeys.
         
+        key = "V" if k == 0 else "Vkk{}".format(k)
+        self.par["OtOttp"][key] = np.zeros(2)
+        self.parName["OtOttp"][key] = ["a","b"]
+        self.parLims["OtOttp"][key] = [(0, 100),(-100, 100)]
+        
+        
         key = "A" if k == 0 else "Akk{}".format(k)
         #self.par["OtOttp"][key] = np.zeros(4)
         #self.parName["OtOttp"][key] = ["mp","Gamma", "D", "v2"]
         #self.parLims["OtOttp"][key] = [(0, None),(0, None), (0, None), (0, None)]
         self.par["OtOttp"][key] = np.zeros(3)
         self.parName["OtOttp"][key] = ["a", "b", "c"]
-        self.parLims["OtOttp"][key] = [(-100, 100),(-100, 100), (-100, 100)]
+        self.parLims["OtOttp"][key] = [(0, 100),(0, 100), (-100,100)]
         
         
         self.par["OtOttpFourier"]["A"] = np.zeros(2)
