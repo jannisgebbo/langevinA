@@ -488,7 +488,7 @@ class ConfResults:
         self.wkeys = dict()
 
         self.akeys["phi0"] = 0
-        self.akeys["dsigma"] = 0
+        self.akeys["dsigma"] = 0 #WARNING: dsigma is a bad name, should really be dphi0.
         self.akeys["phi1"] = 1
         self.akeys["phi2"] = 2
         self.akeys["phi3"] = 3
@@ -501,6 +501,7 @@ class ConfResults:
         self.akeys["V1"] = 7
         self.akeys["V2"] = 8
         self.akeys["V3"] = 9
+        self.akeys["phiNorm"] = 10
 
         if self.data_format == "old":
             self.wkeys["phi0"] = "wallX_phi_0"
@@ -525,6 +526,9 @@ class ConfResults:
             self.directions = ["X"]
         else:
             self.directions = ["X", "Y", "Z"]
+            
+            
+        self.scalarKeys = ["phi0", "dsigma", "phiNorm"]
 
         # The results are stored in dictionnary, to have a generic way to code
         # between the different fields.
@@ -650,13 +654,15 @@ class ConfResults:
         f = h5py.File(self.processedDir + "/" + self.tag + "_fourier.h5", 'r')
         if not key in self.wallF[direc].keys():
             self.wallF[direc][key] = np.asarray(f[direc][key])
-
+        f.close() 
 
     # TODO: Change the way we handle the average.
     def readAv(self):
         r = h5py.File(self.fn, 'r')
         self.phi = np.asarray(r["phi"])[self.thTime:]
         self.phiNorm = self.phi[:, 4]
+        self.mag = self.phi[:, -2]
+        self.mag2 = self.phi[:, -1]
 
     def computeMag(self, direc=0):
         self.readAv()
@@ -787,8 +793,13 @@ class ConfResults:
                                 conn=conn,
                                 ncpus=mp.cpu_count())
                 self.OtOttp_blocks[bkey] /= 3.0
-            elif key != "phi0" and key != "dsigma":
-                keys = [key + str(i) for i in [1, 2, 3]]
+            #elif key != "phi0" and key != "dsigma":
+            elif not key in self.scalarKeys:
+                isotropic = False
+                if key == "phiRestored":
+                    key = "phi"
+                    isotropic == True
+                keys = [key + str(i) for i in [1, 2, 3]] if not isotropic else [key + str(i) for i in [0, 1, 2, 3]]
                 # Compute the spatial fourier transform
                 for k in keys:
                     for d in directions:
@@ -854,7 +865,7 @@ class ConfResults:
                 V = float(len(self.wallF["X"][key][0, :])**3)
 
                 if (parallel == False):
-                    self.OtOttp_blocks[bkey] = V * computeParallelOtOtp(
+                    self.OtOttp_blocks[bkey] = V * computeParallelBlockedOtOtp(
                         self.wallF["X"][key][:, momNum],
                         np.conj(self.wallF["X"][key][:, momNum]),
                         nTMax,
@@ -874,7 +885,7 @@ class ConfResults:
                 for i in range(1, len(directions)):
                     d = self.directions[i]
                     if (parallel == False):
-                        self.OtOttp_blocks[bkey] += V * computeParallelOtOtp(
+                        self.OtOttp_blocks[bkey] += V * computeParallelBlockedOtOtp(
                             self.wallF[d][key][:, momNum],
                             np.conj(self.wallF[d][key][:, momNum]),
                             nTMax,
@@ -930,7 +941,8 @@ class ConfResults:
                 .format(key))
 
     def computeFourierPropagator(self, key, decim, errFunc):
-        if key != "phi0" and key != "dsigma":
+        #if key != "phi0" and key != "dsigma":
+        if not key in self.scalarKeys:
             keys = [key + str(i) for i in [1, 2, 3]]
             for k in keys:
                 for d in self.directions:
@@ -955,8 +967,13 @@ class ConfResults:
     def computePropagator(self, key, errFunc, decim=1, alreadyLoaded=False):
         if not alreadyLoaded:
             print("hi")
-            if key != "phi0" and key != "dsigma":
-                keys = [key + str(i) for i in [1, 2, 3]]
+            #if key != "phi0" and key != "dsigma":
+            if not key in self.scalarKeys:
+                isotropic = False
+                if key == "phiRestored":
+                    key = "phi"
+                    isotropic == True
+                keys = [key + str(i) for i in [1, 2, 3]] if not isotropic else [key + str(i) for i in [0, 1, 2, 3]]
                 for k in keys:
                     for d in self.directions:
                         print(d)

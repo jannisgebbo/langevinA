@@ -31,6 +31,12 @@ def realtimevec(susc,t,parameters):
    
     return susc * np.exp(-a * t-b*t**2)
     
+def realtimecondensate(t,parameters):
+    (a,tau) = parameters
+   
+    return a * np.exp(- t / tau)
+    
+
 
 
 def axialprop(susc,omega,parameters):
@@ -142,6 +148,7 @@ class Fitter:
         self.baseKeys["A"] = ["A"]
         self.baseKeys["V"] = ["V"]
         self.baseKeys["phi"] = ["phi"]
+        self.baseKeys["phiRestored"] = ["phiRestored"]
         self.baseKeys["dsigma"] = ["dsigma"]
         self.baseKeys["dphi"] = ["dphi"]
         self.baseKeys["phi0"] = ["phi0"]
@@ -173,7 +180,7 @@ class Fitter:
             self.func["OtOttp"]["Akk{}".format(k)] = lambda x, par : [realtimeaxialcor(self.chi0, x, par)]
             self.func["OtOttp"]["Vkk{}".format(k)] = lambda x, par : [realtimevec(self.chi0, x, par)]
             
-        
+        self.func["OtOttp"]["phiRestored"] = lambda x, par : [realtimecondensate(x, par)]
 
         
         self.func["OtOttpFourier"]["A"] = lambda x, par : [axialprop(self.chi0, x, par)]
@@ -207,6 +214,11 @@ class Fitter:
         self.par["OtOttp"][key] = np.zeros(3)
         self.parName["OtOttp"][key] = ["a", "b", "c"]
         self.parLims["OtOttp"][key] = [(0, 100),(0, 100), (-100,100)]
+        
+        
+        self.par["OtOttp"]["phiRestored"] = np.zeros(2)
+        self.parName["OtOttp"]["phiRestored"] = ["a","tau"]
+        self.parLims["OtOttp"]["phiRestored"] = [(-1000, 1000),(0, 1000)]
         
         
         self.par["OtOttpFourier"]["A"] = np.zeros(2)
@@ -255,7 +267,7 @@ class Fitter:
             fx = deepcopy(tmpfx)
             x = x[minInd:maxInd:prune]
             fx.reduce(minInd, maxInd,prune)
-            print(fx.mean)
+            #print(fx.mean)
             chi2.add(fx)
             self.xs[obs] = x
                                            
@@ -293,7 +305,7 @@ class Fitter:
         else:
             x = self.data.getObs(obs, key, withY = False)
         
-        print(self.par[obs][key])
+        #print(self.par[obs][key])
         prediction = self.func[obs][key](x, self.par[obs][key])
         for p in prediction:
             plt.plot(x, p, color)
