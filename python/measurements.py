@@ -468,6 +468,8 @@ class ConfResults:
         self.fn = fn
         # tag
         self.tag = self.fn.split('.')[-2].split('/')[-1]
+        # data directory
+        self.dataDir = self.fn[:self.fn.rfind('/')] + "/"
         # thermalization time
         self.thTime = thTime
         # dt
@@ -651,7 +653,7 @@ class ConfResults:
     def loadWallFourier(self, key, direc=None):
         if direc == None:
             direc = "X"
-        f = h5py.File(self.processedDir + "/" + self.tag + "_fourier.h5", 'r')
+        f = h5py.File(self.dataDir + "/" + self.tag + "_fourier.h5", 'r')
         if not key in self.wallF[direc].keys():
             self.wallF[direc][key] = np.asarray(f[direc][key])
         f.close() 
@@ -967,6 +969,7 @@ class ConfResults:
     def computePropagator(self, key, errFunc, decim=1, alreadyLoaded=False):
         if not alreadyLoaded:
             print("hi")
+            ckey = key
             #if key != "phi0" and key != "dsigma":
             if not key in self.scalarKeys:
                 isotropic = False
@@ -1000,11 +1003,11 @@ class ConfResults:
             tmp = np.asarray(tmp)
             tmp = np.reshape(tmp, (tmp.shape[0] * tmp.shape[1], tmp.shape[2]))
 
-            self.wallCorr_raw[key] = tmp
+            self.wallCorr_raw[ckey] = tmp
 
-        self.wallCorr[key] = StatResult(
-            errFunc(self.wallCorr_raw[key][:None:decim, :]))
-        self.xs = np.arange(len(self.wallCorr[key].mean))
+        self.wallCorr[ckey] = StatResult(
+            errFunc(self.wallCorr_raw[ckey][:None:decim, :]))
+        self.xs = np.arange(len(self.wallCorr[ckey].mean))
 
     def getObs(self, obs, key, withX=True, withY=True):
         if obs == "OtOttp":
