@@ -29,7 +29,7 @@ inline bool exists_test(const std::string &name) {
 // field, and x labels the lattice site, with the total number of sites an
 // even number. The output takes the form
 //
-// wk = wally_k[ievent, jfield, k, 0 and 1] = \sum_{k} e^{i 2pi k x/N} wx
+// wk = wally_k[ievent, jfield, k, 0 and 1] = 1/N \sum_{k} e^{-i 2pi k x/N} wx
 //
 // The complex numbers are stored sequetially  with
 // 0/1 being the the real/imag parts
@@ -108,11 +108,11 @@ int main(int argc, char **argv) {
 
       fftw_execute(p);
 
-      // Compy the data to the out_ptr of the fourier transform
+      // Copy the data to the out_ptr of the fourier transform
       for (int i1 = 0; i1 < NK[1]; i1++) {
         size_t k = out.at({i0, i1, 0});
-        out.row[k] = out_ptr[i1].real();
-        out.row[k + 1] = out_ptr[i1].imag();
+        out.row[k] = out_ptr[i1].real()/N[1];
+        out.row[k + 1] = out_ptr[i1].imag()/N[1];
       }
     }
     out.fill();
