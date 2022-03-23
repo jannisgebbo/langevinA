@@ -22,9 +22,11 @@ class StatResult:
     def rescale(self, fact):
         self.mean *= fact
         self.err *= fact
-    def reduce(self, minInd=0, maxInd=None,prune=1):
+
+    def reduce(self, minInd=0, maxInd=None, prune=1):
         self.mean = self.mean[minInd:maxInd:prune]
         self.err = self.err[minInd:maxInd:prune]
+
     def save_to_txt(self,
                     fn,
                     x=None,
@@ -71,11 +73,6 @@ def load_StatResult_from_txt(fn, withX=False):
     else:
         f, err = np.loadtxt(fn, unpack=True).view(complex)
         return StatResult((f, err))
-
-
-#############################################################################
-# Helper functions
-#
 
 
 # Returns (mean, error) of an array, arr with a bootstrap resampling.
@@ -232,23 +229,26 @@ def computeOtOtpStatic(arr1, arr2, conn=False):
 # the correlator is between 0...nTMax - 1.
 #
 # The routine will also substract the connected part by setting conn (for
-# connected) to True
+# connected) to True, but this is false by default
 #
 # The statistical method for computing the average is passed as the third
-# arguement.  The simplest case, which neglects the error is,
+# arguement.  The default is
 #
 # lambda x: (np.mean(x), 0)
 #
-def computeOtOtp(arr1, arr2, statFunc, conn=False, nTMax=-1, decim=1):
+# Examples:
+#
+# computeOtOtp(d, np.conj(d))
+def computeOtOtp(arr1, arr2, statFunc=lambda x: (np.mean(x), 0), conn=False, nTMax=-1, decim=1):
 
     # Take the full possible range if nTMax is not passed
     Npoints = len(arr1)
-    if nTMax == -1:  #nTMax was not passed
+    if nTMax == -1:  # nTMax was not passed
         nTMax = Npoints
 
     # Allocate space for the result
-    Cttp = np.zeros(nTMax, dtype=type(arr1[0]))
-    CttpErr = np.zeros(nTMax, dtype=type(arr1[0]))
+    Cttp = np.zeros(nTMax, dtype=arr1.dtype)
+    CttpErr = np.zeros(nTMax, dtype=arr1.dtype)
 
     # Compute means if necessary for connected part
     if conn:
@@ -258,7 +258,7 @@ def computeOtOtp(arr1, arr2, statFunc, conn=False, nTMax=-1, decim=1):
     # For each time compute the product of a1 and rolled a2
     # an average of this is the correlation ofunction
     for tt in range(nTMax):
-        tmp = arr1 * np.roll(arr2, -tt)
+        tmp = arr1 * np.roll(arr2, -tt)[0:len(arr1)]
         if conn:
             tmp -= av1 * av2
 
@@ -268,6 +268,17 @@ def computeOtOtp(arr1, arr2, statFunc, conn=False, nTMax=-1, decim=1):
 
 
 # Compute the O(t) O(0) correlator over blocks in time.
+#
+# Inputs:
+#
+# array1 and array2, as well as the dimension of the correlation array, nTMax.
+# steps is the nuber of array entries used to form a block average
+#
+# Outputs:
+#
+# A  python array,  containing the O(t) O(0) as an array, for each block.
+#
+# [ [data], [data], [data], ..... ]
 def computeBlockedOtOtp(arr1, arr2, nTMax, steps, decim=1, conn=False):
     res = []
     sMax = len(arr1) - steps
@@ -318,7 +329,6 @@ def computeParallelBlockedOtOtp(arr1,
                              steps=steps,
                              decim=decim,
                              conn=conn)
-    # res = pool.map(ComputeParallelBlockedOtOtpHelper(arr1, arr2, nTMax, steps, decim, conn), blocks)
     res = pool.map(func, blocks)
     pool.close()
     return np.asarray(res)
@@ -450,10 +460,11 @@ def twoPtAv(arr):
 
     return np.asarray(res)
 
-
 ################################################################################
 # Work in progress, store the results and call the corersponding measurements
 # in a "user friendly" way.
+
+
 class ConfResults:
 
     def __init__(self,
@@ -463,7 +474,7 @@ class ConfResults:
                  data_format="new",
                  processedDir='./',
                  plotDir='./',
-                 loadFourierBool = False):
+                 loadFourierBool=False):
         # filename
         self.fn = fn
         # tag
@@ -474,9 +485,8 @@ class ConfResults:
         self.thTime = thTime
         # dt
         self.dt = dt
-        #bool to say if fourier transform of wall is saved
+        # bool to say if fourier transform of wall is saved
         self.loadFourierBool = loadFourierBool
-        
 
         self.processedDir = processedDir
         self.plotDir = plotDir
@@ -490,7 +500,8 @@ class ConfResults:
         self.wkeys = dict()
 
         self.akeys["phi0"] = 0
-        self.akeys["dsigma"] = 0 #WARNING: dsigma is a bad name, should really be dphi0.
+        # WARNING: dsigma is a bad name, should really be dphi0.
+        self.akeys["dsigma"] = 0
         self.akeys["phi1"] = 1
         self.akeys["phi2"] = 2
         self.akeys["phi3"] = 3
@@ -528,8 +539,7 @@ class ConfResults:
             self.directions = ["X"]
         else:
             self.directions = ["X", "Y", "Z"]
-            
-            
+
         self.scalarKeys = ["phi0", "dsigma", "phiNorm"]
 
         # The results are stored in dictionnary, to have a generic way to code
@@ -626,25 +636,25 @@ class ConfResults:
             print(
                 "You tried to load a wall in a direction that does not exist in your data format."
             )
-    
+
     # Load C generated x2f file, not in use
     def loadWallFourier_derek(self, key, direc=None):
         if direc == None:
             direc = "X"
         r = h5py.File(self.fn.split('.')[-2]+"_out.h5", 'r')
-        #try:
-            #if (self.data_format == "old" or
-                                     #self.data_format != "semi_old")):
-                #raise
-            #else:
+        # try:
+        # if (self.data_format == "old" or
+        # self.data_format != "semi_old")):
+        # raise
+        # else:
         if not key in self.wallF[direc].keys():
             self.wallF[direc][key] = np.asarray(r["wall{}_k".format(
                 direc.lower())])[self.thTime:, self.wkeys[key], :, 0] + 1j * np.asarray(r["wall{}_k".format(
-                direc.lower())])[self.thTime:, self.wkeys[key], :, 1]
-                #if key == "dsigma" or key == "dphi1" or key == "dphi2" or key == "dphi3":
-                    #raise
+                    direc.lower())])[self.thTime:, self.wkeys[key], :, 1]
+            # if key == "dsigma" or key == "dphi1" or key == "dphi2" or key == "dphi3":
+            # raise
 
-        #except:
+        # except:
         #    print(
         #        "You tried to load a wallF in a direction that does not exist in your data format. You may also have tried to load the fourier transform of a connected key"
         #    )
@@ -656,7 +666,7 @@ class ConfResults:
         f = h5py.File(self.dataDir + "/" + self.tag + "_fourier.h5", 'r')
         if not key in self.wallF[direc].keys():
             self.wallF[direc][key] = np.asarray(f[direc][key])
-        f.close() 
+        f.close()
 
     # TODO: Change the way we handle the average.
     def readAv(self):
@@ -670,11 +680,9 @@ class ConfResults:
         self.readAv()
         self.mag, self.magErr = bootstrap(self.phi[:, direc], 100)
 
-        
-    
-    
     # Compute the fourier transform of a given wall, specified by the
     # appropriate key.
+
     def computeWallFourier(self, key, direc, decim=1):
         if not direc in self.wallF.keys() or not key in self.wallF[direc].keys(
         ):
@@ -695,19 +703,19 @@ class ConfResults:
                     c += 1
                 self.momenta_3d = np.asarray(
                     [2.0 * np.pi / float(Nx) * n for n in range(Nx)])
-             
-            
+
     # Save fourier to hdf5
+
     def saveWallFourier(self, key, direc):
         f = h5py.File(self.processedDir + "/" + self.tag + "_fourier.h5", 'a')
         if not direc in f.keys():
             grp = f.create_group(direc)
         else:
             grp = f[direc]
-        
+
         if not key in grp.keys():
             grp.create_dataset(key, data=self.wallF[direc][key])
-        
+
     # Computes the time correlator of a given key.
     #
     # TODO: For now, compute only from one direction in fourier for all modes.
@@ -736,7 +744,8 @@ class ConfResults:
             bkey = key
 
         if redo or not bkey in self.OtOttp_blocks.keys():
-            if '_' in key:  # Mixed correlator case, does not compute in  Y Z (because I am lazy)
+            # Mixed correlator case, does not compute in  Y Z (because I am lazy)
+            if '_' in key:
                 key1, key2 = key.split('_')
                 keys1 = [key1 + str(i) for i in [1, 2, 3]]
                 keys2 = [key2 + str(i) for i in [1, 2, 3]]
@@ -795,13 +804,14 @@ class ConfResults:
                                 conn=conn,
                                 ncpus=mp.cpu_count())
                 self.OtOttp_blocks[bkey] /= 3.0
-            #elif key != "phi0" and key != "dsigma":
+            # elif key != "phi0" and key != "dsigma":
             elif not key in self.scalarKeys:
                 isotropic = False
                 if key == "phiRestored":
                     key = "phi"
                     isotropic == True
-                keys = [key + str(i) for i in [1, 2, 3]] if not isotropic else [key + str(i) for i in [0, 1, 2, 3]]
+                keys = [key + str(i) for i in [1, 2, 3]] if not isotropic else [
+                    key + str(i) for i in [0, 1, 2, 3]]
                 # Compute the spatial fourier transform
                 for k in keys:
                     for d in directions:
@@ -858,7 +868,8 @@ class ConfResults:
                                         decim=decim,
                                         conn=conn,
                                         ncpus=mp.cpu_count())
-                self.OtOttp_blocks[bkey] /= (float(len(keys) * len(directions)))
+                self.OtOttp_blocks[bkey] /= (float(len(keys)
+                                             * len(directions)))
             else:
                 # For scalar quantities we have only one
                 for d in directions:
@@ -943,7 +954,7 @@ class ConfResults:
                 .format(key))
 
     def computeFourierPropagator(self, key, decim, errFunc):
-        #if key != "phi0" and key != "dsigma":
+        # if key != "phi0" and key != "dsigma":
         if not key in self.scalarKeys:
             keys = [key + str(i) for i in [1, 2, 3]]
             for k in keys:
@@ -970,13 +981,14 @@ class ConfResults:
         if not alreadyLoaded:
             print("hi")
             ckey = key
-            #if key != "phi0" and key != "dsigma":
+            # if key != "phi0" and key != "dsigma":
             if not key in self.scalarKeys:
                 isotropic = False
                 if key == "phiRestored":
                     key = "phi"
                     isotropic == True
-                keys = [key + str(i) for i in [1, 2, 3]] if not isotropic else [key + str(i) for i in [0, 1, 2, 3]]
+                keys = [key + str(i) for i in [1, 2, 3]] if not isotropic else [
+                    key + str(i) for i in [0, 1, 2, 3]]
                 for k in keys:
                     for d in self.directions:
                         print(d)
