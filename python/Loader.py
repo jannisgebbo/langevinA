@@ -2,6 +2,7 @@ import h5py
 import numpy as np
 import errno
 import os.path
+from scipy import stats
 
 
 # Compute the correlator in time between arr1 and arr2.
@@ -382,7 +383,7 @@ class TimeCorrelator:
                 OtOtp = np.vstack(
                     (OtOtp, blockedOtOtp(d1, d2, self.nTMax, nblocks)))
 
-        return (np.mean(OtOtp.real, axis=0), np.std(OtOtp.real, axis=0, ddof=1),
+        return (np.mean(OtOtp.real, axis=0), stats.sem(OtOtp.real, axis=0, ddof=1),
                 OtOtp.real)
 
 ################################################################################
@@ -415,7 +416,7 @@ class StaticCorrelator:
                     OxOy = np.vstack(
                         (OxOy, StaticCorrelator.correlate_data(data)))
 
-        return np.mean(OxOy, axis=0), np.std(OxOy, axis=0, ddof=1), OxOy
+        return np.mean(OxOy, axis=0), stats.sem(OxOy, axis=0, ddof=1), OxOy
 
     @staticmethod
     def correlate_data(d):
