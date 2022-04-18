@@ -50,33 +50,18 @@ int main(int argc, char **argv) {
   std::string fin(argv[1]);
   std::string dsetin(argv[2]);
 
-  std::string fout;
-  auto idx = fin.rfind(".h5");
-  if (idx != std::string::npos) {
-    fout = fin.substr(0, idx) + "_out.h5";
-  } else {
-    std::cout << "x2k input file -- " << fin
-              << " -- does not have a .h5 extension" << std::endl;
-    return EXIT_FAILURE;
-  }
   std::string dsetout = dsetin + "_k";
-  std::cout << "Creating dataset " << dsetout << " in " << fout << std::endl;
+  std::cout << "Creating dataset " << dsetout << " in " << fin << std::endl;
 
   // Open the filespace and grab the ntuples
-  hid_t filein_id = H5Fopen(fin.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
+  hid_t filein_id = H5Fopen(fin.c_str(), H5F_ACC_RDWR, H5P_DEFAULT);
   ntuple<2> in(dsetin, filein_id);
 
   // get the dimensions of the input tuple
   auto N = in.getN();
 
   // open the output file
-  hid_t fileout_id;
-  if (exists_test(fout)) {
-    fileout_id = H5Fopen(fout.c_str(), H5F_ACC_RDWR, H5P_DEFAULT);
-  } else {
-    fileout_id =
-        H5Fcreate(fout.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-  }
+  hid_t fileout_id = filein_id;
 
   // Remove the old output if it exists
   if (H5Lexists(fileout_id, dsetout.c_str(), H5P_DEFAULT)) {
@@ -119,10 +104,8 @@ int main(int argc, char **argv) {
   }
   fftw_destroy_plan(p);
 
-  // close the filespace
+  // clean up
   out.close();
-  H5Fclose(fileout_id);
-
   in.close();
   H5Fclose(filein_id);
   return 0;
