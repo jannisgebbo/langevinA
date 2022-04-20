@@ -5,6 +5,183 @@ import os.path
 from scipy import stats
 
 
+# A simple class for storing the results of statistical analyses as plain text for further analysis: 
+#
+# Example:
+#     sr = loader.statresult( (value, err) )
+#     sr.save_to_txt("foo.txt")
+#
+class StatResult:
+
+    def __init__(self, tup):
+        self.mean = tup[0]
+        self.err = tup[1]
+
+    def rescale(self, fact):
+        self.mean *= fact
+        self.err *= fact
+
+    def reduce(self, minInd=0, maxInd=None, prune=1):
+        self.mean = self.mean[minInd:maxInd:prune]
+        self.err = self.err[minInd:maxInd:prune]
+
+    def save_to_txt(self,
+                    fn,
+                    x=None,
+                    fmt="python",
+                    decim=1,
+                    tMin=0,
+                    tMax=None,
+                    yfact=1):
+        if (len(np.shape(x)) == 0 and x == None):
+            toSave = np.column_stack([
+                (yfact * self.mean[tMin:tMax:decim] + 0.0j).view(float).reshape(
+                    -1, 2),
+                (yfact * self.err[tMin:tMax:decim] + 0.0j).view(float).reshape(
+                    -1, 2),
+            ])
+            if fmt == "python" or fmt == "gnuplot":
+                np.savetxt(fn, toSave)
+            elif fmt == "latex":
+                np.savetxt(fn,
+                           toSave,
+                           header="rey imy errrey errimy",
+                           comments='')
+        else:
+            toSave = np.column_stack([
+                x[tMin:tMax:decim],
+                (yfact * self.mean[tMin:tMax:decim] + 0.0j).view(float).reshape(
+                    -1, 2),
+                (yfact * self.err[tMin:tMax:decim] + 0.0j).view(float).reshape(
+                    -1, 2),
+            ])
+            if fmt == "python" or fmt == "gnuplot":
+                np.savetxt(fn, toSave)
+            elif fmt == "latex":
+                np.savetxt(fn,
+                           toSave,
+                           header="x rey imy errrey errimy",
+                           comments='')
+
+# Returns (mean, error) of an array, arr with a bootstrap resampling.
+#
+# A function of the array can be provided. For example to compute the mean  of
+# arr^2 we have:
+#
+# booststrap(array, func= lambda x: x*x)
+def bootstrap(arr, nSamples=100, func=lambda x: x):
+    arr = np.asarray(arr)
+    random.seed()
+    bootstrapArr = []
+    for n in range(nSamples):
+        newArr = np.zeros(np.shape(arr), dtype=arr.dtype)
+        for l in range(len(arr)):
+            newArr[l] = arr[random.randrange(0, len(arr))]
+        bootstrapArr.append(np.mean(func(newArr), axis=0))
+
+    bootstrapArr = np.asarray(bootstrapArr)
+
+    return (np.mean(bootstrapArr, axis=0), np.std(bootstrapArr, axis=0))
+    # return (np.mean(arr,axis = 0), np.std(arr,axis = 0))
+
+
+# Returns (mean, error) of an array, arr with jacknife
+def jackknife(arr, nSamples=10, func=lambda x: x):
+    nBlock = int(len(arr) / nSamples)
+    arr = np.asarray(arr)
+    random.seed()
+    bootstrapArr = []
+    count = 0
+    thetaBar = np.mean(func(arr), axis=0)
+    sigma2 = np.zeros(1 if len(np.shape(arr)) == 1 else np.shape(arr[0, :]),
+                      dtype=arr.dtype)
+    for n in range(nSamples):
+        newArr = func(np.concatenate((arr[:count], arr[count + nBlock:])))
+        bootstrapArr.append(np.mean(newArr, axis=0))
+        count += nBlock
+        sigma2 += (bootstrapArr[-1] - thetaBar)**2
+
+    bootstrapArr = np.asarray(bootstrapArr)
+
+    return (np.mean(bootstrapArr,
+                    axis=0), np.sqrt((nSamples - 1.0) / nSamples * sigma2))
+    # return (np.mean(arr,axis = 0), np.std(arr,axis = 0))
+
+
+# Returns (mean, error) of an array, arr with blocking
+def blocking(arr, nBlock=10, func=lambda x: x):
+    blockSize = int(len(arr) / nBlock)
+    arr = np.asarray(arr)
+    blocks = []
+    count = 0
+    for n in range(nBlock):
+        blocks.append(np.mean(arr[n * blockSize:(n + 1) * blockSize], axis=0))
+
+    return (np.mean(np.asarray(blocks), axis=0), 
+                np.std(np.asarray(blocks), axis=0))
+
+
+# Returns (mean, error) of an array, arr with blocking and bootstrap
+def blockedBootstrap(arr, nBlock=10, nSamples=100, func=lambda x: x):
+    blockSize = int(len(arr) / nBlock)
+    arr = np.asarray(arr)
+    random.seed()
+    blocks = []
+    count = 0
+    for n in range(nBlock):
+        blocks.append(arr[n * blockSize:(n + 1) * blockSize])
+
+    bootstrapArr = []
+    for n in range(nSamples):
+        newArr = []
+        for l in range(nBlock):
+            newArr.append(blocks[random.randrange(0, nBlock)])
+        bootstrapArr.append(np.mean(np.mean(func(newArr), axis=0), axis=0))
+
+    bootstrapArr = np.asarray(bootstrapArr)
+
+    return (np.mean(bootstrapArr, axis=0), np.std(bootstrapArr, axis=0))
+
+
+# Adapted from Hauke Sandmeyer's routines. (AF)
+def autocorrelationFunction(data, tmax=1000, startvalue=0):
+    int_corr = 0.5
+    sq_sum = 0.0
+
+    corr_arr = []
+
+    norm = np.sum((data - np.mean(data, axis=0))**2)
+
+    mean = np.mean(data, axis=0)
+
+    for t in range(0, tmax):
+        corr = 0.0
+        for i in range(startvalue, len(data) - t):
+            corr += (data[i] - mean) * (data[i + t] - mean)
+        corr /= norm
+        corr_arr.append(corr)
+
+    return corr_arr
+
+
+def intAutocorrrelationTime(arr, tmax=1000, startvalue=0, nMax=-1):
+    Ct = autocorrelationFunction(arr[:nMax], tmax, startvalue)
+    res = 0.5
+    count = 0
+    while float(count) < 5 * res and count < len(Ct) / 2.0:
+        res += Ct[count]
+        count += 1
+    return res
+
+
+# We don't need necessarily need the whole statistics to evaluate the
+# autocorrelation time, nMax is the number of points we should use.
+def autocorrelatedErr(arr, tmax=1000, startvalue=0, nMax=-1):
+    mean = np.mean(arr, axis=0)
+    naiveErr = np.std(arr, axis=0)
+    tau = intAutocorrrelationTime(arr, tmax, startvalue, nMax)
+    return (mean, np.sqrt(2.0 * tau) * naiveErr)
+
 # Compute the correlator in time between arr1 and arr2.
 #
 # The correlation function is computed over the full range if nTMax is not
@@ -97,9 +274,43 @@ def blockedOtOtp(arr1, arr2, nTMax, nblocks):
 
 
 ################################################################################
+# Load specified data into numpy array
+#
+# Examples:
+#
+# ld = Loader("filename.txt")
+#
+# ld.load("phi0")   #uses the class value of removemean
+# ld.load("phi0", removemean=True)
+# ld.load("phi1_kx", k=2)  # load k=2 values from k
+# ld.load("phi1_x")  # loads the x walls all blocks
+# ld.load("phi1_y", block=2)  #loads the second block of y walls
+# ld.load("A3_kz", k=1) # load the A3 k=1 in z
+#
+# For each key this routine simply calls the corresponding loader
+# You can add your own loader if one doesn't fit your needs.
+#
+# ld.loader["myfield"] = myloadingfunc(self, key, **kwargs)
+#
+# The keygroups dictionary exists to loop over groups of related keys.
+# Thus the key "A123" in keygroups["A123"] contains the list ["A1","A2","A3"]
+#
+# for key in ld.keygroups["A123_kx"] :
+#     data = ld.load(key, k=2)
+#
+# You can get a list of available keygroups as follows
+# print(ld.keygroups) shows the available keygroups
+#
 class Loader:
 
     # Initialize the loader by checking if filename exists
+    #
+    # Inputs:
+    #
+    # filename (string) 
+    # starttime (int) default=0 , ignore the first 0...starttime-1 entries
+    # removemean (bool) default=False, on loading subtract the mean value,
+    #                   this is relevant for the k=0 columns only
     def __init__(self, filename, starttime=0, removemean=False, nblocks=1):
 
         if not os.path.exists(filename):
@@ -149,29 +360,8 @@ class Loader:
         else:
             return None
 
-    # Load specified data into numpy array
-    #
-    # Examples:
-    #
-    # ld.load("phi0")   #uses the class value of removemean
-    # ld.load("phi0", removemean=True)
-    # ld.load("phi1_kx", k=2)  # load k=2 values from k
-    # ld.load("phi1_x")  # loads the x walls all blocks
-    # ld.load("phi1_y", block=2)  #loads the second block of y walls
-    # ld.load("A3_kz", k=1) # load the A3 k=1 in z
-    #
-    # For each key this routine simply calls the corresponding loader
-    # You can add your own loader if one doesn't fit your needs.
-    #
-    # ld.loader["myfield"] = myloadingfunc(self, key, **kwargs)
-    #
-    # The keygroups dictionary exists to loop over groups of related keys.
-    #
-    # Thus the key "A123" in keygroups["A123"] contains the list ["A1","A2","A3"]
-    #
-    # for key in ld.keygroups["A123"] :
-    #     data = ld.load(key, k=2)
-    #
+    # Usage ld.load("phi0") 
+    # This finds the loader for the corresponding key and loads the data
     def load(self, key, **kwargs):
         return self.loaders[key](self, key, **kwargs)
 
@@ -208,7 +398,7 @@ class Loader:
     # Examples implemented:
     #
     # load("phi0_kx", k=2) # uses the default class value of removemean
-    # load("phi0_kx")   # reads k=0
+    # load("phi0_kx") # reads k=0
     # load("phi0_kx", k=2, removemean=True) #overrides the default remove mean by class
     def read_column_k(self, key,  **kwargs):
 
@@ -276,12 +466,16 @@ class Loader:
             print("Warning the loaded array is greater than 100 M. Read by blocks, e.g. load(\"phi0_x\", block=3)\n\tThe current size is %f M\n" % (size))
 
         return data
+
+    # Read the timeout structure with times
     def read_timeout(self,key,**kwargs) :
         h5 = h5py.File(self.filename, 'r')
         if key == "times":
             return np.asarray(h5["timeout"][:,0])
-        
 
+    def debug_print(self):
+        print("Processing filename: {}".format(self.filename)) 
+        
     # Helper function for filling up the loaders structure
     def _fill_loaders(self):
         for key in self._base_keys:
@@ -355,18 +549,41 @@ class Loader:
 
 ################################################################################
 class TimeCorrelator:
-
+    # Class for  computing time time correlation functions
+    #
+    # tc = TimeCorrelator(loader, nblocks=20)
+    # 
+    # Initializes the loader 
+    # Arguments:
+    #     loader (Loader object) 
+    #     nblocks (int, default 10) blocks the loader into 10 blocks
     def __init__(self, loader, nblocks=10, nTMax=2000):
         self.loader = loader
         self.nTMax = nTMax
         self.nblocks = nblocks
 
+    # Helper function for correlating a given key group, e.g. "phi0123"
+    # 
+    # Example: 
+    #
+    # OtOtp, dOtOtp =  tc.correlate_keys("phi0123")
+    #
+    # This loops over the list if keys in ld.keygroups["phi0123"]. It
+    # computes the correlator for each one and treats each key as being a 
+    # statistically dependents event. 
     def correlate_key(self, key, **kwargs):
         if key in self.loader.keygroups:
             return self.correlate_keys(*self.loader.keygroups[key], **kwargs)
         else:
             raise KeyError(key)
 
+    # Corrrelate of keys
+    #
+    # Example 
+    # 
+    # ld.correlate_keys("phi0","phi1","phi2", "phi3", removemean =True)
+    #
+    # The kwargs are passed on to the loader
     def correlate_keys(self, *keys, **kwargs):
         nblocks = self.nblocks
         first = True
@@ -392,16 +609,37 @@ class TimeCorrelator:
 
 class StaticCorrelator:
 
+    # Class for computing the static correlator
+    #
+    # sc = StaticCorrelator(loader) 
+    # correlator, err = sc.correlate_keys("phi0", "phi1", "phi2", "phi3")
+    #
+    # The loader should probably be partitioned into blocks for 
+    # before instantiating the class. 
+    #
+    # loader.nblocks = 20 
+    # sc = StaticCorrelator(loader) 
+    # correlator, err = sc.correlate_key("phi0123")
+    #  
+    # Then the data will be loaded into memory one block at a time
     def __init__(self, loader):
         self.loader = loader
         return
 
+    # See the documentation for the analogous function in TimeCorrelator
+    # 
+    # The key should be any key in loader.keygroups
     def correlate_key(self, key, **kwargs):
         if key in self.loader.keygroups:
             return self.correlate_keys(*self.loader.keygroups[key], **kwargs)
         else:
             raise KeyError(key)
 
+    # See the documentation for the analogous function in TimeCorrelator
+    #
+    # The keys must be individual keys not a keygroup.
+    #
+    # correlator, err = sc.correlate_key("phi0","phi1","phi2","phi3")
     def correlate_keys(self, *keys, **kwargs):
         nblocks = self.loader.nblocks
         first = True

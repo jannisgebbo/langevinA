@@ -4,6 +4,12 @@ OBJS = measurer.o Stepper.o NoiseGenerator.o  jsoncpp.o
 SuperPions.exe: SuperPions.o $(OBJS)
 	CC -o $@ $^ $(LDLIBS) 
 
+x2k.exe : x2k.o $(OBJS)
+	CC -o $@ $^ $(LDLIBS) 
+
+x2k.o: x2k.cxx $(HEADRS)
+	CC -c $<
+
 SuperPions.o: SuperPions.cxx $(HEADRS)
 	CC -c  $<
 
@@ -18,7 +24,6 @@ NoiseGenerator.o: NoiseGenerator.cxx NoiseGenerator.h
 
 jsoncpp.o: jsoncpp.cpp
 	CC -c  $<
-
 
 clean:
 	rm *.o
