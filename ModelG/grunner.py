@@ -118,7 +118,7 @@ def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=[], seed=N
     tag = data["outputfiletag"]
 
     # Create a run directory if does not exist, and cd to it
-    dstack.pushd(tag)
+    dstack.pushd(tag,mkdir=True)
 
     filenamesh = tag + '.sh'
 
@@ -293,7 +293,7 @@ def prun(moreopts=[], dry_run=True, debug=True, time=0, seed=None, ncpus="4"):
     prgm = find_program()
 
     tag = data["outputfiletag"]
-    dstack.pushd(tag)
+    dstack.pushd(tag,mkdir=True)
 
     listname = tag + "_list.txt"
     pmakefiles(ncpus, seed)
@@ -316,7 +316,7 @@ def run(program_name = "SuperPions.exe", moreopts=[], dry_run=True, time=0, seed
     tag = data["outputfiletag"]
 
     # Go to the directory 
-    dstack.pushd(tag)
+    dstack.pushd(tag,mkdir=True)
 
     # set the seed and the inputfile
     if seed is None:
