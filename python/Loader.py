@@ -212,11 +212,6 @@ class Loader:
     # load("phi0_kx", k=2, removemean=True) #overrides the default remove mean by class
     def read_column_k(self, key,  **kwargs):
 
-        filename_fourier = os.path.splitext(self.filename)[0] + "_out.h5"
-        if not os.path.exists(filename_fourier):
-            raise FileNotFoundError(errno.ENOENT, os.strerror(
-                errno.ENOENT), filename_fourier)
-
         wkeys = self._base_keys
 
         try:
@@ -229,7 +224,7 @@ class Loader:
         k = kwargs.get("k", 0)
         direction = {"kx": "x", "ky": "y", "kz": "z"}
         dsetname = "wall" + direction[tag] + "_k"
-        h5 = h5py.File(filename_fourier, 'r')
+        h5 = h5py.File(self.filename, 'r')
 
         data = np.ravel(np.asarray(
             h5[dsetname][self.starttime:, wkeys[name], k, :]).view(dtype=np.complex128))
@@ -281,6 +276,11 @@ class Loader:
             print("Warning the loaded array is greater than 100 M. Read by blocks, e.g. load(\"phi0_x\", block=3)\n\tThe current size is %f M\n" % (size))
 
         return data
+    def read_timeout(self,key,**kwargs) :
+        h5 = h5py.File(self.filename, 'r')
+        if key == "times":
+            return np.asarray(h5["timeout"][:,0])
+        
 
     # Helper function for filling up the loaders structure
     def _fill_loaders(self):
@@ -298,6 +298,7 @@ class Loader:
             self.loaders[key + "_y"] = Loader.read_wall
         for key in self._base_keys:
             self.loaders[key + "_z"] = Loader.read_wall
+        self.loaders["times"] = Loader.read_timeout
 
     # Helper function for producing groups of keys e.g.
     #

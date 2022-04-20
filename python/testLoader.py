@@ -12,12 +12,14 @@ def getloader(name):
             removemean=True,
             starttime=8000,
             nblocks=8)
-    if name == "pionrun8":
+    elif name == "pionrun8":
         loader = ms.Loader(
             "/Users/derekteaney/common/superfluid/cori/run/pionrun/pionrun8_N080_m-0501265_h003000_c00500/pionrun8_N080_m-0501265_h003000_c00500.h5",
             removemean=True,
             starttime=10000,
             nblocks=10)
+    else:
+        raise KeyError("Bad selection", name)
 
     return loader
 
@@ -146,9 +148,14 @@ def test_keygroups(loader):
     pp = pprint.PrettyPrinter()
     pp.pprint(loader.keygroups)
 
+def test_times(loader):
+    times = loader.load("times")
+    print("Testing the times loader")
+    print(times)
 
 def all_tests(loader):
     test_keygroups(loader)
+    test_times(pionloader)
     test_loader1(loader)
     test_loader2(loader)
     test_correlate1(loader)
@@ -164,5 +171,5 @@ def all_tests(loader):
     test_static_correlate3(loader)
 
 if __name__ == '__main__':
-    pionloader = getloader("pionrun8")
+    pionloader = getloader("donly")
     all_tests(pionloader)
