@@ -71,6 +71,21 @@ def staticPhiProp(L,x, parameters):
     denominator = 1 - np.exp(-ms * L)
     return numerator / denominator
 
+def staticPhiRestoredProp(L,x, parameters):
+    (cs, ms) = parameters
+    #numerator =  1.0 / 2.0 / ms / cs / L**2 * (np.exp(- ms * x) + np.exp(- ms * (L-x)))
+    #denominator = 1.0 - np.exp(-ms * L)
+    numerator =  cs * np.exp(- ms * x) 
+    return numerator
+
+def staticPhiRestoredPropPeriodic(L,x, parameters):
+    (cs, ms) = parameters
+    #numerator =  1.0 / 2.0 / ms / cs / L**2 * (np.exp(- ms * x) + np.exp(- ms * (L-x)))
+    #denominator = 1.0 - np.exp(-ms * L)
+    numerator =  cs * (np.exp(- ms * x) + np.exp(- ms * (L-x)))
+    #denominator = 1 - np.exp(-ms * L)
+    return numerator 
+
 def staticPhiPropKSusc(susc, k, parameters):
     ms = parameters[0]
     numerator =  susc * np.tanh(ms / 2.0) * 2.0 * np.sinh(ms)
@@ -181,6 +196,7 @@ class Fitter:
             self.func["OtOttp"]["Vkk{}".format(k)] = lambda x, par : [realtimevec(self.chi0, x, par)]
             
         self.func["OtOttp"]["phiRestored"] = lambda x, par : [realtimecondensate(x, par)]
+        self.func["OtOttp"]["phi0"] = lambda x, par : [realtimecondensate(x, par)]
 
         
         self.func["OtOttpFourier"]["A"] = lambda x, par : [axialprop(self.chi0, x, par)]
@@ -194,6 +210,7 @@ class Fitter:
         self.func["propagatorF"]["dsigma"] = lambda x, par : [staticDSigmaPropK( x, par)]
         
         self.func["propagator"]["phi"] = lambda x, par : [staticPhiProp(L, x, par)]
+        self.func["propagator"]["phiRestored"] = lambda x, par : [staticPhiRestoredPropPeriodic(L, x, par)]
         
         
         
@@ -219,6 +236,10 @@ class Fitter:
         self.par["OtOttp"]["phiRestored"] = np.zeros(2)
         self.parName["OtOttp"]["phiRestored"] = ["a","tau"]
         self.parLims["OtOttp"]["phiRestored"] = [(-1000, 1000),(0, 1000)]
+
+        self.par["OtOttp"]["phi0"] = np.zeros(2)
+        self.parName["OtOttp"]["phi0"] = ["a","tau"]
+        self.parLims["OtOttp"]["phi0"] = [(-1000, 1000),(0, 1000)]
         
         
         self.par["OtOttpFourier"]["A"] = np.zeros(2)
@@ -251,6 +272,10 @@ class Fitter:
         self.par["propagator"]["phi"] = np.zeros(2)
         self.parName["propagator"]["phi"] = ["chi","m"]
         self.parLims["propagator"]["phi"] = [(0, None),(0, None)]
+        
+        self.par["propagator"]["phiRestored"] = np.zeros(2)
+        self.parName["propagator"]["phiRestored"] = ["chi","m"]
+        self.parLims["propagator"]["phiRestored"] = [(0, None),(0, None)]
 
         
 
