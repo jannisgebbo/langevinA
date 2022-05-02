@@ -5,6 +5,7 @@ import json
 import random
 import dstack
 import datetime
+import math
 
 
 GLOBAL_PETSCPKG_PATH_SEAWULF="${PKG_CONFIG_PATH}:/gpfs/home/adrflorio/petsc/arch-linux2-c-debug/lib/pkgconfig/"
@@ -111,14 +112,14 @@ def find_program(program_name="SuperPions.exe"):
 #########################################################################
 # Runs on cori
 #########################################################################
-def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=[], seed=None, nnodes=1, parallel=False):
+def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=["-log_view"], seed=None, nnodes=1, parallel=False, environment=[]):
 
     prgm = find_program()
 
     tag = data["outputfiletag"]
 
     # Create a run directory if does not exist, and cd to it
-    dstack.pushd(tag)
+    dstack.pushd(tag,mkdir=True)
 
     filenamesh = tag + '.sh'
 
@@ -128,23 +129,19 @@ def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=[], seed=N
     if debug:
         print("#SBATCH -q debug", file=fh)
         print("#SBATCH -t 00:10:00", file=fh)
-        print("#SBATCH -N 1", file=fh)
-        print("#SBATCH --ntasks=32", file=fh)
+        print("#SBATCH -N {}".format(nnodes), file=fh)
+        print("#SBATCH --ntasks={}".format(nnodes*32), file=fh)
         print("#SBATCH --cpus-per-task=2", file=fh)
     elif shared:
         print("#SBATCH -q shared", file=fh)
-        print("#SBATCH -t %s" % (str(round(time*60))), file=fh)
+        print("#SBATCH -t {}".format(int(math.ceil(time*60.))), file=fh)
         print("#SBATCH --ntasks=8", file=fh)
         print("#SBATCH --cpus-per-task=2", file=fh)
-    elif parallel:
-        print("#SBATCH -q regular", file=fh)
-        print("#SBATCH -t %s" % (str(round(time*60))), file=fh)
-        print("#SBATCH -N 1", file=fh)
     else:
         print("#SBATCH -q regular", file=fh)
-        print("#SBATCH -t %s" % (str(round(time*60))), file=fh)
+        print("#SBATCH -t {}".format(int(math.ceil(time*60.))), file=fh)
         print("#SBATCH -N %d" % (nnodes), file=fh)
-        print("#SBATCH --ntasks=32", file=fh)
+        print("#SBATCH --ntasks={}".format(nnodes*32), file=fh)
         print("#SBATCH --cpus-per-task=2", file=fh)
     print("#SBATCH -C haswell", file=fh)
 
@@ -155,9 +152,8 @@ def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=[], seed=N
     print("module load gsl", file=fh)
     print("module load cray-petsc", file=fh)
     print("module load cray-hdf5-parallel", file=fh)
+    print("export HDF5_DISABLE_VERSION_CHECK=2", file=fh)
 
-    if parallel:
-        print("module load paralel", file=fh)
     print("", file=fh)
 
     #
@@ -167,27 +163,20 @@ def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=[], seed=N
 
     print('date  "+%%x %%T" > %s_time.out' %
           (data["outputfiletag"]), file=fh)
-    if not parallel:
-        # set the seed and the inputfile
-        if seed is None:
-            data["seed"] = random.randint(1, 2000000000)
-        else:
-            data["seed"] = seed
-        # write the data to an .json
-        datatojson()
-
-        # write the command that actually runds the program
-        print("srun --cpu_bind=cores %s -input %s " %
-              (prgm, data["outputfiletag"]+'.json'), end=' ', file=fh)
-        for opt in moreopts:
-            print(opt, end=' ', file=fh)
-        print(file=fh)
+    # set the seed and the inputfile
+    if seed is None:
+        data["seed"] = random.randint(1, 2000000000)
     else:
-        # Write the inputfiles
-        listname = tag + "_list.txt"
-        pmakefiles("32", seed)
-        print("srun parallel --jobs 32 %s -input {} < %s" %
-              (prgm, listname), file=fh)
+        data["seed"] = seed
+    # write the data to an .json
+    datatojson()
+
+    # write the command that actually runds the program
+    print("srun --cpu_bind=cores %s -input %s " %
+          (prgm, data["outputfiletag"]+'.json'), end=' ', file=fh)
+    for opt in moreopts:
+        print(opt, end=' ', file=fh)
+    print(file=fh)
 
     print('date  "+%%x %%T" >> %s_time.out' %
           (data["outputfiletag"]), file=fh)
@@ -293,7 +282,7 @@ def prun(moreopts=[], dry_run=True, debug=True, time=0, seed=None, ncpus="4"):
     prgm = find_program()
 
     tag = data["outputfiletag"]
-    dstack.pushd(tag)
+    dstack.pushd(tag,mkdir=True)
 
     listname = tag + "_list.txt"
     pmakefiles(ncpus, seed)
@@ -316,7 +305,7 @@ def run(program_name = "SuperPions.exe", moreopts=[], dry_run=True, time=0, seed
     tag = data["outputfiletag"]
 
     # Go to the directory 
-    dstack.pushd(tag)
+    dstack.pushd(tag,mkdir=True)
 
     # set the seed and the inputfile
     if seed is None:
