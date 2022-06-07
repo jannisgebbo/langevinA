@@ -1,3 +1,4 @@
+from posixpath import basename
 import h5py
 import numpy as np
 import errno
@@ -530,7 +531,7 @@ class Loader:
             "AV123_kxyz": Loader._make_keygroup("A", x123, kxyz)
             + Loader._make_keygroup("V", x123, kxyz),
             # xyz variety
-            "phi0123_xyz ": Loader._make_keygroup("phi", ["0"]+x123, xyz),
+            "phi0123_xyz": Loader._make_keygroup("phi", ["0"]+x123, xyz),
             "phi123_xyz": Loader._make_keygroup("phi", x123, xyz),
             "A123_xyz": Loader._make_keygroup("A", x123, xyz),
             "V123_xyz": Loader._make_keygroup("V", x123, xyz),
@@ -665,3 +666,44 @@ class StaticCorrelator:
             row[i] = np.sum(d*d1)/d.size
             d1 = np.roll(d1, 1, axis=1)
         return row
+
+
+class DataManager:
+    # A class to manage data, in the initial spirit of the measurement class.
+    # For now keep it very minimal, just to save and load array in files with 
+    # a consistent naming.
+
+    # Takes the simulation filename and a folder where to save/load 
+    # the processed data. 
+    def __init__(self, fn, folder) -> None:
+        self.basename = fn.split(".h5")[0].split('/')[-1]
+        self.folder = folder
+
+    # Expects StatResults
+    def save(self, obs, tag, x = None):
+        obs.save_to_txt(self.folder + '/' + self.basename + '_' + tag +'.txt', x = x)    
+    # Expects numpy arrays
+    def save_arr(self, obs, obs_err, tag, x = None):
+        self.save(StatResult((obs, obs_err)), tag, x)
+
+    # Expects StatResults
+    def load(self, tag, x = True):
+        tmp = np.loadtxt(self.folder + '/' + self.basename + '_' + tag +'.txt')
+
+        if x == False:
+            return StatResult((tmp[:,0] + 1j * tmp[:,1], tmp[:,2] + 1j * tmp[:,3]))
+        else:
+            return tmp[:,0], StatResult((tmp[:,1] + 1j * tmp[:,2], tmp[:,3] + 1j * tmp[:,4]))
+
+    # Expects numpy arrays
+    def load_arr(self, tag, x = True):
+        tmp = np.loadtxt(self.folder + '/' + self.basename + '_' + tag +'.txt')
+
+        if x == False:
+            return tmp[:,0] + 1j * tmp[:,1], tmp[:,2] + 1j * tmp[:,3]
+        else:
+            return tmp[:,0], tmp[:,1] + 1j * tmp[:,2], tmp[:,3] + 1j * tmp[:,4]
+
+
+    
+

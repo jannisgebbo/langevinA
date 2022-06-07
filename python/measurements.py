@@ -130,7 +130,7 @@ def blocking(arr, nBlock=10, func=lambda x: x):
         blocks.append(np.mean(arr[n * blockSize:(n + 1) * blockSize], axis=0))
 
     return (np.mean(np.asarray(blocks),
-                    axis=0), np.std(np.asarray(blocks), axis=0))
+                    axis=0), np.std(np.asarray(blocks), axis=0), np.asarray(blocks))
 
 
 # Returns (mean, error) of an array, arr with blocking and bootstrap
@@ -519,6 +519,8 @@ class ConfResults:
         self.akeys["V2"] = 8
         self.akeys["V3"] = 9
         self.akeys["phiNorm"] = 10
+        self.akeys["M2"] = 11
+        self.akeys["M22"] = 12
 
         if self.data_format == "old":
             self.wkeys["phi0"] = "wallX_phi_0"
