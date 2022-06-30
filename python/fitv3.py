@@ -71,14 +71,14 @@ def staticPhiProp(L,x, parameters):
     denominator = 1 - np.exp(-ms * L)
     return numerator / denominator
 
-def staticPhiRestoredProp(L,x, parameters):
+def staticphi0123Prop(L,x, parameters):
     (cs, ms) = parameters
     #numerator =  1.0 / 2.0 / ms / cs / L**2 * (np.exp(- ms * x) + np.exp(- ms * (L-x)))
     #denominator = 1.0 - np.exp(-ms * L)
     numerator =  cs * np.exp(- ms * x) 
     return numerator
 
-def staticPhiRestoredPropPeriodic(L,x, parameters):
+def staticphi0123PropPeriodic(L,x, parameters):
     (cs, ms) = parameters
     #numerator =  1.0 / 2.0 / ms / cs / L**2 * (np.exp(- ms * x) + np.exp(- ms * (L-x)))
     #denominator = 1.0 - np.exp(-ms * L)
@@ -126,8 +126,8 @@ class Chi2:
     
 #Actual Fitter class.
 class Fitter:
-    def __init__(self, data, chi0, chiperp, L = 1, k = 0):
-        obs = ["OtOttp", "OtOttpFourier", "propagatorF", "propagator"]
+    def __init__(self, dm, chi0, chiperp, L = 1, k = 0):
+        obs = ["OtOttp", "OtOttpFourier", "propagatorF", "oxoxp"]
         
         self.V = L**3
         
@@ -143,6 +143,8 @@ class Fitter:
         
         self.chi0 = chi0
         self.chiperp = chiperp
+
+        self.datamanager = dm
         
         for o in obs:
             self.fits[o] = dict()
@@ -155,23 +157,21 @@ class Fitter:
             self.parName[o] = dict()
             self.parLims[o] = dict()
 
-            
-        self.data = data
-                
+                            
         # This is a mapping between the fit key on the left and the actual quantity (ies) we are fitting. Allow to define combined fit in this way.
         self.baseKeys = dict()
-        self.baseKeys["A"] = ["A"]
-        self.baseKeys["V"] = ["V"]
-        self.baseKeys["phi"] = ["phi"]
-        self.baseKeys["phiRestored"] = ["phiRestored"]
-        self.baseKeys["dsigma"] = ["dsigma"]
-        self.baseKeys["dphi"] = ["dphi"]
-        self.baseKeys["phi0"] = ["phi0"]
-        self.baseKeys["Aphi"] = ["A", "phi"]
+        #self.baseKeys["A"] = ["A"]
+        #self.baseKeys["V"] = ["V"]
+        #self.baseKeys["phi"] = ["phi"]
+        self.baseKeys["phi0123"] = ["phi0123_xyz"]
+        #self.baseKeys["dsigma"] = ["dsigma"]
+        #self.baseKeys["dphi"] = ["dphi"]
+        #self.baseKeys["phi0"] = ["phi0"]
+        #self.baseKeys["Aphi"] = ["A", "phi"]
         
-        if k > 0:
-            self.baseKeys["Akk{}".format(k)] = ["Akk{}".format(k)]
-            self.baseKeys["Vkk{}".format(k)] = ["Vkk{}".format(k)]
+        #if k > 0:
+        #    self.baseKeys["Akk{}".format(k)] = ["Akk{}".format(k)]
+        #    self.baseKeys["Vkk{}".format(k)] = ["Vkk{}".format(k)]
         
         self.xs = dict()
         
@@ -188,29 +188,29 @@ class Fitter:
         
         #Note to Alex: if you want to change the fit function, that is where you do it. You can also introduce new keys "Abiskk#" if for instance. If you do that, need to add the keys above as well.
         
-        if k == 0:
-            self.func["OtOttp"]["A"] = lambda x, par : [realtimeaxialcor(self.chi0, x, par)]
-            self.func["OtOttp"]["V"] = lambda x, par : [realtimevec(self.chi0, x, par)]
-        else:
-            self.func["OtOttp"]["Akk{}".format(k)] = lambda x, par : [realtimeaxialcor(self.chi0, x, par)]
-            self.func["OtOttp"]["Vkk{}".format(k)] = lambda x, par : [realtimevec(self.chi0, x, par)]
+        #if k == 0:
+        #    self.func["OtOttp"]["A"] = lambda x, par : [realtimeaxialcor(self.chi0, x, par)]
+        #    self.func["OtOttp"]["V"] = lambda x, par : [realtimevec(self.chi0, x, par)]
+        #else:
+        #    self.func["OtOttp"]["Akk{}".format(k)] = lambda x, par : [realtimeaxialcor(self.chi0, x, par)]
+        #    self.func["OtOttp"]["Vkk{}".format(k)] = lambda x, par : [realtimevec(self.chi0, x, par)]
             
-        self.func["OtOttp"]["phiRestored"] = lambda x, par : [realtimecondensate(x, par)]
-        self.func["OtOttp"]["phi0"] = lambda x, par : [realtimecondensate(x, par)]
+        #self.func["OtOttp"]["phi0123"] = lambda x, par : [realtimecondensate(x, par)]
+        #self.func["OtOttp"]["phi0"] = lambda x, par : [realtimecondensate(x, par)]
 
         
-        self.func["OtOttpFourier"]["A"] = lambda x, par : [axialprop(self.chi0, x, par)]
-        self.func["OtOttpFourier"]["phi"] = lambda x, par : [phiprop(self.chiperp, x, par)]
-        self.func["OtOttpFourier"]["dphi"] = lambda x, par : [phiprop(self.chiperp, x, par)]
-        self.func["OtOttpFourier"]["phi0"] = lambda x, par : [phi0prop( x, par)]
+        #self.func["OtOttpFourier"]["A"] = lambda x, par : [axialprop(self.chi0, x, par)]
+        #self.func["OtOttpFourier"]["phi"] = lambda x, par : [phiprop(self.chiperp, x, par)]
+        #self.func["OtOttpFourier"]["dphi"] = lambda x, par : [phiprop(self.chiperp, x, par)]
+        #self.func["OtOttpFourier"]["phi0"] = lambda x, par : [phi0prop( x, par)]
         
-        self.func["OtOttpFourier"]["Aphi"] = lambda x, par : [axialprop(self.chi0, x, (par[0],par[1])), phiprop(self.chiperp, x, (par[0],par[1]))]
+        #self.func["OtOttpFourier"]["Aphi"] = lambda x, par : [axialprop(self.chi0, x, (par[0],par[1])), phiprop(self.chiperp, x, (par[0],par[1]))]
         
-        self.func["propagatorF"]["phi"] = lambda x, par : [staticPhiPropK( x, par)]
-        self.func["propagatorF"]["dsigma"] = lambda x, par : [staticDSigmaPropK( x, par)]
+        #self.func["propagatorF"]["phi"] = lambda x, par : [staticPhiPropK( x, par)]
+        #self.func["propagatorF"]["dsigma"] = lambda x, par : [staticDSigmaPropK( x, par)]
         
-        self.func["propagator"]["phi"] = lambda x, par : [staticPhiProp(L, x, par)]
-        self.func["propagator"]["phiRestored"] = lambda x, par : [staticPhiRestoredPropPeriodic(L, x, par)]
+        #self.func["oxoxp"]["phi"] = lambda x, par : [staticPhiProp(L, x, par)]
+        self.func["oxoxp"]["phi0123"] = lambda x, par : [staticphi0123PropPeriodic(L, x, par)]
         
         
         
@@ -218,64 +218,64 @@ class Fitter:
 
         # Below we define the size, name and limits of the parameters, per observables and per fitKeys.
         
-        key = "V" if k == 0 else "Vkk{}".format(k)
-        self.par["OtOttp"][key] = np.zeros(2)
-        self.parName["OtOttp"][key] = ["a","b"]
-        self.parLims["OtOttp"][key] = [(0, 100),(-100, 100)]
+        #key = "V" if k == 0 else "Vkk{}".format(k)
+        #self.par["OtOttp"][key] = np.zeros(2)
+        #self.parName["OtOttp"][key] = ["a","b"]
+        #self.parLims["OtOttp"][key] = [(0, 100),(-100, 100)]
         
         
         key = "A" if k == 0 else "Akk{}".format(k)
         #self.par["OtOttp"][key] = np.zeros(4)
         #self.parName["OtOttp"][key] = ["mp","Gamma", "D", "v2"]
         #self.parLims["OtOttp"][key] = [(0, None),(0, None), (0, None), (0, None)]
-        self.par["OtOttp"][key] = np.zeros(3)
-        self.parName["OtOttp"][key] = ["a", "b", "c"]
-        self.parLims["OtOttp"][key] = [(0, 100),(0, 100), (-100,100)]
+        #self.par["OtOttp"][key] = np.zeros(3)
+        #self.parName["OtOttp"][key] = ["a", "b", "c"]
+        #self.parLims["OtOttp"][key] = [(0, 100),(0, 100), (-100,100)]
         
         
-        self.par["OtOttp"]["phiRestored"] = np.zeros(2)
-        self.parName["OtOttp"]["phiRestored"] = ["a","tau"]
-        self.parLims["OtOttp"]["phiRestored"] = [(-1000, 1000),(0, 1000)]
+        #self.par["OtOttp"]["phi0123"] = np.zeros(2)
+        #self.parName["OtOttp"]["phi0123"] = ["a","tau"]
+        #self.parLims["OtOttp"]["phi0123"] = [(-1000, 1000),(0, 1000)]
 
-        self.par["OtOttp"]["phi0"] = np.zeros(2)
-        self.parName["OtOttp"]["phi0"] = ["a","tau"]
-        self.parLims["OtOttp"]["phi0"] = [(-1000, 1000),(0, 1000)]
+        #self.par["OtOttp"]["phi0"] = np.zeros(2)
+        #self.parName["OtOttp"]["phi0"] = ["a","tau"]
+        #self.parLims["OtOttp"]["phi0"] = [(-1000, 1000),(0, 1000)]
         
         
-        self.par["OtOttpFourier"]["A"] = np.zeros(2)
-        self.parName["OtOttpFourier"]["A"] = ["mp","gammap"]
-        self.parLims["OtOttpFourier"]["A"] = [(0, None),(0, None)]
+        #self.par["OtOttpFourier"]["A"] = np.zeros(2)
+        #self.parName["OtOttpFourier"]["A"] = ["mp","gammap"]
+        #self.parLims["OtOttpFourier"]["A"] = [(0, None),(0, None)]
         
-        self.par["OtOttpFourier"]["phi"] = np.zeros(2)
-        self.parName["OtOttpFourier"]["phi"] = ["mp","gammap"]
-        self.parLims["OtOttpFourier"]["phi"] = [(0, None), (0, None)]
+        #self.par["OtOttpFourier"]["phi"] = np.zeros(2)
+        #self.parName["OtOttpFourier"]["phi"] = ["mp","gammap"]
+        #self.parLims["OtOttpFourier"]["phi"] = [(0, None), (0, None)]
         
-        self.par["OtOttpFourier"]["dphi"] = np.zeros(2)
-        self.parName["OtOttpFourier"]["dphi"] = ["mp","gammap"]
-        self.parLims["OtOttpFourier"]["dphi"] = [(0, None), (0, None)]
+        #self.par["OtOttpFourier"]["dphi"] = np.zeros(2)
+        #self.parName["OtOttpFourier"]["dphi"] = ["mp","gammap"]
+        #self.parLims["OtOttpFourier"]["dphi"] = [(0, None), (0, None)]
         
         
-        self.par["OtOttpFourier"]["Aphi"] = np.zeros(2)
-        self.parName["OtOttpFourier"]["Aphi"] = ["mp","gammap"]
-        self.parLims["OtOttpFourier"]["Aphi"] = [(0, None),(0, None)]
+        #self.par["OtOttpFourier"]["Aphi"] = np.zeros(2)
+        #self.parName["OtOttpFourier"]["Aphi"] = ["mp","gammap"]
+        #self.parLims["OtOttpFourier"]["Aphi"] = [(0, None),(0, None)]
         
 
 
-        self.par["propagatorF"]["phi"] = np.zeros(2)
-        self.parName["propagatorF"]["phi"] = ["chi","m"]
-        self.parLims["propagatorF"]["phi"] = [(0, None),(0, None)]
+        #self.par["propagatorF"]["phi"] = np.zeros(2)
+        #self.parName["propagatorF"]["phi"] = ["chi","m"]
+        #self.parLims["propagatorF"]["phi"] = [(0, None),(0, None)]
 
-        self.par["propagatorF"]["dsigma"] = np.zeros(2)
-        self.parName["propagatorF"]["dsigma"] = ["amp","m"]
-        self.parLims["propagatorF"]["dsigma"] = [(0, None),(0, None)]
+        #self.par["propagatorF"]["dsigma"] = np.zeros(2)
+        #self.parName["propagatorF"]["dsigma"] = ["amp","m"]
+        #self.parLims["propagatorF"]["dsigma"] = [(0, None),(0, None)]
         
-        self.par["propagator"]["phi"] = np.zeros(2)
-        self.parName["propagator"]["phi"] = ["chi","m"]
-        self.parLims["propagator"]["phi"] = [(0, None),(0, None)]
+        #self.par["propagator"]["phi"] = np.zeros(2)
+        #self.parName["propagator"]["phi"] = ["chi","m"]
+        #self.parLims["propagator"]["phi"] = [(0, None),(0, None)]
         
-        self.par["propagator"]["phiRestored"] = np.zeros(2)
-        self.parName["propagator"]["phiRestored"] = ["chi","m"]
-        self.parLims["propagator"]["phiRestored"] = [(0, None),(0, None)]
+        self.par["oxoxp"]["phi0123"] = np.zeros(2)
+        self.parName["oxoxp"]["phi0123"] = ["chi","m"]
+        self.parLims["oxoxp"]["phi0123"] = [(0, None),(0, None)]
 
         
 
@@ -287,9 +287,7 @@ class Fitter:
         chi2 = Chi2()
         
         for k in self.baseKeys[key]:
-            (tmpx, tmpfx) = self.data.getObs(obs, k)
-            x = deepcopy(tmpx)
-            fx = deepcopy(tmpfx)
+            (x, fx) = self.datamanager.load(obs + "_" + k)
             x = x[minInd:maxInd:prune]
             fx.reduce(minInd, maxInd,prune)
             #print(fx.mean)
@@ -325,12 +323,9 @@ class Fitter:
 
     
     def plot(self, obs, key, color="b"):
-        if obs in self.xs.keys():
-            x = self.xs[obs]
-        else:
-            x = self.data.getObs(obs, key, withY = False)
-        
-        #print(self.par[obs][key])
+        x = self.xs[obs]
+   
+    #    #print(self.par[obs][key])
         prediction = self.func[obs][key](x, self.par[obs][key])
         for p in prediction:
             plt.plot(x, p, color)

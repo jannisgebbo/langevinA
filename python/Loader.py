@@ -1,4 +1,5 @@
 import random
+from posixpath import basename
 import h5py
 import numpy as np
 import errno
@@ -403,11 +404,6 @@ class Loader:
     # load("phi0_kx", k=2, removemean=True) #overrides the default remove mean by class
     def read_column_k(self, key,  **kwargs):
 
-        filename_fourier = os.path.splitext(self.filename)[0] + "_out.h5"
-        if not os.path.exists(filename_fourier):
-            raise FileNotFoundError(errno.ENOENT, os.strerror(
-                errno.ENOENT), filename_fourier)
-
         wkeys = self._base_keys
 
         try:
@@ -420,7 +416,7 @@ class Loader:
         k = kwargs.get("k", 0)
         direction = {"kx": "x", "ky": "y", "kz": "z"}
         dsetname = "wall" + direction[tag] + "_k"
-        h5 = h5py.File(filename_fourier, 'r')
+        h5 = h5py.File(self.filename, 'r')
 
         data = np.ravel(np.asarray(
             h5[dsetname][self.starttime:, wkeys[name], k, :]).view(dtype=np.complex128))
@@ -472,6 +468,13 @@ class Loader:
             print("Warning the loaded array is greater than 100 M. Read by blocks, e.g. load(\"phi0_x\", block=3)\n\tThe current size is %f M\n" % (size))
 
         return data
+
+    # Read the timeout structure with times
+    def read_timeout(self,key,**kwargs) :
+        h5 = h5py.File(self.filename, 'r')
+        if key == "times":
+            return np.asarray(h5["timeout"][:,0])
+
     def debug_print(self):
         print("Processing filename: {}".format(self.filename)) 
         
@@ -491,6 +494,7 @@ class Loader:
             self.loaders[key + "_y"] = Loader.read_wall
         for key in self._base_keys:
             self.loaders[key + "_z"] = Loader.read_wall
+        self.loaders["times"] = Loader.read_timeout
 
     # Helper function for producing groups of keys e.g.
     #
@@ -528,7 +532,7 @@ class Loader:
             "AV123_kxyz": Loader._make_keygroup("A", x123, kxyz)
             + Loader._make_keygroup("V", x123, kxyz),
             # xyz variety
-            "phi0123_xyz ": Loader._make_keygroup("phi", ["0"]+x123, xyz),
+            "phi0123_xyz": Loader._make_keygroup("phi", ["0"]+x123, xyz),
             "phi123_xyz": Loader._make_keygroup("phi", x123, xyz),
             "A123_xyz": Loader._make_keygroup("A", x123, xyz),
             "V123_xyz": Loader._make_keygroup("V", x123, xyz),
@@ -663,3 +667,44 @@ class StaticCorrelator:
             row[i] = np.sum(d*d1)/d.size
             d1 = np.roll(d1, 1, axis=1)
         return row
+
+
+class DataManager:
+    # A class to manage data, in the initial spirit of the measurement class.
+    # For now keep it very minimal, just to save and load array in files with 
+    # a consistent naming.
+
+    # Takes the simulation filename and a folder where to save/load 
+    # the processed data. 
+    def __init__(self, fn, folder) -> None:
+        self.basename = fn.split(".h5")[0].split('/')[-1]
+        self.folder = folder
+
+    # Expects StatResults
+    def save(self, obs, tag, x = None):
+        obs.save_to_txt(self.folder + '/' + self.basename + '_' + tag +'.txt', x = x)    
+    # Expects numpy arrays
+    def save_arr(self, obs, obs_err, tag, x = None):
+        self.save(StatResult((obs, obs_err)), tag, x)
+
+    # Expects StatResults
+    def load(self, tag, x = True):
+        tmp = np.loadtxt(self.folder + '/' + self.basename + '_' + tag +'.txt')
+
+        if x == False:
+            return StatResult((tmp[:,0] + 1j * tmp[:,1], tmp[:,2] + 1j * tmp[:,3]))
+        else:
+            return tmp[:,0], StatResult((tmp[:,1] + 1j * tmp[:,2], tmp[:,3] + 1j * tmp[:,4]))
+
+    # Expects numpy arrays
+    def load_arr(self, tag, x = True):
+        tmp = np.loadtxt(self.folder + '/' + self.basename + '_' + tag +'.txt')
+
+        if x == False:
+            return tmp[:,0] + 1j * tmp[:,1], tmp[:,2] + 1j * tmp[:,3]
+        else:
+            return tmp[:,0], tmp[:,1] + 1j * tmp[:,2], tmp[:,3] + 1j * tmp[:,4]
+
+
+    
+

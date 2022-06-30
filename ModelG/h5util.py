@@ -16,11 +16,18 @@ def update1(filename) :
         maketimeout(filename) 
     x2kall(filename) 
 
-def update_corrx_modelA_filetype(filename):
+def update_corrx_0(filename):
+    if not h5exists(filename, "wallx") :
+        rename_dset(filename, "corrx", "wallx") 
+    x2kall(filename)  
+    if not h5exists(filename, "timeout") :
+        maketimeout(filename, dt=0.72)
+
+def update_corrx_modelA(filename):
     rename_dset(filename, "corrx", "wallx") 
     x2kall(filename)  
-    if not h5exists(filename, "timeout", dt=0.8) :
-        maketimeout(filename)
+    if not h5exists(filename, "timeout") :
+        maketimeout(filename, dt=0.8)
     
 ################################################################################
 #
@@ -94,6 +101,9 @@ def maketimeout(filename, dt=0.72, mass0=None, timeoutname = "timeout") :
         timeout[:,1] = np.float64(mass0)
     else:
         print("Unable to deduce mass0, using zero") 
+
+    print("Making the timeout data structure with dt = {} and mass = {} in file {}".format(dt,mass0,filename)) 
+    
     file.create_dataset(timeoutname, maxshape=(None,2), data=timeout)
     
 def _testmaketimeout() :
@@ -137,4 +147,25 @@ def _testupdate():
 
     update1(fname)
 
-_testupdate()
+#_testupdate()
+if __name__=="__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("filename")
+    parser.add_argument("-v", "--version", choices=["default", "corrx", "corrx_modelA"], default="default")
+    args = parser.parse_args()
+
+
+    if args.version == "default":
+        update1(args.filename)
+    elif args.version == "corrx":
+        update_corrx_0(args.filename)
+    elif args.version == "corrx_modelA":
+        update_corrx_modelA(args.filename)
+    
+    
+
+    
+
+    
+
+    

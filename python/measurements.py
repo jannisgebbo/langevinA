@@ -130,7 +130,7 @@ def blocking(arr, nBlock=10, func=lambda x: x):
         blocks.append(np.mean(arr[n * blockSize:(n + 1) * blockSize], axis=0))
 
     return (np.mean(np.asarray(blocks),
-                    axis=0), np.std(np.asarray(blocks), axis=0))
+                    axis=0), np.std(np.asarray(blocks), axis=0), np.asarray(blocks))
 
 
 # Returns (mean, error) of an array, arr with blocking and bootstrap
@@ -250,6 +250,9 @@ def computeOtOtp(arr1, arr2, statFunc=lambda x: (np.mean(x), 0), conn=False, nTM
     Cttp = np.zeros(nTMax, dtype=arr1.dtype)
     CttpErr = np.zeros(nTMax, dtype=arr1.dtype)
 
+    CttpRatio = np.zeros(nTMax-1, dtype=type(arr1[0]))
+    CttpErrRatio = np.zeros(nTMax-1, dtype=type(arr1[0]))
+
     # Compute means if necessary for connected part
     if conn:
         av1 = np.mean(arr1)
@@ -262,7 +265,9 @@ def computeOtOtp(arr1, arr2, statFunc=lambda x: (np.mean(x), 0), conn=False, nTM
         if conn:
             tmp -= av1 * av2
 
+
         Cttp[tt], CttpErr[tt] = statFunc(tmp[0:Npoints - tt:decim])
+        
 
     return Cttp, CttpErr
 
@@ -281,6 +286,7 @@ def computeOtOtp(arr1, arr2, statFunc=lambda x: (np.mean(x), 0), conn=False, nTM
 # [ [data], [data], [data], ..... ]
 def computeBlockedOtOtp(arr1, arr2, nTMax, steps, decim=1, conn=False):
     res = []
+    resRatio = []
     sMax = len(arr1) - steps
     for s in range(0, sMax, steps):
         tmpR, tmpE = computeOtOtp(arr1[s:s + steps],
@@ -293,7 +299,6 @@ def computeBlockedOtOtp(arr1, arr2, nTMax, steps, decim=1, conn=False):
 
     return np.asarray(res)
 
-
 def computeParallelBlockedOtOtpHelper(s,
                                       arr1,
                                       arr2,
@@ -301,7 +306,7 @@ def computeParallelBlockedOtOtpHelper(s,
                                       steps,
                                       decim=1,
                                       conn=False):
-    tmpR, tmpE = computeOtOtp(arr1[s:s + steps],
+    tmpR, tmpE  = computeOtOtp(arr1[s:s + steps],
                               arr2[s:s + steps],
                               lambda x: (np.mean(x), 0),
                               nTMax=nTMax,
@@ -332,7 +337,6 @@ def computeParallelBlockedOtOtp(arr1,
     res = pool.map(func, blocks)
     pool.close()
     return np.asarray(res)
-
 
 # "Slow" fourier transform in time. Used only for the one in time. Can apply a
 # filter
@@ -515,6 +519,8 @@ class ConfResults:
         self.akeys["V2"] = 8
         self.akeys["V3"] = 9
         self.akeys["phiNorm"] = 10
+        self.akeys["M2"] = 11
+        self.akeys["M22"] = 12
 
         if self.data_format == "old":
             self.wkeys["phi0"] = "wallX_phi_0"
@@ -553,6 +559,8 @@ class ConfResults:
         self.wallF = dict()
         self.wallCorr = dict()
         self.wallCorr_raw = dict()
+        self.wallCorrEffMasses_blocks= dict()
+        self.wallCorrEffMasses= dict()
         self.wallFProp = dict()
         for d in self.directions:
             self.wall[d] = dict()
@@ -560,8 +568,10 @@ class ConfResults:
             # self.wallCorr[d] = dict()
 
         self.OtOttp_blocks = dict()
+        self.OtOttpRatio_blocks = dict()
 
         self.OtOttp = dict()
+        self.OtOttpRatio = dict()
         self.OtOttp_time = dict()
 
         # self.OtOttpFourier_blocks = dict()
@@ -730,7 +740,9 @@ class ConfResults:
                             momNum=0,
                             conn=False,
                             parallel=False,
-                            redo=False):
+                            redo=False,
+                            tEffMass = 50
+                            ):
 
         # Number of bins
         nTMax = int(np.floor(tMax / self.dt))
@@ -763,7 +775,7 @@ class ConfResults:
                 k1 = keys1[0]
                 k2 = keys2[0]
                 if (parallel == False):
-                    self.OtOttp_blocks[bkey] = V * computeBlockedOtOtp(
+                    self.OtOttp_blocks[bkey] =  computeBlockedOtOtp(
                         self.wallF["X"][k1][:, momNum],
                         np.conj(self.wallF["X"][k2][:, momNum]),
                         nTMax,
@@ -771,7 +783,7 @@ class ConfResults:
                         decim=decim,
                         conn=conn)
                 else:
-                    self.OtOttp_blocks[bkey] = V * computeParallelBlockedOtOtp(
+                    self.OtOttp_blocks[bkey]=  computeParallelBlockedOtOtp(
                         self.wallF["X"][k1][:, momNum],
                         np.conj(self.wallF["X"][k2][:, momNum]),
                         nTMax,
@@ -786,7 +798,7 @@ class ConfResults:
                     k1 = keys1[i]
                     k2 = keys2[i]
                     if (parallel == False):
-                        self.OtOttp_blocks[bkey] += V * computeBlockedOtOtp(
+                         self.OtOttp_blocks[bkey]  += computeBlockedOtOtp(
                             self.wallF["X"][k1][:, momNum],
                             np.conj(self.wallF["X"][k2][:, momNum]),
                             nTMax,
@@ -794,8 +806,7 @@ class ConfResults:
                             decim=decim,
                             conn=conn)
                     else:
-                        self.OtOttp_blocks[
-                            bkey] += V * computeParallelBlockedOtOtp(
+                         self.OtOttp_blocks[bkey]  += computeParallelBlockedOtOtp(
                                 self.wallF["X"][k1][:, momNum],
                                 np.conj(self.wallF["X"][k2][:, momNum]),
                                 nTMax,
@@ -803,8 +814,7 @@ class ConfResults:
                                 decim=decim,
                                 conn=conn,
                                 ncpus=mp.cpu_count())
-                self.OtOttp_blocks[bkey] /= 3.0
-            # elif key != "phi0" and key != "dsigma":
+                self.OtOttp_blocks[bkey] *= (V / 3.0)
             elif not key in self.scalarKeys:
                 isotropic = False
                 if key == "phiRestored":
@@ -827,7 +837,7 @@ class ConfResults:
                 # shape of the array).
                 k = keys[0]
                 if (parallel == False):
-                    self.OtOttp_blocks[bkey] = V * computeBlockedOtOtp(
+                    self.OtOttp_blocks[bkey] =  computeBlockedOtOtp(
                         self.wallF["X"][k][:, momNum],
                         np.conj(self.wallF["X"][k][:, momNum]),
                         nTMax,
@@ -835,7 +845,7 @@ class ConfResults:
                         decim=decim,
                         conn=conn)
                 else:
-                    self.OtOttp_blocks[bkey] = V * computeParallelBlockedOtOtp(
+                    self.OtOttp_blocks[bkey]=  computeParallelBlockedOtOtp(
                         self.wallF["X"][k][:, momNum],
                         np.conj(self.wallF["X"][k][:, momNum]),
                         nTMax,
@@ -850,8 +860,7 @@ class ConfResults:
                     for d in directions:
                         if k != keys[0] or d != "X":  # already computed
                             if (parallel == False):
-                                self.OtOttp_blocks[
-                                    bkey] += V * computeBlockedOtOtp(
+                                 self.OtOttp_blocks[bkey]  +=  computeBlockedOtOtp(
                                         self.wallF[d][k][:, momNum],
                                         np.conj(self.wallF[d][k][:, momNum]),
                                         nTMax,
@@ -859,8 +868,7 @@ class ConfResults:
                                         decim=decim,
                                         conn=conn)
                             else:
-                                self.OtOttp_blocks[
-                                    bkey] += V * computeParallelBlockedOtOtp(
+                                 self.OtOttp_blocks[bkey]  +=  computeParallelBlockedOtOtp(
                                         self.wallF[d][k][:, momNum],
                                         np.conj(self.wallF[d][k][:, momNum]),
                                         nTMax,
@@ -868,8 +876,7 @@ class ConfResults:
                                         decim=decim,
                                         conn=conn,
                                         ncpus=mp.cpu_count())
-                self.OtOttp_blocks[bkey] /= (float(len(keys)
-                                             * len(directions)))
+                self.OtOttp_blocks[bkey] *= (V / float(len(keys) * len(directions)))
             else:
                 # For scalar quantities we have only one
                 for d in directions:
@@ -878,7 +885,7 @@ class ConfResults:
                 V = float(len(self.wallF["X"][key][0, :])**3)
 
                 if (parallel == False):
-                    self.OtOttp_blocks[bkey] = V * computeParallelBlockedOtOtp(
+                    self.OtOttp_blocks[bkey] =  computeParallelBlockedOtOtp(
                         self.wallF["X"][key][:, momNum],
                         np.conj(self.wallF["X"][key][:, momNum]),
                         nTMax,
@@ -886,7 +893,7 @@ class ConfResults:
                         decim=decim,
                         conn=conn)
                 else:
-                    self.OtOttp_blocks[bkey] = V * computeParallelBlockedOtOtp(
+                    self.OtOttp_blocks[bkey] =  computeParallelBlockedOtOtp(
                         self.wallF["X"][key][:, momNum],
                         np.conj(self.wallF["X"][key][:, momNum]),
                         nTMax,
@@ -898,7 +905,7 @@ class ConfResults:
                 for i in range(1, len(directions)):
                     d = self.directions[i]
                     if (parallel == False):
-                        self.OtOttp_blocks[bkey] += V * computeParallelBlockedOtOtp(
+                         self.OtOttp_blocks[bkey]  += V * computeParallelBlockedOtOtp(
                             self.wallF[d][key][:, momNum],
                             np.conj(self.wallF[d][key][:, momNum]),
                             nTMax,
@@ -906,8 +913,7 @@ class ConfResults:
                             decim=decim,
                             conn=conn)
                     else:
-                        self.OtOttp_blocks[
-                            bkey] += V * computeParallelBlockedOtOtp(
+                         self.OtOttp_blocks[bkey]  +=  computeParallelBlockedOtOtp(
                                 self.wallF[d][key][:, momNum],
                                 np.conj(self.wallF[d][key][:, momNum]),
                                 nTMax,
@@ -916,11 +922,18 @@ class ConfResults:
                                 conn=conn,
                                 ncpus=mp.cpu_count())
 
-                self.OtOttp_blocks[bkey] /= (float(len(directions)))
+                self.OtOttp_blocks[bkey] *= (V / float(len(directions)))
 
         # We save the average wall. To get the correlator, need to multiply by
         # a volume factor.
         self.OtOttp[bkey] = StatResult(errFunc(self.OtOttp_blocks[bkey]))
+
+        self.OtOttpRatio_blocks[bkey] = []
+        for otottp in self.OtOttp_blocks[bkey]:
+            self.OtOttpRatio_blocks[bkey].append(tEffMass * self.dt / np.log(otottp[:-tEffMass]/np.roll(otottp,-tEffMass)[:-tEffMass]))
+
+
+        self.OtOttpRatio[bkey] = StatResult(errFunc(self.OtOttpRatio_blocks[bkey]))
 
         self.OtOttp_time[bkey] = np.asarray(
             [self.dt * float(i) for i in range(len(self.OtOttp[bkey].mean))])
@@ -1021,10 +1034,27 @@ class ConfResults:
             errFunc(self.wallCorr_raw[ckey][:None:decim, :]))
         self.xs = np.arange(len(self.wallCorr[ckey].mean))
 
+    def computeStaticEffMasses(self, key, nBlocks, tSep, errFunc, alreadyLoaded=True):
+        self.wallCorrEffMasses_blocks[key] = []
+        if not alreadyLoaded:
+            return
+        else:
+            shs = np.shape(self.wallCorr_raw[key])
+            blockSize = int(shs[0] / nBlocks)
+            for i in range(nBlocks):
+                blocked = np.mean(self.wallCorr_raw[key][i:i+blockSize], axis = 0)
+                self.wallCorrEffMasses_blocks[key].append(np.log(blocked[:-tSep]/np.roll(blocked,-tSep)[:-tSep]))
+
+
+        self.wallCorrEffMasses[key] = StatResult(errFunc(self.wallCorrEffMasses_blocks[key]))
+
     def getObs(self, obs, key, withX=True, withY=True):
         if obs == "OtOttp":
             x = self.OtOttp_time[key]
             y = self.OtOttp[key]
+        if obs == "OtOttpRatio":
+            x = np.arange(len(self.OtOttpRatio[key].mean))
+            y = self.OtOttpRatio[key]
         elif obs == "OtOttpFourier":
             x = self.OtOttpFourier_oms[key]
             y = self.OtOttpFourier[key]
@@ -1063,7 +1093,7 @@ class ConfResults:
 
         fn = self.getDataFn(obs, key, direc, tag)
 
-        if not obs == "OtOttp_blocks" and not obs == "propagator_raw" and not obs == "wallF":
+        if not obs == "OtOttp_blocks" and not obs == "propagator_raw" and not obs == "wallF" and not obs == "OtOttpRatio_blocks" :
             x, y = self.getObs(obs, key)
             y.save_to_txt(fn,
                           x=xfact * x,
@@ -1077,6 +1107,8 @@ class ConfResults:
                 file = open(fn, 'wb')
                 if obs == "OtOttp_blocks":
                     pickle.dump(self.OtOttp_blocks[key], file)
+                elif obs == "OtOttpRatio_blocks":
+                    pickle.dump(self.OtOttpRatio_blocks[key], file)
                 elif obs == "propagator_raw":
                     pickle.dump(self.wallCorr_raw[key], file)
                 elif obs == "wallF":
@@ -1097,6 +1129,9 @@ class ConfResults:
         fn = self.getDataFn(obs, key, direc)
         if obs == "OtOttp":
             self.OtOttp_time[key], self.OtOttp[key] = load_StatResult_from_txt(
+                fn, withX=True)
+        if obs == "OtOttpRatio":
+            x,self.OtOttpRatio[key] = load_StatResult_from_txt(
                 fn, withX=True)
         elif obs == "OtOttpFourier":
             self.OtOttpFourier_oms[key], self.OtOttpFourier[

@@ -1,9 +1,9 @@
 {
-    "NX": 32,
+    "NX": 256,
 
-    "finaltime": 30,
-    "initialtime": -30,
-    "deltat": 0.24,
+    "finaltime": 3.0,    
+    "initialtime": 0,
+    "deltat": 0.6,
 
     "mass0": -4.70052,
     "dmassdt": 0.00,
