@@ -1,3 +1,4 @@
+import random
 import h5py
 import numpy as np
 import errno
@@ -118,7 +119,7 @@ def blocking(arr, nBlock=10, func=lambda x: x):
         blocks.append(np.mean(arr[n * blockSize:(n + 1) * blockSize], axis=0))
 
     return (np.mean(np.asarray(blocks), axis=0), 
-                np.std(np.asarray(blocks), axis=0))
+                stats.sem(np.asarray(blocks), axis=0))
 
 
 # Returns (mean, error) of an array, arr with blocking and bootstrap
@@ -178,9 +179,9 @@ def intAutocorrrelationTime(arr, tmax=1000, startvalue=0, nMax=-1):
 # autocorrelation time, nMax is the number of points we should use.
 def autocorrelatedErr(arr, tmax=1000, startvalue=0, nMax=-1):
     mean = np.mean(arr, axis=0)
-    naiveErr = np.std(arr, axis=0)
+    naiveErr = stats.sem(arr, axis=0)
     tau = intAutocorrrelationTime(arr, tmax, startvalue, nMax)
-    return (mean, np.sqrt(2.0 * tau) * naiveErr)
+    return (mean, np.sqrt(2.0 * tau) * naiveErr, tau)
 
 # Compute the correlator in time between arr1 and arr2.
 #
