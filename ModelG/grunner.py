@@ -112,7 +112,7 @@ def find_program(program_name="SuperPions.exe"):
 #########################################################################
 # Runs on cori
 #########################################################################
-def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=["-log_view"], seed=None, nnodes=1, parallel=False, environment=[]):
+def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=["-log_view"], seed=None, nnodes=1, parallel=False, environment=[],shellname=None):
 
     prgm = find_program()
 
@@ -121,7 +121,10 @@ def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=["-log_vie
     # Create a run directory if does not exist, and cd to it
     dstack.pushd(tag,mkdir=True)
 
-    filenamesh = tag + '.sh'
+    if shellname:
+        filenamesh = shellname + '.sh'
+    else:
+        filenamesh = tag + '.sh'
 
     fh = open(filenamesh, 'w')
 
