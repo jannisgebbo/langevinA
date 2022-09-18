@@ -122,6 +122,19 @@ def blocking(arr, nBlock=10, func=lambda x: x):
     return (np.mean(np.asarray(blocks), axis=0), 
                 stats.sem(np.asarray(blocks), axis=0))
 
+# Returns (mean, error) of an array, arr with blocking
+def blocking_blocks(arr, nBlock=10, func=lambda x: x):
+    blockSize = int(len(arr) / nBlock)
+    arr = np.asarray(arr)
+    blocks = []
+    count = 0
+    for n in range(nBlock):
+        blocks.append(np.mean(arr[n * blockSize:(n + 1) * blockSize], axis=0))
+    
+    return np.asarray(blocks)
+
+           
+
 
 # Returns (mean, error) of an array, arr with blocking and bootstrap
 def blockedBootstrap(arr, nBlock=10, nSamples=100, func=lambda x: x):
@@ -256,7 +269,7 @@ def computeBlockedOtOtp(arr1, arr2, nTMax, steps, decim=1, conn=False):
     return np.asarray(res)
 
 
-def blockedOtOtp(arr1, arr2, nTMax, nblocks):
+def blockedOtOtp(arr1, arr2, nTMax, nblocks, decim = 1):
     res = []
 
     sMax = len(arr1) - nTMax
@@ -268,11 +281,12 @@ def blockedOtOtp(arr1, arr2, nTMax, nblocks):
                                   arr2[s:s + steps + nTMax],
                                   lambda x: (np.mean(x), 0),
                                   nTMax=nTMax,
-                                  decim=1,
+                                  decim=decim,
                                   conn=False)
         res.append(tmpR)
 
     return np.asarray(res)
+
 
 
 ################################################################################
@@ -326,7 +340,7 @@ class Loader:
         self.nblocks = nblocks
 
         self._base_keys = {"phi0": 0, "phi1": 1, "phi2": 2, "phi3": 3, "A1": 4,
-                           "A2": 5, "A3": 6, "V1": 7, "V2": 8, "V3": 9, "phiNorm": 10}
+                           "A2": 5, "A3": 6, "V1": 7, "V2": 8, "V3": 9, "phiNorm": 10, "M2": 11, "M22": 12}
 
         self.loaders = {}
         self.keygroups = {}
@@ -549,6 +563,7 @@ class Loader:
         return ntime_total, nx
 
 
+
 ################################################################################
 class TimeCorrelator:
     # Class for  computing time time correlation functions
@@ -559,10 +574,11 @@ class TimeCorrelator:
     # Arguments:
     #     loader (Loader object) 
     #     nblocks (int, default 10) blocks the loader into 10 blocks
-    def __init__(self, loader, nblocks=10, nTMax=2000):
+    def __init__(self, loader, nblocks=10, nTMax=2000, decim=1):
         self.loader = loader
         self.nTMax = nTMax
         self.nblocks = nblocks
+        self.decim = decim
 
     # Helper function for correlating a given key group, e.g. "phi0123"
     # 
@@ -588,6 +604,7 @@ class TimeCorrelator:
     # The kwargs are passed on to the loader
     def correlate_keys(self, *keys, **kwargs):
         nblocks = self.nblocks
+        decim = self.decim
         first = True
         for key in keys:
             d1 = self.loader.load(key, **kwargs)
@@ -595,13 +612,84 @@ class TimeCorrelator:
 
             if first:
                 # OtOtp = computeBlockedOtOtp(d1, d2, self.nTMax, self.loader.blocksize)
-                OtOtp = blockedOtOtp(d1, d2, self.nTMax, nblocks)
+                OtOtp = blockedOtOtp(d1, d2, self.nTMax, nblocks, decim)
                 first = False
             else:
                 # OtOtp = np.vstack((OtOtp,
                 #     computeBlockedOtOtp(d1, d2, self.nTMax, self.loader.blocksize)))
                 OtOtp = np.vstack(
-                    (OtOtp, blockedOtOtp(d1, d2, self.nTMax, nblocks)))
+                    (OtOtp, blockedOtOtp(d1, d2, self.nTMax, nblocks, decim)))
+
+        return (np.mean(OtOtp.real, axis=0), stats.sem(OtOtp.real, axis=0, ddof=1),
+                OtOtp.real)
+
+################################################################################
+
+
+
+################################################################################
+class TimeCorrelatorStrictBlocks:
+    # Class for  computing time time correlation functions
+    #
+    # tc = TimeCorrelator(loader, nblocks=20)
+    # 
+    # Initializes the loader 
+    # Arguments:
+    #     loader (Loader object) 
+    #     nblocks (int, default 10) blocks the loader into 10 blocks
+    def __init__(self, loader, nblocks=10, nTMax=2000, decim=1):
+        self.loader = loader
+        self.nTMax = nTMax
+        self.nblocks = nblocks
+        self.decim = decim
+
+    # Helper function for correlating a given key group, e.g. "phi0123"
+    # 
+    # Example: 
+    #
+    # OtOtp, dOtOtp =  tc.correlate_keys("phi0123")
+    #
+    # This loops over the list if keys in ld.keygroups["phi0123"]. It
+    # computes the correlator for each one and treats each key as being a 
+    # statistically dependents event. 
+    def correlate_key(self, key, **kwargs):
+        if key in self.loader.keygroups:
+            return self.correlate_keys(*self.loader.keygroups[key], **kwargs)
+        else:
+            raise KeyError(key)
+
+    # Corrrelate of keys
+    #
+    # Example 
+    # 
+    # ld.correlate_keys("phi0","phi1","phi2", "phi3", removemean =True)
+    #
+    # The kwargs are passed on to the loader
+    def correlate_keys(self, *keys, **kwargs):
+        nblocks = self.nblocks
+        decim = self.decim
+        first = True
+        for key in keys:
+            for ib in range(0, nblocks):
+
+                d1 = self.loader.load(key, block=ib, **kwargs)
+                d2 = np.conj(d1)
+
+                if first:
+                    # OtOtp = computeBlockedOtOtp(d1, d2, self.nTMax, self.loader.blocksize)
+                    OtOtp = computeOtOtp(d1, d2, lambda x: (np.mean(x), 0),
+                                  nTMax=self.nTMax,
+                                  decim=self.decim,
+                                  conn=False)
+                    first = False
+                else:
+                    # OtOtp = np.vstack((OtOtp,
+                    #     computeBlockedOtOtp(d1, d2, self.nTMax, self.loader.blocksize)))
+                    OtOtp = np.vstack(
+                        (OtOtp, computeOtOtp(d1, d2, lambda x: (np.mean(x), 0),
+                                  nTMax=self.nTMax,
+                                  decim=self.decim,
+                                  conn=False)))
 
         return (np.mean(OtOtp.real, axis=0), stats.sem(OtOtp.real, axis=0, ddof=1),
                 OtOtp.real)

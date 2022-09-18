@@ -108,6 +108,21 @@ def find_program(program_name="SuperPions.exe"):
     path = os.path.abspath(os.path.dirname(__file__))
     return path + "/" + program_name
 
+########################################################################
+def find_program(program_name="SuperPions.exe"):
+    # find the program
+    path = os.path.abspath(os.path.dirname(__file__))
+    return path + "/" + program_name
+
+########################################################################
+def x2k(filename) :
+    program = find_program(program_name="x2k.exe")
+    cmd = program + " " + filename + " wallx"
+    result = subprocess.run(cmd, shell=True, capture_output=True)
+    cmd = program + " " + filename + " wally"
+    result = subprocess.run(cmd, shell=True, capture_output=True)
+    cmd = program + " " + filename + " wallz"
+    result = subprocess.run(cmd, shell=True, capture_output=True)
 
 #########################################################################
 # Runs on cori
