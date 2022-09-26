@@ -122,6 +122,19 @@ def blocking(arr, nBlock=10, func=lambda x: x):
     return (np.mean(np.asarray(blocks), axis=0), 
                 stats.sem(np.asarray(blocks), axis=0))
 
+# Returns (mean, error) of an array, arr with blocking
+def blocking_blocks(arr, nBlock=10, func=lambda x: x):
+    blockSize = int(len(arr) / nBlock)
+    arr = np.asarray(arr)
+    blocks = []
+    count = 0
+    for n in range(nBlock):
+        blocks.append(np.mean(arr[n * blockSize:(n + 1) * blockSize], axis=0))
+    
+    return np.asarray(blocks)
+
+           
+
 
 # Returns (mean, error) of an array, arr with blocking and bootstrap
 def blockedBootstrap(arr, nBlock=10, nSamples=100, func=lambda x: x):

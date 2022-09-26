@@ -189,6 +189,22 @@ def prlmrun(time=2, debug=False, dry_run=True, moreopts=["-log_view"], seed=None
     # return to the root directory
     dstack.popd()
 
+########################################################################
+def find_program(program_name="SuperPions.exe"):
+    # find the program
+    path = os.path.abspath(os.path.dirname(__file__))
+    return path + "/" + program_name
+
+########################################################################
+def x2k(filename) :
+    program = find_program(program_name="x2k.exe")
+    cmd = program + " " + filename + " wallx"
+    result = subprocess.run(cmd, shell=True, capture_output=True)
+    cmd = program + " " + filename + " wally"
+    result = subprocess.run(cmd, shell=True, capture_output=True)
+    cmd = program + " " + filename + " wallz"
+    result = subprocess.run(cmd, shell=True, capture_output=True)
+>>>>>>> 669ee7a52470cd77ef21cc12d1d29906f7ca2bb8
 
 #########################################################################
 # Runs on cori
