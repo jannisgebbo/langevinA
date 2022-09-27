@@ -204,7 +204,6 @@ def x2k(filename) :
     result = subprocess.run(cmd, shell=True, capture_output=True)
     cmd = program + " " + filename + " wallz"
     result = subprocess.run(cmd, shell=True, capture_output=True)
->>>>>>> 669ee7a52470cd77ef21cc12d1d29906f7ca2bb8
 
 #########################################################################
 # Runs on cori
