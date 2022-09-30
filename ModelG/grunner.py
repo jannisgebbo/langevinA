@@ -150,8 +150,8 @@ def prlmrun(time=2, debug=False, dry_run=True, moreopts=["-log_view"], seed=None
     # print("module load gsl", file=fh)
     # print("module load cray-petsc", file=fh)
     # print("module load cray-hdf5-parallel", file=fh)
-    print("module load e4s/21.11-tcl", file=fh)
-    print("module load petsc/3.16.1-gcc-11.2.0-mpi-cuda", file=fh)
+    # print("module load e4s/21.11-tcl", file=fh)
+    # print("module load petsc/3.16.1-gcc-11.2.0-mpi-cuda", file=fh)
     print("export HDF5_DISABLE_VERSION_CHECK=2", file=fh)
 
     print("", file=fh)
@@ -204,7 +204,6 @@ def x2k(filename) :
     result = subprocess.run(cmd, shell=True, capture_output=True)
     cmd = program + " " + filename + " wallz"
     result = subprocess.run(cmd, shell=True, capture_output=True)
->>>>>>> 669ee7a52470cd77ef21cc12d1d29906f7ca2bb8
 
 #########################################################################
 # Runs on cori
