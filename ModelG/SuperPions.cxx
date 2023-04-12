@@ -30,8 +30,8 @@ void run_event(ModelA* const model,Stepper* const step)
   for (int i = 0 ; i < nsteps ; i++) {
     step->step(atime.dt()) ;
     PetscPrintf(PETSC_COMM_WORLD,
-                "Event/Timestep %D/%D: step size = %g, time = %g, final = %g\n", ahandler.current_event, i,
-                  (double)atime.dt(), (double)atime.t(), (double)atime.tfinal());
+                "Thermalizing Event/Timestep %D/%D: step size = %g, time = %g, nsteps to thermalize = %D \n", ahandler.current_event, i, (double)atime.dt(),
+                (double)atime.t(), nsteps);
   }
 
   PetscInt steps = 0;
@@ -40,15 +40,15 @@ void run_event(ModelA* const model,Stepper* const step)
   PetscLogEventRegister("Saving the fields", 0, &saving);
   PetscLogEventRegister("Steps", 0, &stepmonitor);
 
-  // Initialize the measurments and measure the initial condition for this event.
-  // The data for each event is stored in a sepaarate file
+  // Initialize the measurments and measure the initial condition for this
+  // event.  The data for each event is stored in a separate file
   Measurer measurer(model);
 
   // Start the loop
   const double tiny = 1.e-10;
   while (atime.t() < atime.tfinal() - tiny) {
 
-    // measure the solution
+    // measure the solution every saveFrequency
     if (steps % ahandler.saveFrequency == 0) {
       PetscLogEventBegin(measurements, 0, 0, 0, 0);
       measurer.measure(&model->solution);
@@ -59,6 +59,7 @@ void run_event(ModelA* const model,Stepper* const step)
       PetscLogEventEnd(measurements, 0, 0, 0, 0);
     }
 
+    // Write the solution to tape if writeFrequency > 0. This is used for plotting.
     if(ahandler.writeFrequency > 0 and steps % ahandler.writeFrequency == 0) {
       PetscLogEventBegin(saving, 0, 0, 0, 0);
       std::ostringstream tString;
@@ -72,6 +73,7 @@ void run_event(ModelA* const model,Stepper* const step)
     step->step(atime.dt());
     PetscLogEventEnd(stepmonitor, 0, 0, 0, 0);
 
+    // Increment the clock
     steps++;
     atime += atime.dt();
   }

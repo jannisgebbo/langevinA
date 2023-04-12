@@ -53,11 +53,16 @@ data = {
 tag = "default"
 
 
+
 # dump the data into a .json file
 def datatojson():
     with open(data["outputfiletag"] + '.json', 'w') as outfile:
         json.dump(data, outfile, indent=4)
 
+def get_kzfilename():
+    name = "%s_N%03d_m%08d_h%06d_tkz%06d" % (tag, data["NX"], round(
+        100000*data["mass0"]), round(1000000*data["H"]), round(1./data["dmassdt"]))
+    return name
 
 # Canonicalize the names for a given set of parameters
 def getdefault_filename():
