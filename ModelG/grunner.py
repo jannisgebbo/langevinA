@@ -113,6 +113,87 @@ def find_program(program_name="SuperPions.exe"):
     path = os.path.abspath(os.path.dirname(__file__))
     return path + "/" + program_name
 
+#########################################################################
+# Runs on cori
+#########################################################################
+def prlmrun(time=2, debug=False, dry_run=True, moreopts=["-log_view"], seed=None, nnodes=1, parallel=False, environment=[]):
+    prgm = find_program()
+
+    tag = data["outputfiletag"]
+
+    # Create a run directory if does not exist, and cd to it
+    dstack.pushd(tag,mkdir=True)
+
+    filenamesh = tag + '.sh'
+
+    fh = open(filenamesh, 'w')
+
+    tasks=int(nnodes*128)
+    cpuspertask = int(2*128/(tasks/nnodes))
+    print("#!/bin/bash", file=fh)
+    if debug:
+        print("#SBATCH -A m3722", file=fh)
+        print("#SBATCH -C cpu", file=fh)
+        print("#SBATCH --qos debug", file=fh)
+        print("#SBATCH -t 00:10:00", file=fh)
+        print("#SBATCH -N {}".format(nnodes), file=fh)
+        print("#SBATCH --ntasks={}".format(tasks), file=fh)
+        print("#SBATCH --cpus-per-task={}".format(cpuspertask), file=fh)
+    else:
+        print("#SBATCH -A m3722", file=fh)
+        print("#SBATCH -C cpu", file=fh)
+        print("#SBATCH -q regular", file=fh)
+        print("#SBATCH -t {}".format(int(math.ceil(time*60.))), file=fh)
+        print("#SBATCH -N {}".format(nnodes), file=fh)
+        print("#SBATCH --ntasks={}".format(tasks), file=fh)
+        print("#SBATCH --cpus-per-task={}".format(cpuspertask), file=fh)
+
+    #
+    # Write header portion of the batch file
+    #
+    print("", file=fh)
+    # print("module load gsl", file=fh)
+    # print("module load cray-petsc", file=fh)
+    # print("module load cray-hdf5-parallel", file=fh)
+    # print("module load e4s/21.11-tcl", file=fh)
+    # print("module load petsc/3.16.1-gcc-11.2.0-mpi-cuda", file=fh)
+    print("export HDF5_DISABLE_VERSION_CHECK=2", file=fh)
+
+    print("", file=fh)
+
+    #
+    # run the program
+    #
+    print("#run the application:", file=fh)
+
+    print('date  "+%%x %%T" > %s_time.out' %
+          (data["outputfiletag"]), file=fh)
+    # set the seed and the inputfile
+    if seed is None:
+        data["seed"] = random.randint(1, 2000000000)
+    else:
+        data["seed"] = seed
+    # write the data to an .json
+    datatojson()
+
+    # write the command that actually runds the program
+    print("srun -n %d --cpu_bind=cores -c %d %s -input %s " %
+          (tasks, cpuspertask, prgm, data["outputfiletag"]+'.json'), end=' ', file=fh)
+    for opt in moreopts:
+        print(opt, end=' ', file=fh)
+    print(file=fh)
+
+    print('date  "+%%x %%T" >> %s_time.out' %
+          (data["outputfiletag"]), file=fh)
+
+    fh.close()
+
+    if not dry_run:
+        subprocess.run(['sbatch', filenamesh])
+
+    # return to the root directory
+    dstack.popd()
+
 ########################################################################
 def find_program(program_name="SuperPions.exe"):
     # find the program
