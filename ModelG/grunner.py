@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import glob
 import subprocess
 import json
 import random
@@ -8,7 +9,7 @@ import datetime
 import math
 
 
-GLOBAL_PETSCPKG_PATH_SEAWULF="${PKG_CONFIG_PATH}:/gpfs/home/adrflorio/petsc/arch-linux2-c-debug/lib/pkgconfig/"
+GLOBAL_PETSCPKG_PATH_SEAWULF = "${PKG_CONFIG_PATH}:/gpfs/home/adrflorio/petsc/arch-linux2-c-debug/lib/pkgconfig/"
 
 random.seed()
 
@@ -18,33 +19,33 @@ data = {
     "NX": 32,
 
     # Time stepping
-    "finaltime" : 10,
-    "initialtime" : 0,
-    "deltat" : 0.24,
+    "finaltime": 10,
+    "initialtime": 0,
+    "deltat": 0.24,
 
-    #Action
-    "mass0" : -4.70052,
-    "dmassdt" : 0 ,
+    # Action
+    "mass0": -4.70052,
+    "dmassdt": 0,
 
-    "lambda" : 4.,
-    "H" :0.003,
-    "chi" : 5.,
-    "gamma" : 1.,
-    "diffusion" : 0.3333333,
+    "lambda": 4.,
+    "H": 0.003,
+    "chi": 5.,
+    "gamma": 1.,
+    "diffusion": 0.3333333,
 
-    #initial condition"
-    "evolverType" : "PV2HBSplit23",
-    "seed" : 122335456,
-    "restart" : False,
-    "outputfiletag" : "grun",
-    "saveFrequency" : 3,
-    "thermalization_time" : 0.0 ,
+    # initial condition"
+    "evolverType": "PV2HBSplit23",
+    "seed": 122335456,
+    "restart": False,
+    "outputfiletag": "grun",
+    "saveFrequency": 3,
+    "thermalization_time": 0.0,
 
-    # For running multi-events 
+    # For running multi-events
     "eventmode": False,
-    "nevents" : 1,
+    "nevents": 1,
     "last_stored_event": -1,
-    "diffusiononly": False 
+    "diffusiononly": False
 }
 
 
@@ -53,11 +54,11 @@ data = {
 tag = "default"
 
 
-
 # dump the data into a .json file
 def datatojson():
     with open(data["outputfiletag"] + '.json', 'w') as outfile:
         json.dump(data, outfile, indent=4)
+
 
 def get_kzfilename():
     name = "%s_N%03d_m%08d_h%06d_tkz%06d" % (tag, data["NX"], round(
@@ -65,6 +66,8 @@ def get_kzfilename():
     return name
 
 # Canonicalize the names for a given set of parameters
+
+
 def getdefault_filename():
     name = "%s_N%03d_m%08d_h%06d_c%05d" % (tag, data["NX"], round(
         100000*data["mass0"]), round(1000000*data["H"]), round(100*data["chi"]))
@@ -107,7 +110,19 @@ def getdefault_filename_chichange():
 def setdefault_filename():
     data["outputfiletag"] = getdefault_filename()
 
+
 ########################################################################
+def set_last_stored_event():
+    if data["restart"] and data["eventmode"] and data["last_stored_event"] == -1:
+        files = glob.glob("*_[0-9]*.h5")
+        print(files)
+        data["last_stored_event"] = len(files) - 1
+    else:
+        data["last_stored_event"] = -1
+
+########################################################################
+
+
 def find_program(program_name="SuperPions.exe"):
     # find the program
     path = os.path.abspath(os.path.dirname(__file__))
@@ -116,19 +131,21 @@ def find_program(program_name="SuperPions.exe"):
 #########################################################################
 # Runs on cori
 #########################################################################
+
+
 def prlmrun(time=2, debug=False, dry_run=True, moreopts=["-log_view"], seed=None, nnodes=1, parallel=False, environment=[]):
     prgm = find_program()
 
     tag = data["outputfiletag"]
 
     # Create a run directory if does not exist, and cd to it
-    dstack.pushd(tag,mkdir=True)
+    dstack.pushd(tag, mkdir=True)
 
     filenamesh = tag + '.sh'
 
     fh = open(filenamesh, 'w')
 
-    tasks=int(nnodes*128)
+    tasks = int(nnodes*128)
     cpuspertask = int(2*128/(tasks/nnodes))
     print("#!/bin/bash", file=fh)
     if debug:
@@ -195,13 +212,17 @@ def prlmrun(time=2, debug=False, dry_run=True, moreopts=["-log_view"], seed=None
     dstack.popd()
 
 ########################################################################
+
+
 def find_program(program_name="SuperPions.exe"):
     # find the program
     path = os.path.abspath(os.path.dirname(__file__))
     return path + "/" + program_name
 
 ########################################################################
-def x2k(filename) :
+
+
+def x2k(filename):
     program = find_program(program_name="x2k.exe")
     cmd = program + " " + filename + " wallx"
     result = subprocess.run(cmd, shell=True, capture_output=True)
@@ -213,14 +234,17 @@ def x2k(filename) :
 #########################################################################
 # Runs on cori
 #########################################################################
-def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=["-log_view"], seed=None, nnodes=1, parallel=False, environment=[],shellname=None):
+
+
+def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=["-log_view"], seed=None, nnodes=1, parallel=False, environment=[], shellname=None):
 
     prgm = find_program()
 
     tag = data["outputfiletag"]
 
     # Create a run directory if does not exist, and cd to it
-    dstack.pushd(tag,mkdir=True)
+    dstack.pushd(tag, mkdir=True)
+    set_last_stored_event()
 
     if shellname:
         filenamesh = shellname + '.sh'
@@ -297,60 +321,69 @@ def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=["-log_vie
 # Runs on seawulf  with time in batch time. One should set dry_run=False to
 # actually run the code
 #########################################################################
-def seawulfrun(time="00:02:00", debug=False, shared=False, dry_run=True, moreopts=[]) :
-    nprocesses=24
+
+
+def seawulfrun(time="00:02:00", debug=False, shared=False, dry_run=True, moreopts=[]):
+    nprocesses = 24
     filenamesh = data["outputfiletag"] + '.sh'
-    with open(filenamesh,'w') as fh:
-        print("#!/bin/bash",file=fh) 
-        if debug :
-            print("#SBATCH -p debug-{}core".format(nprocesses),file=fh) 
-            print("#SBATCH --time=00:10:00",file=fh) 
-            print("#SBATCH --nodes=1",file=fh) 
-            print("#SBATCH --ntasks-per-node={}".format(nprocesses),file=fh) 
+    with open(filenamesh, 'w') as fh:
+        print("#!/bin/bash", file=fh)
+        if debug:
+            print("#SBATCH -p debug-{}core".format(nprocesses), file=fh)
+            print("#SBATCH --time=00:10:00", file=fh)
+            print("#SBATCH --nodes=1", file=fh)
+            print("#SBATCH --ntasks-per-node={}".format(nprocesses), file=fh)
         else:
-            print("#SBATCH -p long-{}core".format(nprocesses),file=fh) 
-            print("#SBATCH --time={}".format(time),file=fh) 
-            print("#SBATCH --nodes=1",file=fh) 
-            print("#SBATCH --ntasks-per-node={}".format(nprocesses),file=fh) 
+            print("#SBATCH -p long-{}core".format(nprocesses), file=fh)
+            print("#SBATCH --time={}".format(time), file=fh)
+            print("#SBATCH --nodes=1", file=fh)
+            print("#SBATCH --ntasks-per-node={}".format(nprocesses), file=fh)
 
-        print("",file=fh) 
-        print("module load shared",file=fh) 
-        print("module load gcc-stack",file=fh) 
-        print("module load hdf5/1.10.5-parallel",file=fh) 
-        print("module load fftw3",file=fh) 
-        print("module load cmake",file=fh) 
-        print("module load gsl",file=fh)
-        print("export PKG_CONFIG_PATH={}".format(GLOBAL_PETSCPKG_PATH_SEAWULF), file=fh) 
-        print("export MV2_ENABLE_AFFINITY=0",file=fh)
-        print("",file=fh) 
-        print("#run the application:",file=fh) 
+        print("", file=fh)
+        print("module load shared", file=fh)
+        print("module load gcc-stack", file=fh)
+        print("module load hdf5/1.10.5-parallel", file=fh)
+        print("module load fftw3", file=fh)
+        print("module load cmake", file=fh)
+        print("module load gsl", file=fh)
+        print("export PKG_CONFIG_PATH={}".format(
+            GLOBAL_PETSCPKG_PATH_SEAWULF), file=fh)
+        print("export MV2_ENABLE_AFFINITY=0", file=fh)
+        print("", file=fh)
+        print("#run the application:", file=fh)
 
-        print('date  "+%%x %%T" > %s_time.out' % (data["outputfiletag"]),file=fh) 
+        print('date  "+%%x %%T" > %s_time.out' %
+              (data["outputfiletag"]), file=fh)
         # get the program
         path = os.path.abspath(os.path.dirname(__file__))
         prgm = path + "/SuperPions.exe"
         # set the seed and the inputfile
-        data["seed"] = random.randint(1,2000000000)
+        data["seed"] = random.randint(1, 2000000000)
 
         # Write the data to an .json
         datatojson()
 
-        #write the command that actually runds the program
+        # write the command that actually runds the program
         basename = "./" + os.path.basename(data["outputfiletag"])
-        print("mpirun -n {} {} -input {} ".format(nprocesses,prgm, basename +'.json'), end=' ', file=fh)
+        print("mpirun -n {} {} -input {} ".format(nprocesses,
+              prgm, basename + '.json'), end=' ', file=fh)
         for opt in moreopts:
-            print(opt,end=' ', file=fh)
+            print(opt, end=' ', file=fh)
         print(file=fh)
-        print('date  "+%%x %%T" >> %s_time.out' % (data["outputfiletag"]),file=fh) 
+        print('date  "+%%x %%T" >> %s_time.out' %
+              (data["outputfiletag"]), file=fh)
 
     if not dry_run:
-        subprocess.run(['sbatch',filenamesh])
+        subprocess.run(['sbatch', filenamesh])
 
-#runs the actual command current value of data  with mpiexec
-def run(moreopts=[], dry_run=True, time=0, seed=None, ncpus="4") :
+# runs the actual command current value of data  with mpiexec
+
+
+def run(moreopts=[], dry_run=True, time=0, seed=None, ncpus="4"):
     # find the program
     path = os.path.abspath(os.path.dirname(__file__))
     prgm = path + "/SuperPions.exe"
+
 
 def pmakefiles(ncpus, seed=None):
     """Create a set of inputfiles, tag_0000, tag_0001, ...., with separate
@@ -386,7 +419,7 @@ def prun(moreopts=[], dry_run=True, debug=True, time=0, seed=None, ncpus="4"):
     prgm = find_program()
 
     tag = data["outputfiletag"]
-    dstack.pushd(tag,mkdir=True)
+    dstack.pushd(tag, mkdir=True)
 
     listname = tag + "_list.txt"
     pmakefiles(ncpus, seed)
@@ -403,13 +436,13 @@ def prun(moreopts=[], dry_run=True, debug=True, time=0, seed=None, ncpus="4"):
 # runs the program with current value of data  and mpiexec on local
 # mac.
 ########################################################################
-def run(program_name = "SuperPions.exe", moreopts=[], dry_run=True, time=0, seed=None, ncpus="2",log_view=True):
+def run(program_name="SuperPions.exe", moreopts=[], dry_run=True, time=0, seed=None, ncpus="2", log_view=True):
 
     prgm = find_program(program_name)
     tag = data["outputfiletag"]
 
-    # Go to the directory 
-    dstack.pushd(tag,mkdir=True)
+    # Go to the directory
+    dstack.pushd(tag, mkdir=True)
 
     # set the seed and the inputfile
     if seed is None:
