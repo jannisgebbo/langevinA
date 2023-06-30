@@ -34,6 +34,8 @@ void run_event(ModelA* const model,Stepper* const step)
                 (double)atime.t(), nsteps);
   }
 
+  // Set up logging for PETSc so we can find out how much time 
+  // each part takes
   PetscInt steps = 0;
   PetscLogEvent measurements, stepmonitor, saving;
   PetscLogEventRegister("Measurements", 0, &measurements);
@@ -59,7 +61,8 @@ void run_event(ModelA* const model,Stepper* const step)
       PetscLogEventEnd(measurements, 0, 0, 0, 0);
     }
 
-    // Write the solution to tape if writeFrequency > 0. This is used for plotting.
+    // Write the solution to tape if writeFrequency > 0. This is used for plotting
+    // of the solution. It is normally not analyzed, or written.
     if(ahandler.writeFrequency > 0 and steps % ahandler.writeFrequency == 0) {
       PetscLogEventBegin(saving, 0, 0, 0, 0);
       std::ostringstream tString;

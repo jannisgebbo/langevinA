@@ -95,6 +95,7 @@ struct ModelACoefficients {
   }
 };
 
+// Lightweight data structure with access to options
 struct ModelAHandlerData {
 
   std::string evolverType = "PV2HBSplit23";
@@ -113,7 +114,6 @@ struct ModelAHandlerData {
 
   bool eventmode = false;
   int nevents = 1;
-  int last_stored_event = -1;
   int current_event = 0;
   double thermalization_time = 0. ;
 
@@ -128,12 +128,6 @@ struct ModelAHandlerData {
 
     eventmode = params.get("eventmode", eventmode).asBool();
     nevents = params.get("nevents", nevents).asInt();
-    last_stored_event = params.get("last_stored_event", -1).asInt();
-    current_event = last_stored_event + 1; 
-//
-    // This is for restart mode
-    params["last_stored_event"] = last_stored_event + nevents;
-
   }
 
   void print() {
@@ -150,11 +144,11 @@ struct ModelAHandlerData {
     PetscPrintf(PETSC_COMM_WORLD, "eventmode = %s\n",
                 (eventmode ? "true" : "false"));
     PetscPrintf(PETSC_COMM_WORLD, "nevents = %d\n", nevents);
-    PetscPrintf(PETSC_COMM_WORLD, "last_stored_event = %d\n",
-                last_stored_event);
   }
 };
 
+// A lightweight data structure that contains all the information about the 
+// run. Every static bit of data should be accessible here
 class ModelAData {
 
 public:
@@ -184,7 +178,8 @@ public:
 
   // Thermodynamic and transport coefficients
   ModelACoefficients acoefficients;
-  // Convenience function for returnin the mass at the current time
+
+  // Convenience function for returning the mass at the current time
   PetscReal mass() const { return acoefficients.mass(atime.t()); }
 
   // Options for management ;
@@ -252,6 +247,9 @@ typedef struct {
   PetscScalar x[ModelAData::Ndof];
 } data_node;
 
+// This is "the" class which contains access to all of the information
+// about the run  as well as acess to the grid. It contains a copy of 
+// ModelAData which can be used to acess all configuration optons
 class ModelA {
 
 public:
@@ -270,8 +268,8 @@ public:
   // Rank of this processor
   int rank;
 
-  //! Construct the grid and initialize the fields according to
-  //! the configuration parameters in the input ModelAData structure
+  // Construct the grid and initialize the fields according to  the
+  //configuration parameters in the input ModelAData structure
   ModelA(const ModelAData &in) : data(in) {
 
     PetscInt stencil_width = 1;
@@ -287,10 +285,11 @@ public:
     DMCreateGlobalVector(domain, &solution);
     VecDuplicate(solution, &previoussolution);
 
-    // Setup the random number generation
+    // Setup the random number generation. If we are in in restart mode then we
+    // try to read in the random number generator too. 
     const auto &ahandler = data.ahandler;
     ModelARndm = make_unique<NoiseGenerator>(ahandler.seed);
-    if (ahandler.restart) {
+    if (ahandler.restart and !ahandler.eventmode) {
       ModelARndm->read(ahandler.outputfiletag);
     }
 
@@ -300,8 +299,15 @@ public:
 
   void finalize() {
     const auto &ahandler = data.ahandler;
-    ModelARndm->write(ahandler.outputfiletag);
-    write(ahandler.outputfiletag);
+
+    // When running in box mode we save the output and the 
+    // random number stream so we can restart the simulation
+    // and build up statistics. In eventmode we are running
+    // events, and there is no point in saving the state.
+    if (not ahandler.eventmode) {
+       ModelARndm->write(ahandler.outputfiletag);
+       write(ahandler.outputfiletag);
+    }
     VecDestroy(&previoussolution);
     VecDestroy(&solution);
     DMDestroy(&domain);

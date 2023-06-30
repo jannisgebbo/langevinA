@@ -61,6 +61,10 @@ typedef xoroshiro128plus RNGType;
 
 class NoiseGenerator {
 public:
+  // Initialize the random number generator according to a base seed.
+  //
+  // Each processor receives its own seed (based on the base seed), uisng
+  // the c++ seed_seq function 
   NoiseGenerator(const int &baseSeed = 0)
       : uniformDistributionRt3(-sqrt(3.), sqrt(3.)) {
 
@@ -72,6 +76,7 @@ public:
     std::seed_seq sequence = {baseSeed};
     std::vector<unsigned int> seeds(size, 0);
     sequence.generate(seeds.begin(), seeds.end());
+    // Take the seed according to our rank
     rng.seed(seeds[rank]);
   }
 
@@ -101,6 +106,9 @@ public:
 
   RNGType &generator() { return rng; }
 
+  //! Write out the state of the random number generator
+  //! for each processor, the output files take the form 
+  //! name_0.rng, name_1.rng, ...
   void write(const std::string &filename_stub) {
     int rank;
     MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
@@ -118,6 +126,8 @@ public:
 #endif
   }
 
+  // Read back in the random number generators written by  write. If the file
+  //does not exist the default seed  is used. See the constructor
   void read(const std::string &filename_stub) {
     int rank;
     MPI_Comm_rank(PETSC_COMM_WORLD, &rank);

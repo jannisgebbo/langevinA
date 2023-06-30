@@ -6,14 +6,13 @@ import json
 import random
 import dstack
 import datetime
+import uuid
 import math
 
 
-GLOBAL_PETSCPKG_PATH_SEAWULF = "${PKG_CONFIG_PATH}:/gpfs/home/adrflorio/petsc/arch-linux2-c-debug/lib/pkgconfig/"
 
 random.seed()
 
-# set the overall tag
 data = {
     # lattice dimension
     "NX": 32,
@@ -44,14 +43,8 @@ data = {
     # For running multi-events
     "eventmode": False,
     "nevents": 1,
-    "last_stored_event": -1,
     "diffusiononly": False
 }
-
-
-# output is prepended with tag_...... For example if tag is set to "foo". Then
-# all outputs are of the form "foo_averages.txt"
-tag = "default"
 
 
 # dump the data into a .json file
@@ -59,16 +52,14 @@ def datatojson():
     with open(data["outputfiletag"] + '.json', 'w') as outfile:
         json.dump(data, outfile, indent=4)
 
-
-def get_kzfilename():
+# Canonicalize the names for a given set of parameters
+def get_kzfilename(tag):
     name = "%s_N%03d_m%08d_h%06d_tkz%06d" % (tag, data["NX"], round(
         100000*data["mass0"]), round(1000000*data["H"]), round(1./data["dmassdt"]))
     return name
 
-# Canonicalize the names for a given set of parameters
-
-
-def getdefault_filename():
+def getdefault_filename(tag):
+    tag = data["outputfiletag"]
     name = "%s_N%03d_m%08d_h%06d_c%05d" % (tag, data["NX"], round(
         100000*data["mass0"]), round(1000000*data["H"]), round(100*data["chi"]))
     return name
@@ -77,6 +68,7 @@ def getdefault_filename():
 # Canonicalize the names for a given set of parameters, with a scan in m2
 def getdefault_filename_m2change():
     s = "xxxxxxxxxxxxx"
+    tag = data["outputfiletag"]
     name = "%s_N%03d_m%.8s_h%06d_c%05d" % (tag, round(
         data["NX"]), s, round(1000000*data["H"]), round(100*data["chi"]))
     return name
@@ -85,6 +77,7 @@ def getdefault_filename_m2change():
 # Canonicalize the names for a given set of parameters, with scan in H
 def getdefault_filename_Hchange():
     s = "xxxxxxxxxxxxx"
+    tag = data["outputfiletag"]
     name = "%s_N%03d_m%08d_h%.6s_c%05d" % (tag, data["NX"], round(
         100000*data["mass0"]), s, round(100*data["chi"]))
     return name
@@ -93,6 +86,7 @@ def getdefault_filename_Hchange():
 # Canonicalize the names for a given set of parameters, with scan in N
 def getdefault_filename_Nchange():
     s = "xxxxxxxxxxxxx"
+    tag = data["outputfiletag"]
     name = "%s_N%.3s_m%08d_h%06d_c%05d" % (tag, s, round(
         100000*data["mass0"]), round(1000000*data["H"]), round(100*data["chi"]))
     return name
@@ -101,46 +95,66 @@ def getdefault_filename_Nchange():
 # Canonicalize the names for a given set of parameters, with scan in chi
 def getdefault_filename_chichange():
     s = "xxxxxxxxxxxxx"
+    tag = data["outputfiletag"]
     name = "%s_N%03d_m%08d_h%06d_c%.5s" % (tag, data["NX"], round(
         100000*data["mass0"]), round(1000000*data["H"]), s)
     return name
 
-
-# Sets the filename to getdefaultname
-def setdefault_filename():
-    data["outputfiletag"] = getdefault_filename()
-
-
 ########################################################################
-def set_last_stored_event():
-    if data["restart"] and data["eventmode"] and data["last_stored_event"] == -1:
-        files = glob.glob("*_[0-9]*.h5")
-        print(files)
-        data["last_stored_event"] = len(files) - 1
-    else:
-        data["last_stored_event"] = -1
-
+# Find the program to run
 ########################################################################
-
-
 def find_program(program_name="SuperPions.exe"):
     # find the program
     path = os.path.abspath(os.path.dirname(__file__))
     return path + "/" + program_name
 
+
+########################################################################
+# Compute the fourier transform of a file
+########################################################################
+def x2k(filename):
+    program = find_program(program_name="x2k.exe")
+    cmd = program + " " + filename + " wallx"
+    result = subprocess.run(cmd, shell=True, capture_output=True)
+    cmd = program + " " + filename + " wally"
+    result = subprocess.run(cmd, shell=True, capture_output=True)
+    cmd = program + " " + filename + " wallz"
+    result = subprocess.run(cmd, shell=True, capture_output=True)
+
+
 #########################################################################
-# Runs on cori
+# Runs on perlmutter
 #########################################################################
 
 
-def prlmrun(time=2, debug=False, dry_run=True, moreopts=["-log_view"], seed=None, nnodes=1, parallel=False, environment=[]):
+def prlmrun(time=2, debug=False, dry_run=True, moreopts=["-log_view"], seed=None, nnodes=1, nodeid=False, parallel=False, environment=[]):
     prgm = find_program()
+
+    # Create a run directory "name"  if does not exist, and cd to it
+    dstack.pushd(data["outputfiletag"], mkdir=True)
+
+    # If nodeid is True then append a random 8 digit hex number
+    # to the tag labelling the run. This is so that independent runs using the
+    # same inputfile, with different seeds, can be run in the same directory
+    if nodeid: 
+        oldtag = data["outputfiletag"]
+        runid = "ffffffff"
+        if not dry_run:
+            runid = str(uuid.uuid4())[:8]
+        data["outputfiletag"] = data["outputfiletag"] + "_{}".format(runid)
 
     tag = data["outputfiletag"]
 
-    # Create a run directory if does not exist, and cd to it
-    dstack.pushd(tag, mkdir=True)
+    # Set the seed and write the inputfile to tag.json
+    if seed is None:
+        data["seed"] = random.randint(1, 2000000000)
+    else:
+        data["seed"] = seed
+    datatojson()
 
+    #
+    # Prepare the shell script
+    #
     filenamesh = tag + '.sh'
 
     fh = open(filenamesh, 'w')
@@ -165,163 +179,42 @@ def prlmrun(time=2, debug=False, dry_run=True, moreopts=["-log_view"], seed=None
         print("#SBATCH --ntasks={}".format(tasks), file=fh)
         print("#SBATCH --cpus-per-task={}".format(cpuspertask), file=fh)
 
-    #
-    # Write header portion of the batch file
-    #
+    # Set up the shell environment
     print("", file=fh)
-    # print("module load gsl", file=fh)
-    # print("module load cray-petsc", file=fh)
-    # print("module load cray-hdf5-parallel", file=fh)
-    # print("module load e4s/21.11-tcl", file=fh)
-    # print("module load petsc/3.16.1-gcc-11.2.0-mpi-cuda", file=fh)
     print("export HDF5_DISABLE_VERSION_CHECK=2", file=fh)
-
     print("", file=fh)
-
-    #
-    # run the program
-    #
     print("#run the application:", file=fh)
-
     print('date  "+%%x %%T" > %s_time.out' %
           (data["outputfiletag"]), file=fh)
-    # set the seed and the inputfile
-    if seed is None:
-        data["seed"] = random.randint(1, 2000000000)
-    else:
-        data["seed"] = seed
-    # write the data to an .json
-    datatojson()
-
-    # write the command that actually runds the program
+    # Write the command that actually runds the program
     print("srun -n %d --cpu_bind=cores -c %d %s -input %s " %
           (tasks, cpuspertask, prgm, data["outputfiletag"]+'.json'), end=' ', file=fh)
+    # This additional options are  added to the srun command
     for opt in moreopts:
         print(opt, end=' ', file=fh)
     print(file=fh)
 
     print('date  "+%%x %%T" >> %s_time.out' %
           (data["outputfiletag"]), file=fh)
-
     fh.close()
 
+    # Submit the shell script
     if not dry_run:
         subprocess.run(['sbatch', filenamesh])
 
+    # There was a side effect that the outputfiletag got modified
+    # This should be undone for transparency
+    if nodeid: 
+        data["outputfiletag"] = oldtag
     # return to the root directory
     dstack.popd()
 
-########################################################################
-
-
-def find_program(program_name="SuperPions.exe"):
-    # find the program
-    path = os.path.abspath(os.path.dirname(__file__))
-    return path + "/" + program_name
-
-########################################################################
-
-
-def x2k(filename):
-    program = find_program(program_name="x2k.exe")
-    cmd = program + " " + filename + " wallx"
-    result = subprocess.run(cmd, shell=True, capture_output=True)
-    cmd = program + " " + filename + " wally"
-    result = subprocess.run(cmd, shell=True, capture_output=True)
-    cmd = program + " " + filename + " wallz"
-    result = subprocess.run(cmd, shell=True, capture_output=True)
-
-#########################################################################
-# Runs on cori
-#########################################################################
-
-
-def corirun(time=2, debug=False, shared=False, dry_run=True, moreopts=["-log_view"], seed=None, nnodes=1, parallel=False, environment=[], shellname=None):
-
-    prgm = find_program()
-
-    tag = data["outputfiletag"]
-
-    # Create a run directory if does not exist, and cd to it
-    dstack.pushd(tag, mkdir=True)
-    set_last_stored_event()
-
-    if shellname:
-        filenamesh = shellname + '.sh'
-    else:
-        filenamesh = tag + '.sh'
-
-    fh = open(filenamesh, 'w')
-
-    print("#!/bin/bash", file=fh)
-    if debug:
-        print("#SBATCH -q debug", file=fh)
-        print("#SBATCH -t 00:10:00", file=fh)
-        print("#SBATCH -N {}".format(nnodes), file=fh)
-        print("#SBATCH --ntasks={}".format(nnodes*32), file=fh)
-        print("#SBATCH --cpus-per-task=2", file=fh)
-    elif shared:
-        print("#SBATCH -q shared", file=fh)
-        print("#SBATCH -t {}".format(int(math.ceil(time*60.))), file=fh)
-        print("#SBATCH --ntasks=8", file=fh)
-        print("#SBATCH --cpus-per-task=2", file=fh)
-    else:
-        print("#SBATCH -q regular", file=fh)
-        print("#SBATCH -t {}".format(int(math.ceil(time*60.))), file=fh)
-        print("#SBATCH -N %d" % (nnodes), file=fh)
-        print("#SBATCH --ntasks={}".format(nnodes*32), file=fh)
-        print("#SBATCH --cpus-per-task=2", file=fh)
-    print("#SBATCH -C haswell", file=fh)
-
-    #
-    # Write header portion of the batch file
-    #
-    print("", file=fh)
-    print("module load gsl", file=fh)
-    print("module load cray-petsc", file=fh)
-    print("module load cray-hdf5-parallel", file=fh)
-    print("export HDF5_DISABLE_VERSION_CHECK=2", file=fh)
-
-    print("", file=fh)
-
-    #
-    # run the program
-    #
-    print("#run the application:", file=fh)
-
-    print('date  "+%%x %%T" > %s_time.out' %
-          (data["outputfiletag"]), file=fh)
-    # set the seed and the inputfile
-    if seed is None:
-        data["seed"] = random.randint(1, 2000000000)
-    else:
-        data["seed"] = seed
-    # write the data to an .json
-    datatojson()
-
-    # write the command that actually runds the program
-    print("srun --cpu_bind=cores %s -input %s " %
-          (prgm, data["outputfiletag"]+'.json'), end=' ', file=fh)
-    for opt in moreopts:
-        print(opt, end=' ', file=fh)
-    print(file=fh)
-
-    print('date  "+%%x %%T" >> %s_time.out' %
-          (data["outputfiletag"]), file=fh)
-
-    fh.close()
-
-    if not dry_run:
-        subprocess.run(['sbatch', filenamesh])
-
-    # return to the root directory
-    dstack.popd()
 
 #########################################################################
 # Runs on seawulf  with time in batch time. One should set dry_run=False to
 # actually run the code
 #########################################################################
-
+GLOBAL_PETSCPKG_PATH_SEAWULF = "${PKG_CONFIG_PATH}:/gpfs/home/adrflorio/petsc/arch-linux2-c-debug/lib/pkgconfig/"
 
 def seawulfrun(time="00:02:00", debug=False, shared=False, dry_run=True, moreopts=[]):
     nprocesses = 24
@@ -377,60 +270,6 @@ def seawulfrun(time="00:02:00", debug=False, shared=False, dry_run=True, moreopt
         subprocess.run(['sbatch', filenamesh])
 
 # runs the actual command current value of data  with mpiexec
-
-
-def run(moreopts=[], dry_run=True, time=0, seed=None, ncpus="4"):
-    # find the program
-    path = os.path.abspath(os.path.dirname(__file__))
-    prgm = path + "/SuperPions.exe"
-
-
-def pmakefiles(ncpus, seed=None):
-    """Create a set of inputfiles, tag_0000, tag_0001, ...., with separate
-    seeds"""
-    tag = data["outputfiletag"]
-
-    listname = tag + "_list.txt"
-    fh = open(listname, "w")
-    seedlist = []
-    for i in range(0, int(ncpus)):
-        while True:
-            iseed = random.randint(1, 2000000000)
-            if iseed not in seedlist:
-                seedlist.append(iseed)
-                break
-
-    for i in range(0, int(ncpus)):
-        if seed is None:
-            data["seed"] = seedlist[i]
-        else:
-            data["seed"] = seed + i
-        data["outputfiletag"] = tag + "_%04d" % (i)
-        datatojson()
-        fh.write("%s.json\n" % data["outputfiletag"])
-    fh.close()
-
-    # restore the output
-    data["outputfiletag"] = tag
-
-
-# Run the code in embarassingly parallel mode with gnu-parallel
-def prun(moreopts=[], dry_run=True, debug=True, time=0, seed=None, ncpus="4"):
-    prgm = find_program()
-
-    tag = data["outputfiletag"]
-    dstack.pushd(tag, mkdir=True)
-
-    listname = tag + "_list.txt"
-    pmakefiles(ncpus, seed)
-
-    cmd = "cat %s | parallel %s -input {} -log_view > %s.log" % (
-        listname, prgm, tag)
-    print(cmd)
-    if not dry_run:
-        os.system(cmd)
-    dstack.popd()
-
 
 ########################################################################
 # runs the program with current value of data  and mpiexec on local

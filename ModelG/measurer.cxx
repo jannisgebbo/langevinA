@@ -61,8 +61,8 @@ void measurer_output_fasthdf5::save(const std::string &what) {
   for (int k = 0; k < Measurer::NScalars; k++) {
     scalars->row[k] = measure->OAverage[k];
   }
-  for (int i = 0; i < Measurer::NObs; i++) {
-    for (int j = 0; j < measure->N; j++) {
+  for (size_t i = 0; i < Measurer::NObs; i++) {
+    for (size_t j = 0; j < measure->N; j++) {
       size_t k = wallx->at({i, j});
       wallx->row[k] = measure->sliceAveragesX[i][j];
       wally->row[k] = measure->sliceAveragesY[i][j];

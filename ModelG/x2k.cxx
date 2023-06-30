@@ -50,18 +50,27 @@ int main(int argc, char **argv) {
   std::string fin(argv[1]);
   std::string dsetin(argv[2]);
 
+  std::string fout = fin;
+  fout = fout.erase(fout.find_last_of("."), std::string::npos) + "_out.h5";
+
   std::string dsetout = dsetin + "_k";
-  std::cout << "Creating dataset " << dsetout << " in " << fin << std::endl;
+  std::cout << "Creating dataset " << dsetout << " in " << fout << std::endl;
 
   // Open the filespace and grab the ntuples
-  hid_t filein_id = H5Fopen(fin.c_str(), H5F_ACC_RDWR, H5P_DEFAULT);
+  hid_t filein_id = H5Fopen(fin.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
   ntuple<2> in(dsetin, filein_id);
 
   // get the dimensions of the input tuple
   auto N = in.getN();
 
   // open the output file
-  hid_t fileout_id = filein_id;
+  hid_t fileout_id;
+  if (exists_test(fout)) {
+    fileout_id = H5Fopen(fout.c_str(), H5F_ACC_RDWR, H5P_DEFAULT);
+  } else {
+    fileout_id =
+        H5Fcreate(fout.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+  }
 
   // Remove the old output if it exists
   if (H5Lexists(fileout_id, dsetout.c_str(), H5P_DEFAULT)) {
@@ -84,9 +93,9 @@ int main(int argc, char **argv) {
 
   for (size_t i = 0; i < in.nrows(); i++) {
     in.readrow(i);
-    for (int i0 = 0; i0 < N[0]; i0++) {
+    for (size_t i0 = 0; i0 < N[0]; i0++) {
       // Copy the data to the in_ptr of the fouier transform
-      for (int i1 = 0; i1 < N[1]; i1++) {
+      for (size_t i1 = 0; i1 < N[1]; i1++) {
         size_t k = in.at({i0, i1});
         in_ptr[i1] = in.row[k];
       }
@@ -94,7 +103,7 @@ int main(int argc, char **argv) {
       fftw_execute(p);
 
       // Copy the data to the out_ptr of the fourier transform
-      for (int i1 = 0; i1 < NK[1]; i1++) {
+      for (size_t i1 = 0; i1 < NK[1]; i1++) {
         size_t k = out.at({i0, i1, 0});
         out.row[k] = out_ptr[i1].real()/N[1];
         out.row[k + 1] = out_ptr[i1].imag()/N[1];
@@ -108,5 +117,6 @@ int main(int argc, char **argv) {
   out.close();
   in.close();
   H5Fclose(filein_id);
+  H5Fclose(fileout_id);
   return 0;
 }

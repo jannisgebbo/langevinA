@@ -26,8 +26,8 @@ int main(int argc, char **argv) {
 
   for (size_t j = 0; j < 3; j++) {
 
-    for (int i0=0; i0 < NN2[0] ; i0++) {
-    for (int i1=0; i1 < NN2[1] ; i1++) {
+    for (size_t i0=0; i0 < NN2[0] ; i0++) {
+    for (size_t i1=0; i1 < NN2[1] ; i1++) {
       size_t k = nt2.at({i0, i1}) ; //Mapping the 2D array to a single index
       nt2.row[k] = datain[k] ;  // fill up the buffer row
     }
@@ -84,22 +84,25 @@ public:
     pack(count, 1, N);
 
     // Get the hyperslab
-    herr_t status = H5Sselect_hyperslab(filespace, H5S_SELECT_SET, offset, NULL,
+    H5Sselect_hyperslab(filespace, H5S_SELECT_SET, offset, NULL,
                                         count, NULL);
 
-    // Write the data
-    status = H5Dread(dataset, H5T_NATIVE_DOUBLE, memory_space, filespace,
+    // Read the data
+    H5Dread(dataset, H5T_NATIVE_DOUBLE, memory_space, filespace,
                      H5P_DEFAULT, row.data());
 
     // Close the filespace
     H5Sclose(filespace);
   }
 
-  size_t at(const std::array<int, rank> &idex) {
+  size_t at(const std::array<size_t, rank> &idex) {
     size_t offset = 0;
     for (size_t i = 0; i < rank; i++)
       offset += sizes[i] * idex[i];
     return offset;
+  }
+  double &Row(const std::array<size_t, rank> &idex) {
+    return row[at(idex)] ;
   }
 
   ntuple(const std::string &nm, const hid_t &file_id) : closed(false) {
@@ -136,7 +139,7 @@ public:
   void fill() {
     // Extend by a row
     dims[0]++;
-    herr_t status = H5Dextend(dataset, dims);
+    H5Dextend(dataset, dims);
 
     // Get the space in the file
     hid_t filespace = H5Dget_space(dataset);
@@ -148,11 +151,11 @@ public:
     pack(count, 1, N);
 
     // Get the hyperslab
-    status = H5Sselect_hyperslab(filespace, H5S_SELECT_SET, offset, NULL, count,
+    H5Sselect_hyperslab(filespace, H5S_SELECT_SET, offset, NULL, count,
                                  NULL);
 
     // Write the data
-    status = H5Dwrite(dataset, H5T_NATIVE_DOUBLE, memory_space, filespace,
+    H5Dwrite(dataset, H5T_NATIVE_DOUBLE, memory_space, filespace,
                       H5P_DEFAULT, row.data());
 
     // Close the filespace
@@ -165,7 +168,7 @@ private:
   // Sizes of the array for a (2,3,4) array this is (12,4,1), see at
   size_t sizes[rank];
 
-  // memory
+  // memory for row
   bool closed;
   hid_t dataspace;
   hid_t dataset;
@@ -195,7 +198,7 @@ private:
     hid_t chunk_params = H5Pcreate(H5P_DATASET_CREATE);
     hsize_t chunk_dims[rank + 1];
     pack(chunk_dims, 2, N);
-    herr_t status = H5Pset_chunk(chunk_params, rank + 1, chunk_dims);
+    H5Pset_chunk(chunk_params, rank + 1, chunk_dims);
 
     // Open the dataset
     dataset = H5Dcreate(file_id, nm.c_str(), H5T_NATIVE_DOUBLE, dataspace,
@@ -213,7 +216,7 @@ private:
 
     // This line reads the dimensions of the array from tape
     hsize_t maxdims[rank + 1];
-    herr_t status = H5Sget_simple_extent_dims(dataspace, dims, maxdims);
+    H5Sget_simple_extent_dims(dataspace, dims, maxdims);
 
     // check that the dimensions agree or set the dimension array
     for (size_t i = 0; i < rank; i++) {
@@ -248,7 +251,7 @@ private:
       count *= N[i];
     }
     if (count > 0) {
-      row.resize(count);
+      row.resize(count, 0) ;
     } else {
       throw("ntuple::ntuple Error in dimensioning array: count is zero.");
     }
