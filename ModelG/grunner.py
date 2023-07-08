@@ -194,6 +194,11 @@ def prlmrun(time=2, debug=False, dry_run=True, moreopts=["-log_view"], seed=None
         print(opt, end=' ', file=fh)
     print(file=fh)
 
+    # Do any post processing of the run
+    programpy = find_program(program_name="x2k.py") 
+    print("python {} {}.json".format(programpy,data["outputfiletag"]), file=fh)
+    print(file=fh)
+
     print('date  "+%%x %%T" >> %s_time.out' %
           (data["outputfiletag"]), file=fh)
     fh.close()

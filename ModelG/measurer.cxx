@@ -13,7 +13,7 @@ measurer_output_fasthdf5::measurer_output_fasthdf5(Measurer *in) : measure(in) {
   std::string name;
   if (ahandler.eventmode) {
     std::stringstream namestream;
-    namestream << ahandler.outputfiletag << "_" << std::setw(6)
+    namestream << ahandler.outputfiletag << "_" << std::setw(4)
                << std::setfill('0') << ahandler.current_event << ".h5";
     name = namestream.str();
   } else {
