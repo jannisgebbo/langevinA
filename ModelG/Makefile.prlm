@@ -55,6 +55,8 @@ LDLIBS := $(shell pkg-config --libs-only-l $(PACKAGES)) -lm -lhdf5
 HEADRS = ModelA.h Stepper.h NoiseGenerator.h measurer.h plotter.h O4AlgebraHelper.h ntuple.h
 OBJS = measurer.o Stepper.o NoiseGenerator.o jsoncpp.o
 
+all: SuperPions.exe x2k.exe x2k_rotated.exe
+
 SuperPions.exe: SuperPions.o $(OBJS)
 	$(LINK.cc) -o $@ $^ $(LDLIBS) -lstdc++
 
