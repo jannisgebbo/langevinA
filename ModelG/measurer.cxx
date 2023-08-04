@@ -286,7 +286,6 @@ void Measurer::computeSliceAveragePhase(Vec *solution) {
   double sigma;
   std::array<double, 4> n{};
   std::array<double, 4> phi{};
-  std::array<double, 4> pi{};
   std::array<double, 6> rho{};
   std::array<double, 4> V{};
   std::array<double, 4> A{};
@@ -309,9 +308,6 @@ void Measurer::computeSliceAveragePhase(Vec *solution) {
         } else {
           n = {1, 0, 0, 0};
         }
-        for (int l = 0; l < ModelAData::Nphi; l++) {
-          pi[l] = phi[l] - sigma * n[l];
-        }
 
         for (int l = 0; l < ModelAData::NA; l++) {
           rho[l] = fld[k][j][i].A[l];
@@ -324,9 +320,9 @@ void Measurer::computeSliceAveragePhase(Vec *solution) {
         wallYPhaseLocal(0, j) += sigma;
         wallZPhaseLocal(0, k) += sigma;
         for (int l = 0; l < ModelAData::Nphi; l++) {
-          wallXPhaseLocal(1 + l, i) += pi[l];
-          wallYPhaseLocal(1 + l, j) += pi[l];
-          wallZPhaseLocal(1 + l, k) += pi[l];
+          wallXPhaseLocal(1 + l, i) += n[l];
+          wallYPhaseLocal(1 + l, j) += n[l];
+          wallZPhaseLocal(1 + l, k) += n[l];
 
           wallXPhaseLocal(5 + l, i) += A[l];
           wallYPhaseLocal(5 + l, j) += A[l];
