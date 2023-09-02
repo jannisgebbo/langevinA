@@ -19,24 +19,24 @@ int main(int argc, char **argv) {
   std::array<size_t, 3> NN3 = {2, 2, 2};
   ntuple<3> nt3(NN3, "phi3", file_id);
 
-  for (size_t j = 0; j < 3; j++) {
+  for (size_t j = 0; j < 3; j++)  {
 
-    for (int i0 = 0; i0 < NN1[0]; i0++) {
+    for (size_t i0 = 0; i0 < NN1[0]; i0++) {
       // Seems a bit excessive in 1d
       // size_t k = nt.at({i0, i1}) ;
       nt1.row[i0] = datain[i0];
     }
 
-    for (int i0 = 0; i0 < NN2[0]; i0++) {
-      for (int i1 = 0; i1 < NN2[1]; i1++) {
+    for (size_t i0 = 0; i0 < NN2[0]; i0++) {
+      for (size_t i1 = 0; i1 < NN2[1]; i1++) {
         size_t k = nt2.at({i0, i1});
         nt2.row[k] = datain[k];
       }
     }
 
-    for (int i0 = 0; i0 < NN3[0]; i0++) {
-      for (int i1 = 0; i1 < NN3[1]; i1++) {
-        for (int i2 = 0; i2 < NN3[2]; i2++) {
+    for (size_t i0 = 0; i0 < NN3[0]; i0++) {
+      for (size_t i1 = 0; i1 < NN3[1]; i1++) {
+        for (size_t i2 = 0; i2 < NN3[2]; i2++) {
           size_t k = nt3.at({i0, i1, i2});
           nt3.row[k] = datain[k];
         }
@@ -88,8 +88,8 @@ int main(int argc, char **argv) {
 
     printf("\n");
     in2.readrow(i);
-    for (int i0 = 0; i0 < IN2[0]; i0++) {
-      for (int i1 = 0; i1 < IN2[1]; i1++) {
+    for (size_t i0 = 0; i0 < IN2[0]; i0++) {
+      for (size_t i1 = 0; i1 < IN2[1]; i1++) {
         size_t k = nt2.at({i0, i1});
         printf("%15.5e ", in2.row[k]);
       }
@@ -99,9 +99,9 @@ int main(int argc, char **argv) {
 
     printf("\n");
     in3.readrow(i);
-    for (int i0 = 0; i0 < IN3[0]; i0++) {
-      for (int i1 = 0; i1 < IN3[1]; i1++) {
-        for (int i2 = 0; i2 < IN3[2]; i2++) {
+    for (size_t i0 = 0; i0 < IN3[0]; i0++) {
+      for (size_t i1 = 0; i1 < IN3[1]; i1++) {
+        for (size_t i2 = 0; i2 < IN3[2]; i2++) {
           size_t k = nt3.at({i0, i1, i2});
           printf("%15.5e ", in3.row[k]);
         }
