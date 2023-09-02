@@ -173,7 +173,7 @@ public:
 
   // Periodically measure the solution writing
   void measure(Vec *solution) {
-    int rank = 0;
+    int rank = -1;
     MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
 
     computeSliceAverage(solution);
