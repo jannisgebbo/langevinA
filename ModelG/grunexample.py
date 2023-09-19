@@ -3,8 +3,6 @@ import pprint
 
 pp = pprint.PrettyPrinter()
 
-# Print out the defaults
-pp.pprint(grun.data) 
 
 # Modify the defaults
 grun.data["finaltime"] = 10.
