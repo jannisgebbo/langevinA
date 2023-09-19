@@ -27,8 +27,14 @@ void run_event(ModelA* const model,Stepper* const step)
   // Thermalize the state in memory at the initial time ;
   int nsteps  = static_cast<int>(ahandler.thermalization_time / atime.dt()) ;
   PetscPrintf(PETSC_COMM_WORLD, "Thermalizing event %D\n", ahandler.current_event); 
+
+  model->initialize_gaussian_charges() ;
   for (int i = 0 ; i < nsteps ; i++) {
     step->step(atime.dt()) ;
+    if (i < nsteps/2) {
+      // Reinitialize the charges for the first steps
+      model->initialize_gaussian_charges() ;
+    }
     PetscPrintf(PETSC_COMM_WORLD,
                 "Thermalizing Event/Timestep %D/%D: step size = %g, time = %g, nsteps to thermalize = %D \n", ahandler.current_event, i, (double)atime.dt(),
                 (double)atime.t(), nsteps);

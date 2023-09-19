@@ -115,7 +115,7 @@ struct ModelAHandlerData {
   bool eventmode = false;
   int nevents = 1;
   int current_event = 0;
-  double thermalization_time = 0. ;
+  double thermalization_time = 0.;
 
   void read(Json::Value &params) {
     evolverType = params.get("evolverType", evolverType).asString();
@@ -124,7 +124,8 @@ struct ModelAHandlerData {
     outputfiletag = params.get("outputfiletag", "o4output").asString();
     saveFrequency = params.get("saveFrequency", saveFrequency).asInt();
     writeFrequency = params.get("writeFrequency", writeFrequency).asInt();
-    thermalization_time = params.get("thermalization_time", thermalization_time).asDouble() ;
+    thermalization_time =
+        params.get("thermalization_time", thermalization_time).asDouble();
 
     eventmode = params.get("eventmode", eventmode).asBool();
     nevents = params.get("nevents", nevents).asInt();
@@ -147,7 +148,7 @@ struct ModelAHandlerData {
   }
 };
 
-// A lightweight data structure that contains all the information about the 
+// A lightweight data structure that contains all the information about the
 // run. Every static bit of data should be accessible here
 class ModelAData {
 
@@ -248,7 +249,7 @@ typedef struct {
 } data_node;
 
 // This is "the" class which contains access to all of the information
-// about the run  as well as acess to the grid. It contains a copy of 
+// about the run  as well as acess to the grid. It contains a copy of
 // ModelAData which can be used to acess all configuration optons
 class ModelA {
 
@@ -269,7 +270,7 @@ public:
   int rank;
 
   // Construct the grid and initialize the fields according to  the
-  //configuration parameters in the input ModelAData structure
+  // configuration parameters in the input ModelAData structure
   ModelA(const ModelAData &in) : data(in) {
 
     PetscInt stencil_width = 1;
@@ -286,7 +287,7 @@ public:
     VecDuplicate(solution, &previoussolution);
 
     // Setup the random number generation. If we are in in restart mode then we
-    // try to read in the random number generator too. 
+    // try to read in the random number generator too.
     const auto &ahandler = data.ahandler;
     ModelARndm = make_unique<NoiseGenerator>(ahandler.seed);
     if (ahandler.restart and !ahandler.eventmode) {
@@ -300,13 +301,13 @@ public:
   void finalize() {
     const auto &ahandler = data.ahandler;
 
-    // When running in box mode we save the output and the 
+    // When running in box mode we save the output and the
     // random number stream so we can restart the simulation
     // and build up statistics. In eventmode we are running
     // events, and there is no point in saving the state.
     if (not ahandler.eventmode) {
-       ModelARndm->write(ahandler.outputfiletag);
-       write(ahandler.outputfiletag);
+      ModelARndm->write(ahandler.outputfiletag);
+      write(ahandler.outputfiletag);
     }
     VecDestroy(&previoussolution);
     VecDestroy(&solution);
@@ -417,6 +418,70 @@ public:
       }
     }
     DMDAVecRestoreArrayDOF(domain, solution, &u);
+    return (0);
+  }
+
+  PetscErrorCode initialize_gaussian_charges() {
+    // Compute the lattice spacing
+    PetscReal hx = data.hX();
+    PetscReal hy = data.hY();
+    PetscReal hz = data.hZ();
+
+    // This Get a pointer to do the calculation
+    PetscScalar ****u;
+    DMDAVecGetArrayDOF(domain, solution, &u);
+
+    // Get the Local Corner od the vector
+    PetscInt i, j, k, L, xstart, ystart, zstart, xdimension, ydimension,
+        zdimension;
+
+    DMDAGetCorners(domain, &xstart, &ystart, &zstart, &xdimension, &ydimension,
+                   &zdimension);
+
+    std::vector<PetscScalar> charge_sum_local(ModelAData::Ndof, 0.);
+    std::vector<PetscScalar> charge_sum(ModelAData::Ndof, 0.);
+
+    PetscScalar chi = data.acoefficients.chi ;
+    for (k = zstart; k < zstart + zdimension; k++) {
+      for (j = ystart; j < ystart + ydimension; j++) {
+        for (i = xstart; i < xstart + xdimension; i++) {
+          for (L = 0; L < ModelAData::Ndof; L++) {
+            // Dont update the phi components
+            if (L < ModelAData::Nphi) {
+              continue;
+            }
+
+            // Generate gaussian random numbers for charges
+            u[k][j][i][L] = sqrt(chi) * ModelARndm->normal();
+
+            // Accumulate the total charge in a Buffer
+            charge_sum_local[L] += u[k][j][i][L] ;
+          }
+        }
+      }
+    }
+
+    // Find the total charge
+    MPI_Allreduce(charge_sum_local.data(), charge_sum.data(), ModelAData::Ndof,
+                  MPIU_SCALAR, MPI_SUM, PETSC_COMM_WORLD);
+
+    // Subtract the zero mode. Assumes lattice spacing is one
+    PetscScalar V = data.NX * data.NY * data.NX;
+    for (k = zstart; k < zstart + zdimension; k++) {
+      for (j = ystart; j < ystart + ydimension; j++) {
+        for (i = xstart; i < xstart + xdimension; i++) {
+          for (L = 0; L < ModelAData::Ndof; L++) {
+            if (L < ModelAData::Nphi) {
+              continue;
+            }
+            u[k][j][i][L] -= charge_sum[L] / V;
+          }
+        }
+      }
+    }
+
+    DMDAVecRestoreArrayDOF(domain, solution, &u);
+
     return (0);
   }
 };
