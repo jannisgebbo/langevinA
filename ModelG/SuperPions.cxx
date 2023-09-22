@@ -29,19 +29,19 @@ void run_event(ModelA* const model,Stepper* const step)
   PetscPrintf(PETSC_COMM_WORLD, "Thermalizing event %D\n", ahandler.current_event); 
 
   // Thermalize the initialconditions
-  Measurer thermalizer_measurer(model, "test.h5")  ;
+  std::unique_ptr<EulerLangevinHB> thermalizer = std::make_unique<EulerLangevinHB>(*model);
   model->initialize_gaussian_charges() ;
   for (int i = 0 ; i < nsteps ; i++) {
-    step->step(atime.dt()) ;
-    if (i < nsteps/2) {
-      model->initialize_gaussian_charges() ;
+    const int substeps = 6;
+    for (int j=0 ; j<substeps; j++){
+      thermalizer->step(atime.dt()/substeps) ;
     }
-    thermalizer_measurer.measure(&model->solution) ;
     PetscPrintf(PETSC_COMM_WORLD,
                 "Thermalizing Event/Timestep %D/%D: step size = %g, time = %g, nsteps to thermalize = %D \n", ahandler.current_event, i, (double)atime.dt(),
                 (double)atime.t(), nsteps);
   }
-  thermalizer_measurer.finalize() ;
+  thermalizer->finalize();
+  thermalizer.reset() ;
 
   // Set up logging for PETSc so we can find out how much time 
   // each part takes

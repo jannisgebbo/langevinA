@@ -46,6 +46,19 @@ data = {
     "diffusiononly": False
 }
 
+#
+def checkinputs():
+    if data["mass0"] > 0 :
+        raise SystemExit('The parameters mass0 should be negative')
+    if data["dmassdt"] > 0 :
+        raise SystemExit('The parameters dmassdt should be negative')
+    if data["diffusiononly"]:
+        raise SystemExit('Do not run in diffusiononly mode without asking derek')
+    if data["chi"] != 5.:
+        raise SystemExit('Chi should be five')
+    if data["evolverType"] is not "PV2HBSplit23":
+        raise SystemExit('The evovlerType is not "PV2HBSplit23"')
+
 
 # dump the data into a .json file
 def datatojson():
@@ -145,6 +158,9 @@ def prlmrun(time=2, debug=False, dry_run=True, moreopts=["-log_view"], seed=None
 
     tag = data["outputfiletag"]
 
+    #
+    checkinputs()
+
     # Set the seed and write the inputfile to tag.json
     if seed is None:
         data["seed"] = random.randint(1, 2000000000)
@@ -194,10 +210,10 @@ def prlmrun(time=2, debug=False, dry_run=True, moreopts=["-log_view"], seed=None
         print(opt, end=' ', file=fh)
     print(file=fh)
 
-    # Do any post processing of the run
-    programpy = find_program(program_name="x2k.py") 
-    print("python {} {}.json".format(programpy,data["outputfiletag"]), file=fh)
-    print(file=fh)
+    # # Do any post processing of the run
+    # programpy = find_program(program_name="x2k.py") 
+    # print("python {} {}.json".format(programpy,data["outputfiletag"]), file=fh)
+    # print(file=fh)
 
     print('date  "+%%x %%T" >> %s_time.out' %
           (data["outputfiletag"]), file=fh)
