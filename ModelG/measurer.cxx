@@ -97,9 +97,9 @@ void measurer_output_fasthdf5::save(const std::string &what) {
   wally->row = measure->wallY.v;
   wallz->row = measure->wallZ.v;
 
-  wallx->fill();
-  wally->fill();
-  wallz->fill();
+  // wallx->fill();
+  // wally->fill();
+  // wallz->fill();
 
   // hdf5 doesn't have complex data types uses arrays with extra dimension
   // [0],[1] sequentially in memory
@@ -129,9 +129,9 @@ void measurer_output_fasthdf5::save(const std::string &what) {
   wally_phase->row = measure->wallYPhase.v;
   wallz_phase->row = measure->wallZPhase.v;
 
-  wallx_phase->fill();
-  wally_phase->fill();
-  wallz_phase->fill();
+  // wallx_phase->fill();
+  // wally_phase->fill();
+  // wallz_phase->fill();
 
   std::memcpy(wallx_phase_k->row.data(), measure->wallXPhase_k.v.data(),
               wallx_phase_k->row.size() * sizeof(double));
