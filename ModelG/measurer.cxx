@@ -8,42 +8,25 @@
 #ifndef MODELA_NO_HDF5
 /////////////////////////////////////////////////////////////////////////
 
-measurer_output_fasthdf5::measurer_output_fasthdf5(Measurer *in) : measure(in) {
+measurer_output_fasthdf5::measurer_output_fasthdf5(Measurer *in,
+                                                   const std::string filename,
+                                                   const PetscFileMode &mode)
+    : measure(in) {
 
-  const auto &ahandler = measure->model->data.ahandler;
-
-  std::string name;
-
-  if (ahandler.eventmode) {
-    // Write an HDF5 file for each event call foo_000001.h5
-    std::stringstream namestream;
-    namestream << ahandler.outputfiletag << "_" << std::setw(4)
-               << std::setfill('0') << ahandler.current_event << ".h5";
-    name = namestream.str();
-  } else {
-    // This is box mode one hdf5 file for the run
-    name = ahandler.outputfiletag + ".h5";
-  }
-
-  if (ahandler.eventmode) {
-    // Each event is stored in a separate file
-    file_id = H5Fcreate(name.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-  } else {
-    // Check if we are supposed to, and are able to, restart the measurements.
-    // Reopen up the hdf5 file and continue writing to tape
-    PetscBool restartflg = PETSC_FALSE;
-    if (ahandler.restart && !ahandler.eventmode) {
-      PetscTestFile(name.c_str(), '\0', &restartflg);
-    }
-
-    if (restartflg and !ahandler.eventmode) {
+  if (mode == FILE_MODE_WRITE) {
+    file_id =
+        H5Fcreate(filename.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+  } else if (mode == FILE_MODE_APPEND) {
+    // Check if file exists
+    PetscBool exists = PETSC_FALSE;
+    PetscTestFile(filename.c_str(), '\0', &exists);
+    if (exists) {
       // File exists and we are in restart mode,  so open it for readwrite
-      file_id = H5Fopen(name.c_str(), H5F_ACC_RDWR, H5P_DEFAULT);
+      file_id = H5Fopen(filename.c_str(), H5F_ACC_RDWR, H5P_DEFAULT);
     } else {
-      // File either doesn't exist or we are not in restart mode, create a new
-      // file
+      // File either doesn't exist although we are in restart mode
       file_id =
-          H5Fcreate(name.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+          H5Fcreate(filename.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
     }
   }
 
