@@ -78,7 +78,8 @@ public:
 #ifndef MODELA_NO_HDF5
 class measurer_output_fasthdf5 : public measurer_output {
 public:
-  measurer_output_fasthdf5(Measurer *in);
+  measurer_output_fasthdf5(Measurer *in, const std::string filename,
+                           const PetscFileMode &mode);
   ~measurer_output_fasthdf5();
   virtual void save(const std::string &what) override;
 
@@ -128,7 +129,9 @@ private:
 class Measurer {
 
 public:
-  Measurer(ModelA *ptr) : model(ptr) {
+  Measurer(ModelA *ptr, const std::string &filename,
+           const PetscFileMode &mode = FILE_MODE_WRITE)
+      : model(ptr) {
     N = model->data.NX;
     if (model->data.NX != model->data.NY || model->data.NX != model->data.NZ) {
       PetscPrintf(
@@ -142,7 +145,8 @@ public:
     int rank = 0;
     MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
     if (rank == 0) {
-      measurer_out = make_unique<measurer_output_fasthdf5>(this);
+      measurer_out =
+          std::make_unique<measurer_output_fasthdf5>(this, filename, mode);
     }
     fftw = make_unique<measurer_fft>(N);
 
@@ -203,12 +207,12 @@ private:
   std::vector<PetscScalar> OAverage;
 
   // First dimension is NObs, last is spatial index x=0...N
-  nvector<PetscScalar, 2> wallX; 
+  nvector<PetscScalar, 2> wallX;
   nvector<PetscScalar, 2> wallY;
   nvector<PetscScalar, 2> wallZ;
- 
+
   // First dimension is NObs, last dimension is fourier index k=0..N/2+1
-  nvector<std::complex<double>, 2> wallX_k; 
+  nvector<std::complex<double>, 2> wallX_k;
   nvector<std::complex<double>, 2> wallY_k;
   nvector<std::complex<double>, 2> wallZ_k;
 
@@ -216,7 +220,7 @@ private:
   // Array of size NobsRotate contains XPhase = (sigma, pi[1..Nphi],
   // q[1..2*Nphi], phi2)
   static const PetscInt NObsRotated = 3 * ModelAData::Nphi + 2;
-  nvector<std::complex<double>, 2> wallX_k_rotated; 
+  nvector<std::complex<double>, 2> wallX_k_rotated;
   nvector<std::complex<double>, 2> wallY_k_rotated;
   nvector<std::complex<double>, 2> wallZ_k_rotated;
 
@@ -224,12 +228,12 @@ private:
   // q[1..2*Nphi], phi2)
   // The first dimension is NObsPhase, the second domenions is the spatial index
   static const PetscInt NObsPhase = 3 * ModelAData::Nphi + 2;
-  nvector<PetscScalar, 2> wallXPhase; 
+  nvector<PetscScalar, 2> wallXPhase;
   nvector<PetscScalar, 2> wallYPhase;
   nvector<PetscScalar, 2> wallZPhase;
-  
+
   // First dimension is NObsPhase, last dimension is the fourier index 0..N/2+1
-  nvector<std::complex<double>, 2> wallXPhase_k; 
+  nvector<std::complex<double>, 2> wallXPhase_k;
   nvector<std::complex<double>, 2> wallYPhase_k;
   nvector<std::complex<double>, 2> wallZPhase_k;
 
