@@ -16,13 +16,10 @@
 // Measurer, where the Petsc are included
 #include "measurer.h"
 
-void run_event(ModelA* const model,Stepper* const step) 
+void thermalize_event(ModelA *const model) 
 {
-
   const auto &ahandler = model->data.ahandler ;
   auto &atime = model->data.atime ;
-
-  atime.reset() ;
 
   // Thermalize the state in memory at the initial time ;
   int nsteps  = static_cast<int>(ahandler.thermalization_time / atime.dt()) ;
@@ -41,7 +38,17 @@ void run_event(ModelA* const model,Stepper* const step)
                 (double)atime.t(), nsteps);
   }
   thermalizer->finalize();
-  thermalizer.reset() ;
+}
+
+
+void run_event(ModelA* const model,Stepper* const step) 
+{
+
+  const auto &ahandler = model->data.ahandler ;
+  auto &atime = model->data.atime ;
+
+  thermalize_event(model) ;
+  atime.reset() ;
 
   // Set up logging for PETSc so we can find out how much time 
   // each part takes
