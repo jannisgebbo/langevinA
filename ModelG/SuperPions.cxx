@@ -46,9 +46,9 @@ void run_event(ModelA* const model,Stepper* const step)
 
   const auto &ahandler = model->data.ahandler ;
   auto &atime = model->data.atime ;
+  atime.reset() ;
 
   thermalize_event(model) ;
-  atime.reset() ;
 
   // Set up logging for PETSc so we can find out how much time 
   // each part takes
