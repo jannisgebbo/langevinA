@@ -16,23 +16,39 @@
 // Measurer, where the Petsc are included
 #include "measurer.h"
 
+void thermalize_event(ModelA *const model) 
+{
+  const auto &ahandler = model->data.ahandler ;
+  auto &atime = model->data.atime ;
+
+  // Thermalize the state in memory at the initial time ;
+  int nsteps  = static_cast<int>(ahandler.thermalization_time / atime.dt()) ;
+  PetscPrintf(PETSC_COMM_WORLD, "Thermalizing event %D\n", ahandler.current_event); 
+
+  // Thermalize the initialconditions
+  std::unique_ptr<EulerLangevinHB> thermalizer = std::make_unique<EulerLangevinHB>(*model);
+  model->initialize_gaussian_charges() ;
+  for (int i = 0 ; i < nsteps ; i++) {
+    const int substeps = 6;
+    for (int j=0 ; j<substeps; j++){
+      thermalizer->step(atime.dt()/substeps) ;
+    }
+    PetscPrintf(PETSC_COMM_WORLD,
+                "Thermalizing Event/Timestep %D/%D: step size = %g, time = %g, nsteps to thermalize = %D \n", ahandler.current_event, i, (double)atime.dt(),
+                (double)atime.t(), nsteps);
+  }
+  thermalizer->finalize();
+}
+
+
 void run_event(ModelA* const model,Stepper* const step) 
 {
 
   const auto &ahandler = model->data.ahandler ;
   auto &atime = model->data.atime ;
-
   atime.reset() ;
 
-  // Thermalize the state in memory at the initial time ;
-  int nsteps  = static_cast<int>(ahandler.thermalization_time / atime.dt()) ;
-  PetscPrintf(PETSC_COMM_WORLD, "Thermalizing event %D\n", ahandler.current_event); 
-  for (int i = 0 ; i < nsteps ; i++) {
-    step->step(atime.dt()) ;
-    PetscPrintf(PETSC_COMM_WORLD,
-                "Thermalizing Event/Timestep %D/%D: step size = %g, time = %g, nsteps to thermalize = %D \n", ahandler.current_event, i, (double)atime.dt(),
-                (double)atime.t(), nsteps);
-  }
+  thermalize_event(model) ;
 
   // Set up logging for PETSc so we can find out how much time 
   // each part takes
@@ -42,9 +58,23 @@ void run_event(ModelA* const model,Stepper* const step)
   PetscLogEventRegister("Saving the fields", 0, &saving);
   PetscLogEventRegister("Steps", 0, &stepmonitor);
 
-  // Initialize the measurments and measure the initial condition for this
-  // event.  The data for each event is stored in a separate file
-  Measurer measurer(model);
+  // Set filename
+  std::string filename;
+  if (ahandler.eventmode) {
+    std::stringstream namestream;
+    namestream << ahandler.outputfiletag << "_" << std::setw(4)
+               << std::setfill('0') << ahandler.current_event << ".h5";
+    filename = namestream.str();
+  } else {
+    filename = ahandler.outputfiletag + ".h5";
+  }
+  // Set file access
+  PetscFileMode file_access = FILE_MODE_WRITE ;
+  if (ahandler.restart) {
+    file_access = FILE_MODE_APPEND;
+  }  
+  // Open the file and create the measurement object
+  Measurer measurer(model, filename, file_access);
 
   // Start the loop
   const double tiny = 1.e-10;
@@ -54,15 +84,14 @@ void run_event(ModelA* const model,Stepper* const step)
     if (steps % ahandler.saveFrequency == 0) {
       PetscLogEventBegin(measurements, 0, 0, 0, 0);
       measurer.measure(&model->solution);
-      // Print some information to not get bored during the running:
       PetscPrintf(PETSC_COMM_WORLD,
                   "Event/Timestep %D/%D: step size = %g, time = %g, final = %g\n", ahandler.current_event, steps,
                   (double)atime.dt(), (double)atime.t(), (double)atime.tfinal());
       PetscLogEventEnd(measurements, 0, 0, 0, 0);
     }
 
-    // Write the solution to tape if writeFrequency > 0. This is used for plotting
-    // of the solution. It is normally not analyzed, or written.
+    // Write the solution to tape if writeFrequency > 0. This is used for
+    // plotting of the solution. It is normally not analyzed, or written.
     if(ahandler.writeFrequency > 0 and steps % ahandler.writeFrequency == 0) {
       PetscLogEventBegin(saving, 0, 0, 0, 0);
       std::ostringstream tString;
