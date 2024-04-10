@@ -19,8 +19,8 @@ PETSc.pc := PETSc
 # Additional libraries that support pkg-config can be added to the list of PACKAGES below.
 PACKAGES := $(PETSc.pc) 
 
-CC := $(shell pkg-config --variable=ccompiler $(PACKAGES))
-CXX := $(shell pkg-config --variable=cxxcompiler $(PACKAGES))
+CC := cc
+CXX := CC
 FC := $(shell pkg-config --variable=fcompiler $(PACKAGES))
 CFLAGS_OTHER := $(shell pkg-config --cflags-only-other $(PACKAGES))
 CFLAGS := $(shell pkg-config --variable=cflags_extra $(PACKAGES)) $(CFLAGS_OTHER) 

@@ -182,7 +182,7 @@ def prlmrun(time=2, debug=False, dry_run=True, moreopts=["-log_view"], seed=None
         print("#SBATCH -A m3722", file=fh)
         print("#SBATCH -C cpu", file=fh)
         print("#SBATCH --qos debug", file=fh)
-        print("#SBATCH -t 00:10:00", file=fh)
+        print("#SBATCH -t 00:30:00", file=fh)
         print("#SBATCH -N {}".format(nnodes), file=fh)
         print("#SBATCH --ntasks={}".format(tasks), file=fh)
         print("#SBATCH --cpus-per-task={}".format(cpuspertask), file=fh)
