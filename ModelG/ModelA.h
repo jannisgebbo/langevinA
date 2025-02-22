@@ -117,6 +117,14 @@ struct ModelAHandlerData {
   int current_event = 0;
   double thermalization_time = 0.;
 
+  // Quench Mode:
+  //
+  // In quench mode we start with some mass, quench_mode_mass0, and 
+  // thermalize the system with that mass. At time t=0 we start the simulation
+  // with a different mass, as given by acoefficients.mass0
+  bool quench_mode = false ;
+  double quench_mode_mass0 = -4.70052;
+
   void read(Json::Value &params) {
     evolverType = params.get("evolverType", evolverType).asString();
     seed = (PetscInt)params.get("seed", seed).asInt();
@@ -126,6 +134,10 @@ struct ModelAHandlerData {
     writeFrequency = params.get("writeFrequency", writeFrequency).asInt();
     thermalization_time =
         params.get("thermalization_time", thermalization_time).asDouble();
+
+    quench_mode = params.get("quench_mode", quench_mode).asBool();
+    quench_mode_mass0 = params.get("quench_mode_mass0", quench_mode_mass0).asDouble() ;
+
 
     eventmode = params.get("eventmode", eventmode).asBool();
     nevents = params.get("nevents", nevents).asInt();
@@ -141,6 +153,11 @@ struct ModelAHandlerData {
     PetscPrintf(PETSC_COMM_WORLD, "saveFrequency = %d\n", saveFrequency);
     PetscPrintf(PETSC_COMM_WORLD, "thermalization_time = %e\n",
                 thermalization_time);
+
+    PetscPrintf(PETSC_COMM_WORLD, "quench_mode = %s\n",
+                (quench_mode ? "true" : "false"));
+    PetscPrintf(PETSC_COMM_WORLD, "quench_mode_mass0 = %e\n",
+                (quench_mode ? "true" : "false"));
 
     PetscPrintf(PETSC_COMM_WORLD, "eventmode = %s\n",
                 (eventmode ? "true" : "false"));

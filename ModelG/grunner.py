@@ -40,6 +40,10 @@ data = {
     "saveFrequency": 3,
     "thermalization_time": 0.0,
 
+    # for quenched initial conditions
+    "quench_mode": False, 
+    "quench_mode_mass0": -4.70052,
+
     # For running multi-events
     "eventmode": False,
     "nevents": 1,
@@ -56,7 +60,7 @@ def checkinputs():
         raise SystemExit('Do not run in diffusiononly mode without asking derek')
     if data["chi"] != 5.:
         raise SystemExit('Chi should be five')
-    if data["evolverType"] is not "PV2HBSplit23":
+    if data["evolverType"] != "PV2HBSplit23":
         raise SystemExit('The evovlerType is not "PV2HBSplit23"')
 
 
@@ -69,6 +73,12 @@ def datatojson():
 def get_kzfilename(tag):
     name = "%s_N%03d_m%08d_h%06d_tkz%06d" % (tag, data["NX"], round(
         100000*data["mass0"]), round(1000000*data["H"]), round(1./data["dmassdt"]))
+    return name
+
+# Canonicalize the names for a given set of parameters
+def get_qkzfilename(tag):
+    name = "%s_N%03d_m%08d_h%06d_q" % (tag, data["NX"], round(
+        100000*data["mass0"]), round(1000000*data["H"]))
     return name
 
 def getdefault_filename(tag):

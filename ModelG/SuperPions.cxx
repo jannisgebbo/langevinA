@@ -19,7 +19,21 @@
 void thermalize_event(ModelA *const model) 
 {
   const auto &ahandler = model->data.ahandler ;
-  auto &atime = model->data.atime ;
+  auto &atime = model->data.atime ; 
+  auto &acoefficients = model->data.acoefficients ;
+
+  // Initialize a quench.  Set the initial temperature (mass parameter)
+  // according a given value and thermalize this initial condition.  Then,
+  // after the thremalization process reset the mass to the one used for the
+  // actual running (as opposed to initializing) the code. The reset process
+  // is handled below
+  const double mass0 = acoefficients.mass0; // Store the mass for reset process
+  const double dmassdt = acoefficients.dmassdt ; // Store the slope for reset process
+  if (ahandler.quench_mode) { 
+     acoefficients.mass0 = ahandler.quench_mode_mass0 ;
+     acoefficients.dmassdt = 0. ;
+     PetscPrintf(PETSC_COMM_WORLD, "Settinng up a quench initial condition with initial mass %e\n", acoefficients.mass0); 
+  }
 
   // Thermalize the state in memory at the initial time ;
   int nsteps  = static_cast<int>(ahandler.thermalization_time / atime.dt()) ;
@@ -38,6 +52,16 @@ void thermalize_event(ModelA *const model)
                 (double)atime.t(), nsteps);
   }
   thermalizer->finalize();
+
+  //If we are performing a quench, set the mass back to its nominal value.
+  if (ahandler.quench_mode) { 
+     PetscPrintf(PETSC_COMM_WORLD, "Finalizing  quench initial condition with initial mass %e\n", acoefficients.mass0); 
+
+     acoefficients.mass0 = mass0 ;
+     acoefficients.dmassdt = dmassdt ;
+
+     PetscPrintf(PETSC_COMM_WORLD, "and final initial mass %e\n", acoefficients.mass0); 
+  }
 }
 
 
