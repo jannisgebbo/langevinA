@@ -13,7 +13,20 @@
 #endif
 #include "make_unique.h"
 
-// POD structure for recording the time stepping
+// This header file defines the structure and behavior of a simulation model called ModelA.
+// It includes necessary libraries and defines several classes and structures to manage the simulation data, parameters, and operations.
+
+// The ModelATime structure manages time-stepping information for the simulation.
+// The ModelACoefficients structure holds thermodynamic and transport coefficients.
+// The ModelAHandlerData structure contains options and settings for managing the simulation run.
+// The ModelAData class aggregates all static data and configuration options for the simulation.
+// The G_node and define data types for grid nodes in the simulation.
+// The ModelA class encapsulates the entire simulation, including grid setup, initialization, and finalization.
+
+
+// POD structure for recording the time stepping information. The finaltime is
+// the final time of the simulation, the initialtime is the initial time, and
+// deltat is the time step. The time variable is the current time.
 struct ModelATime {
   PetscReal finaltime = 10.;
   PetscReal initialtime = 0.;
@@ -255,12 +268,17 @@ public:
 
 /////////////////////////////////////////////////////////////////////////
 
+// This describes the data at each lattice site of the grid
 typedef struct {
+  // this is the field phi for a = 1,2,3,4
   PetscScalar f[ModelAData::Nphi];
+  // this is the the axial vector charge for s = 1,2,3
   PetscScalar A[ModelAData::NA];
+  // this is the the vector charge for s = 1,2,3
   PetscScalar V[ModelAData::NV];
 } G_node;
 
+// This describes the data at each lattice site as a single vector x
 typedef struct {
   PetscScalar x[ModelAData::Ndof];
 } data_node;
