@@ -52,15 +52,21 @@ LDLIBS := $(shell pkg-config --libs-only-l $(PACKAGES)) -lm -lhdf5
 # C++ source).  This can be built by uncommenting the following two lines.
 
 
-HEADRS = ModelA.h Stepper.h NoiseGenerator.h measurer.h measurer_output.h plotter.h O4AlgebraHelper.h ntuple.h
+HEADRS = ModelA.h Stepper.h NoiseGenerator.h measurer.h measurer_output.h O4AlgebraHelper.h ntuple.h
 OBJS = measurer.o measurer_output.o Stepper.o NoiseGenerator.o jsoncpp.o
 
-all: SuperPions.exe x2k.exe x2k_rotated.exe
+all: SuperPions.exe SuperQuench.exe
 
 SuperPions.exe: SuperPions.o $(OBJS)
 	$(LINK.cc) -o $@ $^ $(LDLIBS) -lstdc++
 
 SuperPions.o: SuperPions.cxx $(HEADRS)
+	$(COMPILE.cc) $(OUTPUT_OPTION) $<
+
+SuperQuench.exe: SuperQuench.o $(OBJS)
+	$(LINK.cc) -o $@ $^ $(LDLIBS) -lstdc++
+
+SuperQuench.o: SuperQuench.cxx $(HEADRS)
 	$(COMPILE.cc) $(OUTPUT_OPTION) $<
 
 Stepper.o: Stepper.cxx $(HEADRS)
@@ -69,22 +75,10 @@ Stepper.o: Stepper.cxx $(HEADRS)
 measurer.o: measurer.cxx $(HEADRS)
 	$(COMPILE.cc) $(OUTPUT_OPTION) $<
 
-measurer_ouptut.o: measurer_output.cxx $(HEADRS)
+measurer_output.o: measurer_output.cxx $(HEADRS)
 	$(COMPILE.cc) $(OUTPUT_OPTION) $<
 
 NoiseGenerator.o: NoiseGenerator.cxx NoiseGenerator.h
-	$(COMPILE.cc) $(OUTPUT_OPTION) $<
-
-x2k.exe : x2k.o $(OBJS)
-	$(LINK.cc) -o $@ $^ $(LDLIBS) -lstdc++
-
-x2k.o: x2k.cxx $(HEADRS)
-	$(COMPILE.cc) $(OUTPUT_OPTION) $<
-
-x2k_rotated.exe : x2k_rotated.o $(OBJS)
-	$(LINK.cc) -o $@ $^ $(LDLIBS) -lstdc++
-
-x2k_rotated.o: x2k_rotated.cxx $(HEADRS)
 	$(COMPILE.cc) $(OUTPUT_OPTION) $<
 
 idealtest.exe: idealtest.o $(OBJS)

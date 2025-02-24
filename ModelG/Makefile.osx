@@ -52,13 +52,21 @@ LDLIBS := $(shell pkg-config --libs-only-l $(PACKAGES)) -lm -lfftw3 -lhdf5
 # C++ source).  This can be built by uncommenting the following two lines.
 
 
-HEADRS = ModelA.h Stepper.h NoiseGenerator.h measurer.h measurer_output.h  O4AlgebraHelper.h
+HEADRS = ModelA.h Stepper.h NoiseGenerator.h measurer.h measurer_output.h O4AlgebraHelper.h ntuple.h
 OBJS = measurer.o measurer_output.o Stepper.o NoiseGenerator.o jsoncpp.o
+
+all: SuperPions.exe SuperQuench.exe
 
 SuperPions.exe: SuperPions.o $(OBJS)
 	$(LINK.cc) -o $@ $^ $(LDLIBS) -lstdc++
 
 SuperPions.o: SuperPions.cxx $(HEADRS)
+	$(COMPILE.cc) $(OUTPUT_OPTION) $<
+
+SuperQuench.exe: SuperQuench.o $(OBJS)
+	$(LINK.cc) -o $@ $^ $(LDLIBS) -lstdc++
+
+SuperQuench.o: SuperQuench.cxx $(HEADRS)
 	$(COMPILE.cc) $(OUTPUT_OPTION) $<
 
 Stepper.o: Stepper.cxx $(HEADRS)
@@ -102,11 +110,6 @@ test_json.exe: jsoncpp.o test_json.cpp
 	$(COMPILE.cc) test_json.cpp
 	$(LINK.cc) -o test_json.exe test_json.o jsoncpp.o -lstdc++
 
-x2k.exe : x2k.o $(OBJS)
-	$(LINK.cc) -o $@ $^ $(LDLIBS) -lstdc++
-
-x2k.o: x2k.cxx $(HEADRS)
-	$(COMPILE.cc) $(OUTPUT_OPTION) $<
 
 test_ntuple.exe: test_ntuple.o $(OBJS) 
 	$(LINK.cc) -o $@ $^ $(LDLIBS) -lstdc++
