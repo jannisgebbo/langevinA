@@ -35,11 +35,18 @@ private:
 
 ////////////////////////////////////////////////////////////////////////
 #ifndef MODELA_NO_HDF5
+// The purpose of this class is to output the data from the measurer to a hdf5
+// file. The intended usage is to call the measurement function of the measurer,
+// which loads the data into the measurer class. This class writes the data to a
+// file. The data is output in a format that is easy to read and analyze.
 class measurer_output_fasthdf5 : public measurer_output {
 public:
+  // Opens the hdf5 file for writing in the given mode
   measurer_output_fasthdf5(Measurer *in, const std::string filename,
                            const PetscFileMode &mode);
+  // Closes the hdf5 file
   ~measurer_output_fasthdf5();
+  //  Computes the contents of the data from measurer to the output file
   virtual void save(const std::string &what = "") override;
 
 private:
