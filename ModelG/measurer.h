@@ -2,43 +2,17 @@
 #define MEASURER
 
 #include "ModelA.h"
-#include "make_unique.h"
+// #include "make_unique.h"
 #include "nvector.h"
 #include <array>
 #include <complex>
 #include <fftw3.h>
 #include <vector>
 
-#ifndef MODELA_NO_HDF5
-#include "ntuple.h"
-#else
-#define MODELA_TXTOUTPUT
-#endif
-
-class Measurer;
-
-// Interface for output of measurements
-class measurer_output {
-public:
-  virtual ~measurer_output() { ; }
-  virtual void save(const std::string &what) = 0;
-};
-
 ////////////////////////////////////////////////////////////////////////
-
-// Minimal output of scalar array to a text file
-class measurer_output_txt : public measurer_output {
-public:
-  measurer_output_txt(Measurer *in);
-  ~measurer_output_txt();
-  virtual void save(const std::string &what);
-
-private:
-  Measurer *measure;
-  PetscViewer averages_asciiviewer;
-};
-
-////////////////////////////////////////////////////////////////////////
+// Class to compute the fourier transform of the 1d array. The fourier transform
+// is defined as 1/N \sum_x e^{ikx} W(x) = W(k) where W(x) is the array of size
+// N and W(k) is the complex array of size N/2 + 1
 class measurer_fft {
 
 private:
@@ -75,134 +49,49 @@ public:
 };
 
 ////////////////////////////////////////////////////////////////////////
-#ifndef MODELA_NO_HDF5
-class measurer_output_fasthdf5 : public measurer_output {
-public:
-  measurer_output_fasthdf5(Measurer *in, const std::string filename,
-                           const PetscFileMode &mode);
-  ~measurer_output_fasthdf5();
-  virtual void save(const std::string &what) override;
-
-private:
-  Measurer *measure;
-  hid_t file_id;
-
-  // One dimensional quantities
-  std::unique_ptr<ntuple<1>> scalars;
-  std::unique_ptr<ntuple<1>> timeout;
-
-  // Output
-  std::unique_ptr<ntuple<2>> wallx;
-  std::unique_ptr<ntuple<2>> wally;
-  std::unique_ptr<ntuple<2>> wallz;
-
-  // Output of fourier info
-  std::unique_ptr<ntuple<3>> wallx_k;
-  std::unique_ptr<ntuple<3>> wally_k;
-  std::unique_ptr<ntuple<3>> wallz_k;
-
-  // Output of fourier info rotated
-  std::unique_ptr<ntuple<3>> wallx_k_rotated;
-  std::unique_ptr<ntuple<3>> wally_k_rotated;
-  std::unique_ptr<ntuple<3>> wallz_k_rotated;
-
-  // Output of phase info
-  std::unique_ptr<ntuple<2>> wallx_phase;
-  std::unique_ptr<ntuple<2>> wally_phase;
-  std::unique_ptr<ntuple<2>> wallz_phase;
-
-  // Output of fourier phase info
-  std::unique_ptr<ntuple<3>> wallx_phase_k;
-  std::unique_ptr<ntuple<3>> wally_phase_k;
-  std::unique_ptr<ntuple<3>> wallz_phase_k;
-};
-#endif
-////////////////////////////////////////////////////////////////////////
-
-// class Measurment {
-//    void initialize(Vec *solution, const double &time) =0 ;
-//    void measure(Vec *solution, const double &time) =0 ;
-//    void finalize(Vec *solution, const double &time) =0 ;
-// } ;
-//  std::map<std::string,Measurement>  measurements ;
-
+// Computes slices of the fields and their fourier transforms
+//
+// The fields are labelled by U = phi, A, V, and phi2 and hence has dimensions
+// NObs = Nphi +  NA +  NV  + 1 respectively.  The field phi2 is the square of
+// the  field phi_a.
+//
+// Our fourier transform conventions are  (1/N_x) \sum_x e^{ikx} W(x) = W(k)
+// where W(x)  is the average of the fields over the y and z directions, i.e.
+// W(x) = 1/N_y * 1/N_z \sum_{y,z} U(x,y,z)
+//
+// The array wallX has dimensions NObs x N and contains the slices of the fields
+// in the x direction. The array wallX_k has dimensions NObs x N/2 + 1 and
+// contains the fourier transform of the slices of the fields in the x
+// direction.
+//
+// The fields are rotated in the direction of the vev and the rotated fields are
+// stored in the array wallX_rotated. The array wallXPhase has dimensions
+// NObsPhase x N and contains the slices of the fields in the x direction of the
+// rotated fields.  Finally the array wallXPhase_k has dimensions NObsPhase x
+// N/2 + 1 and contains the fourier transform of the slices of the fields in the
+// x direction of the rotated fields.
+//
+// The rotated fields are define as follows: The zero mode of the field phi
+// defines a unit four vector n_a. The rotated fields are defined as follows:
+//
+// sigma = n_a phi_a,
+// pi_b = phi_a - sigma n_b,
+// A_a = rho_{ab} n_b,
+// V_a = rhotilde_{ab} n_b,
+// phi2.
+//
+// Here rho_{ab} is the field A_a and V_a are the
+// axial and vector densities respectively and rhotilde_{ab} is the dual of the
+// field rho_{ab}, i.e. multiplied by the epsilon tensor epsilon_{abcd} which
+// swaps the vector and axial vector pieces.  Thus the dimension of the rotated
+// fields is NObsPhase = 3*Nphi + 2 where Nphi is the number of scalar fields.
 class Measurer {
-
 public:
-  Measurer(ModelA *ptr, const std::string &filename,
-           const PetscFileMode &mode = FILE_MODE_WRITE)
-      : model(ptr) {
-    N = model->data.NX;
-    if (model->data.NX != model->data.NY || model->data.NX != model->data.NZ) {
-      PetscPrintf(
-          PETSC_COMM_WORLD,
-          "Nx, Ny, and Nz must be equal for the correlation analysis to work");
-      throw(
-          "Nx, Ny, and Nz must be equal for the correlation analysis to work");
-    }
-
-    // Create the hdf5 view
-    int rank = 0;
-    MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
-    if (rank == 0) {
-      measurer_out =
-          std::make_unique<measurer_output_fasthdf5>(this, filename, mode);
-    }
-    fftw = make_unique<measurer_fft>(N);
-
-    wallX.resize(NObs, N);
-    wallY.resize(NObs, N);
-    wallZ.resize(NObs, N);
-
-    wallX_k.resize(NObs, N / 2 + 1);
-    wallY_k.resize(NObs, N / 2 + 1);
-    wallZ_k.resize(NObs, N / 2 + 1);
-
-    wallX_k_rotated.resize(NObsRotated, N / 2 + 1);
-    wallY_k_rotated.resize(NObsRotated, N / 2 + 1);
-    wallZ_k_rotated.resize(NObsRotated, N / 2 + 1);
-
-    wallXPhase.resize(NObsPhase, N);
-    wallYPhase.resize(NObsPhase, N);
-    wallZPhase.resize(NObsPhase, N);
-
-    wallXPhase_k.resize(NObsPhase, N / 2 + 1);
-    wallYPhase_k.resize(NObsPhase, N / 2 + 1);
-    wallZPhase_k.resize(NObsPhase, N / 2 + 1);
-  }
-
-  virtual ~Measurer() {}
-
-  void finalize() {}
-
-  // Periodically measure the solution writing
-  void measure(Vec *solution) {
-    int rank = -1;
-    MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
-
-    computeSliceAverage(solution);
-    computeSliceAveragePhase(solution);
-
-    if (rank == 0) {
-      computeDerivedObs();
-      measurer_out->save("phi");
-    }
-  }
-  const std::vector<PetscScalar> &getOAverage() const { return OAverage; }
-
-private:
-  void computeSliceAverage(Vec *solution);
-  void computeSliceAveragePhase(Vec *solution);
-  void computeDerivedObs();
-
-  ModelA *model;
-  PetscInt N;
-
   // Arrays of size Nobs contain X=(phi[1..Nphi], q[1...Nq], phi2)
   static const PetscInt NObs =
       ModelAData::Nphi + ModelAData::NA + ModelAData::NV + 1;
 
-  // Scalar data
+  // Scalar data this is k=0 mode by itself
   static const PetscInt NScalars = NObs;
   std::vector<PetscScalar> OAverage;
 
@@ -237,13 +126,71 @@ private:
   nvector<std::complex<double>, 2> wallYPhase_k;
   nvector<std::complex<double>, 2> wallZPhase_k;
 
+public:
+  Measurer(ModelA *ptr) : model(ptr) {
+    N = model->data.NX;
+    if (model->data.NX != model->data.NY || model->data.NX != model->data.NZ) {
+      PetscPrintf(
+          PETSC_COMM_WORLD,
+          "Nx, Ny, and Nz must be equal for the correlation analysis to work");
+      throw(
+          "Nx, Ny, and Nz must be equal for the correlation analysis to work");
+    }
+
+    fftw = make_unique<measurer_fft>(N);
+
+    wallX.resize(NObs, N);
+    wallY.resize(NObs, N);
+    wallZ.resize(NObs, N);
+
+    wallX_k.resize(NObs, N / 2 + 1);
+    wallY_k.resize(NObs, N / 2 + 1);
+    wallZ_k.resize(NObs, N / 2 + 1);
+
+    wallX_k_rotated.resize(NObsRotated, N / 2 + 1);
+    wallY_k_rotated.resize(NObsRotated, N / 2 + 1);
+    wallZ_k_rotated.resize(NObsRotated, N / 2 + 1);
+
+    wallXPhase.resize(NObsPhase, N);
+    wallYPhase.resize(NObsPhase, N);
+    wallZPhase.resize(NObsPhase, N);
+
+    wallXPhase_k.resize(NObsPhase, N / 2 + 1);
+    wallYPhase_k.resize(NObsPhase, N / 2 + 1);
+    wallZPhase_k.resize(NObsPhase, N / 2 + 1);
+  }
+
+  virtual ~Measurer() {}
+
+  // Takes the vector, solution,  and computes the walls and their fourier
+  // transforms and the rotated versions.  On output the arrays wallX, wallX_k,
+  // wallX_rotated, as well as Y and Z are filled with the data. This can be
+  // accessed to write the data to disk.
+  void measure(Vec *solution) {
+    int rank = -1;
+    MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
+
+    computeSliceAverage(solution);
+    computeSliceAveragePhase(solution);
+
+    if (rank == 0) {
+      computeDerivedObs();
+    }
+  }
+
+  ModelA *getModel() { return model; }
+  PetscInt getN() { return N; }
+
+private:
+  void computeSliceAverage(Vec *solution);
+  void computeSliceAveragePhase(Vec *solution);
+  void computeDerivedObs();
+
+  ModelA *model;
+  PetscInt N;
+
   // FFT engine using the fftw3 library
   std::unique_ptr<measurer_fft> fftw;
-
-  friend class measurer_output_fasthdf5;
-  std::unique_ptr<measurer_output> measurer_out;
-
-  friend class measurer_output_txt;
 };
 
 #endif

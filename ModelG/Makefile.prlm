@@ -52,8 +52,8 @@ LDLIBS := $(shell pkg-config --libs-only-l $(PACKAGES)) -lm -lhdf5
 # C++ source).  This can be built by uncommenting the following two lines.
 
 
-HEADRS = ModelA.h Stepper.h NoiseGenerator.h measurer.h plotter.h O4AlgebraHelper.h ntuple.h
-OBJS = measurer.o Stepper.o NoiseGenerator.o jsoncpp.o
+HEADRS = ModelA.h Stepper.h NoiseGenerator.h measurer.h measurer_output.h plotter.h O4AlgebraHelper.h ntuple.h
+OBJS = measurer.o measurer_output.o Stepper.o NoiseGenerator.o jsoncpp.o
 
 all: SuperPions.exe x2k.exe x2k_rotated.exe
 
@@ -67,6 +67,9 @@ Stepper.o: Stepper.cxx $(HEADRS)
 	$(COMPILE.cc) $(OUTPUT_OPTION) $<
 
 measurer.o: measurer.cxx $(HEADRS)
+	$(COMPILE.cc) $(OUTPUT_OPTION) $<
+
+measurer_ouptut.o: measurer_output.cxx $(HEADRS)
 	$(COMPILE.cc) $(OUTPUT_OPTION) $<
 
 NoiseGenerator.o: NoiseGenerator.cxx NoiseGenerator.h

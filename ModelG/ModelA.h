@@ -169,8 +169,7 @@ struct ModelAHandlerData {
 
     PetscPrintf(PETSC_COMM_WORLD, "quench_mode = %s\n",
                 (quench_mode ? "true" : "false"));
-    PetscPrintf(PETSC_COMM_WORLD, "quench_mode_mass0 = %e\n",
-                (quench_mode ? "true" : "false"));
+    PetscPrintf(PETSC_COMM_WORLD, "quench_mode_mass0 = %e\n", quench_mode_mass0);
 
     PetscPrintf(PETSC_COMM_WORLD, "eventmode = %s\n",
                 (eventmode ? "true" : "false"));

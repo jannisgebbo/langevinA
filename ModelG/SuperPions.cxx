@@ -15,6 +15,7 @@
 
 // Measurer, where the Petsc are included
 #include "measurer.h"
+#include "measurer_output.h"
 
 void thermalize_event(ModelA *const model) 
 {
@@ -98,7 +99,8 @@ void run_event(ModelA* const model,Stepper* const step)
     file_access = FILE_MODE_APPEND;
   }  
   // Open the file and create the measurement object
-  Measurer measurer(model, filename, file_access);
+  Measurer measurer(model) ;
+  measurer_output_fasthdf5 measurer_output(&measurer, filename, file_access);
 
   // Start the loop
   const double tiny = 1.e-10;
@@ -108,6 +110,7 @@ void run_event(ModelA* const model,Stepper* const step)
     if (steps % ahandler.saveFrequency == 0) {
       PetscLogEventBegin(measurements, 0, 0, 0, 0);
       measurer.measure(&model->solution);
+      measurer_output.save() ;
       PetscPrintf(PETSC_COMM_WORLD,
                   "Event/Timestep %D/%D: step size = %g, time = %g, final = %g\n", ahandler.current_event, steps,
                   (double)atime.dt(), (double)atime.t(), (double)atime.tfinal());
@@ -133,8 +136,6 @@ void run_event(ModelA* const model,Stepper* const step)
     steps++;
     atime += atime.dt();
   }
-  measurer.finalize();
-
 }
 
 
