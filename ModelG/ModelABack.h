@@ -468,6 +468,11 @@ public:
   }
 
   PetscErrorCode initialize_gaussian_charges() {
+    // Compute the lattice spacing
+    PetscReal hx = data.hX();
+    PetscReal hy = data.hY();
+    PetscReal hz = data.hZ();
+
     // This Get a pointer to do the calculation
     PetscScalar ****u;
     DMDAVecGetArrayDOF(domain, solution, &u);

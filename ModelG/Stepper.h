@@ -271,10 +271,10 @@ private:
   EulerLangevinHB hbPhi;
   ModelGChargeHB hbN;
 
+  std::array<unsigned int, 2> stepcounts;
   bool nodiffusion;
   bool onlydiffusion;
 
-  std::array<unsigned int, 2> stepcounts;
 };
 
 #endif
