@@ -140,7 +140,6 @@ void Measurer::computeSliceAveragePhase(Vec *solution) {
   // Get the ranges
   PetscInt ixs, iys, izs, nx, ny, nz;
   DMDAGetCorners(da, &ixs, &iys, &izs, &nx, &ny, &nz);
-  PetscReal phi2;
 
   double sigma;
   std::array<double, 4> n{};

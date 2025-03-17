@@ -26,9 +26,9 @@ void initialize_event(ModelA *model)
   // ModelAData is lightweight and contains all the data for ModelA
   ModelAData &data = model->data ;
   // Compute the lattice spacing extracting the information from the data
-  PetscReal hx = data.hX();
-  PetscReal hy = data.hY();
-  PetscReal hz = data.hZ();
+  // PetscReal hx = data.hX();
+  // PetscReal hy = data.hY();
+  // PetscReal hz = data.hZ();
 
   // data_node ***u
   //
@@ -226,7 +226,7 @@ void run_event(ModelA* const model,Stepper* const step)
       measurer.measure(&model->solution);
       measurer_output.save() ;
       PetscPrintf(PETSC_COMM_WORLD,
-                  "Event/Timestep %D/%D: step size = %g, time = %g, final = %g\n", ahandler.current_event, steps,
+                  "Event/Timestep %d/%d: step size = %g, time = %g, final = %g\n", ahandler.current_event, steps,
                   (double)atime.dt(), (double)atime.t(), (double)atime.tfinal());
       PetscLogEventEnd(measurements, 0, 0, 0, 0);
     }

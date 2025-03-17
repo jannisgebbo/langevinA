@@ -38,7 +38,7 @@ void thermalize_event(ModelA *const model)
 
   // Thermalize the state in memory at the initial time ;
   int nsteps  = static_cast<int>(ahandler.thermalization_time / atime.dt()) ;
-  PetscPrintf(PETSC_COMM_WORLD, "Thermalizing event %D\n", ahandler.current_event); 
+  PetscPrintf(PETSC_COMM_WORLD, "Thermalizing event %d\n", ahandler.current_event); 
 
   // Thermalize the initialconditions
   std::unique_ptr<EulerLangevinHB> thermalizer = std::make_unique<EulerLangevinHB>(*model);
@@ -49,7 +49,7 @@ void thermalize_event(ModelA *const model)
       thermalizer->step(atime.dt()/substeps) ;
     }
     PetscPrintf(PETSC_COMM_WORLD,
-                "Thermalizing Event/Timestep %D/%D: step size = %g, time = %g, nsteps to thermalize = %D \n", ahandler.current_event, i, (double)atime.dt(),
+                "Thermalizing Event/Timestep %d/%d: step size = %g, time = %g, nsteps to thermalize = %d \n", ahandler.current_event, i, (double)atime.dt(),
                 (double)atime.t(), nsteps);
   }
   thermalizer->finalize();
@@ -112,7 +112,7 @@ void run_event(ModelA* const model,Stepper* const step)
       measurer.measure(&model->solution);
       measurer_output.save() ;
       PetscPrintf(PETSC_COMM_WORLD,
-                  "Event/Timestep %D/%D: step size = %g, time = %g, final = %g\n", ahandler.current_event, steps,
+                  "Event/Timestep %d/%d: step size = %g, time = %g, final = %g\n", ahandler.current_event, steps,
                   (double)atime.dt(), (double)atime.t(), (double)atime.tfinal());
       PetscLogEventEnd(measurements, 0, 0, 0, 0);
     }
