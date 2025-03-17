@@ -62,20 +62,89 @@ void initialize_event(ModelA *model)
   std::vector<PetscScalar> charge_sum(ModelAData::Ndof, 0.);
 
   PetscScalar chi = data.acoefficients.chi ;
+  constexpr auto PI = 3.14159265358979323846;
+  PetscReal wave_k = 4*PI/data.LX;
+  PetscReal argument;
+  
   for (k = zstart; k < zstart + zdimension; k++) {
     for (j = ystart; j < ystart + ydimension; j++) {
       for (i = xstart; i < xstart + xdimension; i++) {
+        argument = wave_k;
         for (L = 0; L < ModelAData::Ndof; L++) {
-          // Dont update the phi components
+
+          // field components s_a
           if (L < ModelAData::Nphi) {
-            continue;
+            
+            // s_0 component
+            if (L == 0){
+              u[k][j][i].x[L] = data.ahandler.init_amp;
+              // 1d init cond.
+              if (data.ahandler.init_dim == 1){
+                u[k][j][i].x[L] *= cos(argument*i);
+              }
+              // 2d init cond.
+              else if (data.ahandler.init_dim == 2){
+                u[k][j][i].x[L] *= cos(argument*i)*cos(argument*j);
+              }
+            }
+            // s_1 component
+            else if (L == 1){
+              u[k][j][i].x[L] = data.ahandler.init_amp;
+              // 1d init cond.
+              if (data.ahandler.init_dim == 1){
+                  // if standing wave solution 
+                  if (data.ahandler.standing_waves){
+                    u[k][j][i].x[L] *= 0.0;
+                  }
+                  else{
+                    u[k][j][i].x[L] *= sin(argument*i);
+                  }
+              }
+              // 2d init cond.
+              else if (data.ahandler.init_dim == 2){
+                u[k][j][i].x[L] *= sin(argument*i)*cos(argument*j);
+              }
+            }
+            // s_2 component
+            else if (L == 2){
+              u[k][j][i].x[L] = data.ahandler.init_amp;
+              // 1d init cond.
+              if (data.ahandler.init_dim == 1){
+                  // if standing wave solution 
+                  if (data.ahandler.standing_waves){
+                    u[k][j][i].x[L] *= sin(argument*i);
+                  }
+                  else{
+                    u[k][j][i].x[L] *= 0.0;
+                  }
+              }
+              // 2d init cond.
+              else if (data.ahandler.init_dim == 2){
+                u[k][j][i].x[L] *= sin(argument*j);
+              }
+            }
           }
 
+          // charges n_A (4,5,6) and n_V (7,8,9)
+          else{
           // Generate gaussian random numbers for charges
-          u[k][j][i].x[L] = sqrt(chi) * ModelARndm->normal();
+          //u[k][j][i].x[L] = sqrt(chi) * ModelARndm->normal();
+
+            // (n_A)_0 (or n_01)
+            if (L == 4){
+              u[k][j][i].x[L] = wave_k*chi;
+            }
+            // (n_A)_0 (or n_01) OR (n_V)_2 (or n_12)
+            else if (L == 5 || L == 9){
+              // 2d init cond.
+              if (data.ahandler.init_dim == 2){
+               u[k][j][i].x[L] = wave_k*chi;
+              }
+            }
 
           // Accumulate the total charge in a Buffer
           charge_sum_local[L] += u[k][j][i].x[L] ;
+          }
         }
       }
     }
@@ -94,13 +163,14 @@ void initialize_event(ModelA *model)
           if (L < ModelAData::Nphi) {
             continue;
           }
-          u[k][j][i].x[L] -= charge_sum[L] / V;
+          //u[k][j][i].x[L] -= charge_sum[L] / V;
         }
       }
     }
   }
 
   DMDAVecRestoreArray(model->domain, model->solution, &u);
+
 
 }
 
@@ -159,6 +229,16 @@ void run_event(ModelA* const model,Stepper* const step)
                   "Event/Timestep %D/%D: step size = %g, time = %g, final = %g\n", ahandler.current_event, steps,
                   (double)atime.dt(), (double)atime.t(), (double)atime.tfinal());
       PetscLogEventEnd(measurements, 0, 0, 0, 0);
+    }
+
+    // Write the solution to tape if writeFrequency > 0. This is used for
+    // plotting of the solution. It is normally not analyzed, or written.
+    if(ahandler.writeFrequency > 0 and steps % ahandler.writeFrequency == 0) {
+      PetscLogEventBegin(saving, 0, 0, 0, 0);
+      std::ostringstream tString;
+      tString << std::setprecision(4) <<"_t_" << atime.t();
+      model->write(ahandler.outputfiletag + tString.str());
+      PetscLogEventEnd(saving, 0, 0, 0, 0);
     }
 
     // Do the actual steps
