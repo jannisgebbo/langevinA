@@ -10,7 +10,6 @@ import uuid
 import math
 
 
-
 random.seed()
 
 data = {
@@ -88,61 +87,17 @@ def getdefault_filename(tag):
     return name
 
 
-# Canonicalize the names for a given set of parameters, with a scan in m2
-def getdefault_filename_m2change():
-    s = "xxxxxxxxxxxxx"
-    tag = data["outputfiletag"]
-    name = "%s_N%03d_m%.8s_h%06d_c%05d" % (tag, round(
-        data["NX"]), s, round(1000000*data["H"]), round(100*data["chi"]))
-    return name
-
-
-# Canonicalize the names for a given set of parameters, with scan in H
-def getdefault_filename_Hchange():
-    s = "xxxxxxxxxxxxx"
-    tag = data["outputfiletag"]
-    name = "%s_N%03d_m%08d_h%.6s_c%05d" % (tag, data["NX"], round(
-        100000*data["mass0"]), s, round(100*data["chi"]))
-    return name
-
-
-# Canonicalize the names for a given set of parameters, with scan in N
-def getdefault_filename_Nchange():
-    s = "xxxxxxxxxxxxx"
-    tag = data["outputfiletag"]
-    name = "%s_N%.3s_m%08d_h%06d_c%05d" % (tag, s, round(
-        100000*data["mass0"]), round(1000000*data["H"]), round(100*data["chi"]))
-    return name
-
-
-# Canonicalize the names for a given set of parameters, with scan in chi
-def getdefault_filename_chichange():
-    s = "xxxxxxxxxxxxx"
-    tag = data["outputfiletag"]
-    name = "%s_N%03d_m%08d_h%06d_c%.5s" % (tag, data["NX"], round(
-        100000*data["mass0"]), round(1000000*data["H"]), s)
-    return name
-
-########################################################################
-# Find the program to run
-########################################################################
-def find_program(program_name="SuperPions.exe"):
-    # find the program
-    path = os.path.abspath(os.path.dirname(__file__))
-    return path + "/" + program_name
-
-
-########################################################################
-# Compute the fourier transform of a file
-########################################################################
-def x2k(filename):
-    program = find_program(program_name="x2k.exe")
-    cmd = program + " " + filename + " wallx"
-    result = subprocess.run(cmd, shell=True, capture_output=True)
-    cmd = program + " " + filename + " wally"
-    result = subprocess.run(cmd, shell=True, capture_output=True)
-    cmd = program + " " + filename + " wallz"
-    result = subprocess.run(cmd, shell=True, capture_output=True)
+# Find the program looking in the environment variable for the path
+def find_program(program_name="SuperPions.exe") :
+    path = os.environ.get('MODELGPATH') 
+    if path is None:
+        print("Unable to find the path MODELGPATH") 
+    abspath = os.path.join(path, program_name)
+    if os.path.exists(abspath) :
+        print("Found the executable {}".format(abspath))
+    else:
+        print("Unable to find the executable {}".format(abspath))
+    return abspath
 
 
 #########################################################################
@@ -150,7 +105,7 @@ def x2k(filename):
 #########################################################################
 
 
-def prlmrun(time=2, debug=False, dry_run=True, moreopts=["-log_view"], seed=None, nnodes=1, nodeid=False, parallel=False, environment=[]):
+def prlmrun(time=2, debug=False, dry_run=True, moreopts=["-log_view"], seed=None, nnodes=1, nodeid=False):
     prgm = find_program()
 
     # Create a run directory "name"  if does not exist, and cd to it
@@ -337,13 +292,4 @@ def run(program_name="SuperPions.exe", moreopts=[], dry_run=True, time=0, seed=N
 
 
 if __name__ == "__main__":
-    print(getdefault_filename())
-    print(getdefault_filename_Nchange())
-    print(getdefault_filename_m2change())
-    print(getdefault_filename_Hchange())
-    print(getdefault_filename_chichange())
-    setdefault_filename()
-    #corirun(dry_run=True, time=0.25)
-    #corirun(dry_run=True, parallel=True, time=0.25)
-    # run(dry_run=True)
-    # prun(dry_run=True)
+    print(getdefault_filename("foo"))
