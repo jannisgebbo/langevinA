@@ -137,6 +137,12 @@ struct ModelAHandlerData {
   // with a different mass, as given by acoefficients.mass0
   bool quench_mode = false ;
   double quench_mode_mass0 = -4.70052;
+    
+  // Initial amplitude, standing waves bool and dimension of init cond.
+  PetscReal init_amp = 1.0;
+  bool standing_waves = false;
+  int init_dim = 1;
+
 
   void read(Json::Value &params) {
     evolverType = params.get("evolverType", evolverType).asString();
@@ -151,9 +157,12 @@ struct ModelAHandlerData {
     quench_mode = params.get("quench_mode", quench_mode).asBool();
     quench_mode_mass0 = params.get("quench_mode_mass0", quench_mode_mass0).asDouble() ;
 
-
     eventmode = params.get("eventmode", eventmode).asBool();
     nevents = params.get("nevents", nevents).asInt();
+
+    init_amp = params.get("init_amp", init_amp).asDouble();
+    standing_waves = params.get("standing_waves", standing_waves).asBool();
+    init_dim = params.get("init_dim", init_dim).asInt();
   }
 
   void print() {
@@ -174,6 +183,9 @@ struct ModelAHandlerData {
     PetscPrintf(PETSC_COMM_WORLD, "eventmode = %s\n",
                 (eventmode ? "true" : "false"));
     PetscPrintf(PETSC_COMM_WORLD, "nevents = %d\n", nevents);
+    PetscPrintf(PETSC_COMM_WORLD, "init_amp = %e\n", init_amp);
+    PetscPrintf(PETSC_COMM_WORLD, "standing_waves = %s\n", (standing_waves ? "true" : "false"));
+    PetscPrintf(PETSC_COMM_WORLD, "init_dim = %d\n", init_dim);
   }
 };
 
