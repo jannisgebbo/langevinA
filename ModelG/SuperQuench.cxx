@@ -18,161 +18,44 @@
 #include "measurer_output.h"
 
 
-// This is an example of how to initialize the data in the grid. This is a
-// simple example where the charges are gaussian random numbers. The charges
-// are normalized so that the total charge is zero.
-void initialize_event(ModelA *model) 
-{
-  // ModelAData is lightweight and contains all the data for ModelA
-  ModelAData &data = model->data ;
-  // Compute the lattice spacing extracting the information from the data
-  // PetscReal hx = data.hX();
-  // PetscReal hy = data.hY();
-  // PetscReal hz = data.hZ();
+// call subroutines of ModelA that assign initial values to all fields (charges and phis)
+void initialize_event(ModelA *model) {
+  
+  // call ModelA subroutine that initializes random spin configurations
+  model->initialize_random_spins();
+  // and subroutine that initializes gaussian random charges with normalization such that total
+  // charge is zero
+  model->initialize_gaussian_charges();
 
-  // data_node ***u
-  //
-  // This Get a pointer to do the calculation. 
-  // Here we are viewing the grid as a three dimensional grid of data_nodes
-  //
-  // G_node ***u;
-  //
-  // Alternatively one could use G_Node ***u which would view the grid as a 
-  // three dimensional grid of G_Nodes (which divides up the fields in phi, V,
-  // and A), see ModelA.h for more information.
-  // 
-  // Petscalar ****u
-  //
-  // Still alternatively one coude use DMDAVecGetArrayDOF(model->domain,
-  // model->solution, &u); whichwould view the grid as a four dimensional grid
-  // of PetscScalars.
-  data_node ***u;
-  DMDAVecGetArray(model->domain, model->solution, &u);
-
-  // This is the Petsc way of doing things
+  // testing output
+  Measurer measurer(model) ;
+  measurer.measure(&model->solution);
+  
+  // Get the Local Corner od the vector
   PetscInt i, j, k, L, xstart, ystart, zstart, xdimension, ydimension,
       zdimension;
 
   DMDAGetCorners(model->domain, &xstart, &ystart, &zstart, &xdimension, &ydimension,
                  &zdimension);
 
-  // We are going initialize the grid with the charges being gaussian random
-  // numbers. The charges are normalized so that the total charge is zero. 
-  std::vector<PetscScalar> charge_sum_local(ModelAData::Ndof, 0.);
-  std::vector<PetscScalar> charge_sum(ModelAData::Ndof, 0.);
+  std::vector<PetscReal> sexp(ModelAData::Ndof);
 
-  PetscScalar chi = data.acoefficients.chi ;
-  constexpr auto PI = 3.14159265358979323846;
-  PetscReal wave_k = 4*PI/data.LX;
-  PetscReal argument;
-  
-  for (k = zstart; k < zstart + zdimension; k++) {
-    for (j = ystart; j < ystart + ydimension; j++) {
-      for (i = xstart; i < xstart + xdimension; i++) {
-        argument = wave_k;
-        for (L = 0; L < ModelAData::Ndof; L++) {
-
-          // field components s_a
-          if (L < ModelAData::Nphi) {
-            
-            // s_0 component
-            if (L == 0){
-              u[k][j][i].x[L] = data.ahandler.init_amp;
-              // 1d init cond.
-              if (data.ahandler.init_dim == 1){
-                u[k][j][i].x[L] *= cos(argument*i);
-              }
-              // 2d init cond.
-              else if (data.ahandler.init_dim == 2){
-                u[k][j][i].x[L] *= cos(argument*i)*cos(argument*j);
-              }
-            }
-            // s_1 component
-            else if (L == 1){
-              u[k][j][i].x[L] = data.ahandler.init_amp;
-              // 1d init cond.
-              if (data.ahandler.init_dim == 1){
-                  // if standing wave solution 
-                  if (data.ahandler.standing_waves){
-                    u[k][j][i].x[L] *= 0.0;
-                  }
-                  else{
-                    u[k][j][i].x[L] *= sin(argument*i);
-                  }
-              }
-              // 2d init cond.
-              else if (data.ahandler.init_dim == 2){
-                u[k][j][i].x[L] *= sin(argument*i)*cos(argument*j);
-              }
-            }
-            // s_2 component
-            else if (L == 2){
-              u[k][j][i].x[L] = data.ahandler.init_amp;
-              // 1d init cond.
-              if (data.ahandler.init_dim == 1){
-                  // if standing wave solution 
-                  if (data.ahandler.standing_waves){
-                    u[k][j][i].x[L] *= sin(argument*i);
-                  }
-                  else{
-                    u[k][j][i].x[L] *= 0.0;
-                  }
-              }
-              // 2d init cond.
-              else if (data.ahandler.init_dim == 2){
-                u[k][j][i].x[L] *= sin(argument*j);
-              }
-            }
-          }
-
-          // charges n_A (4,5,6) and n_V (7,8,9)
-          else{
-          // Generate gaussian random numbers for charges
-          //u[k][j][i].x[L] = sqrt(chi) * ModelARndm->normal();
-
-            // (n_A)_0 (or n_01)
-            if (L == 4){
-              u[k][j][i].x[L] = wave_k*chi;
-            }
-            // (n_A)_0 (or n_01) OR (n_V)_2 (or n_12)
-            else if (L == 5 || L == 9){
-              // 2d init cond.
-              if (data.ahandler.init_dim == 2){
-               u[k][j][i].x[L] = wave_k*chi;
-              }
-            }
-
-          // Accumulate the total charge in a Buffer
-          charge_sum_local[L] += u[k][j][i].x[L] ;
-          }
-        }
-      }
-    }
-  }
-    // Find the total charge
-  MPI_Allreduce(charge_sum_local.data(), charge_sum.data(), ModelAData::Ndof,
-                MPIU_SCALAR, MPI_SUM, PETSC_COMM_WORLD);
-
-  // Subtract the the total charge from the grid. This assume the lattice
-  // spacing is 1
-  PetscScalar V = data.NX * data.NY * data.NX;
-  for (k = zstart; k < zstart + zdimension; k++) {
-    for (j = ystart; j < ystart + ydimension; j++) {
-      for (i = xstart; i < xstart + xdimension; i++) {
-        for (L = 0; L < ModelAData::Ndof; L++) {
-          if (L < ModelAData::Nphi) {
-            continue;
-          }
-          //u[k][j][i].x[L] -= charge_sum[L] / V;
-        }
-      }
+  // iterate over all lattice points
+  for (i = xstart; i < xstart + xdimension; i++) {
+    for (L = 0; L < ModelAData::Ndof; L++) {
+      sexp[L] += measurer.wallX(L,i)/(model->data.NX);
     }
   }
 
-  DMDAVecRestoreArray(model->domain, model->solution, &u);
+  std::cerr << "s0_exp: " << sexp[0] << std::endl;
+  std::cerr << "s1_exp: " << sexp[1] << std::endl;
+  std::cerr << "s2_exp: " << sexp[2] << std::endl;
+  std::cerr << "s3_exp: " << sexp[3] << std::endl;
 
-
+  // for former 'wave initial conditions' do instead:
+  // model->initialize_wave_spins();
 }
+
 
 // This is the main loop of the program. It is a simple loop that steps the
 // solution forward in time until the final time is reached. The data is analyzed
