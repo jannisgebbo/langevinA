@@ -31,27 +31,6 @@ void initialize_event(ModelA *model) {
   Measurer measurer(model) ;
   measurer.measure(&model->solution);
   
-  // Get the Local Corner od the vector
-  PetscInt i, j, k, L, xstart, ystart, zstart, xdimension, ydimension,
-      zdimension;
-
-  DMDAGetCorners(model->domain, &xstart, &ystart, &zstart, &xdimension, &ydimension,
-                 &zdimension);
-
-  std::vector<PetscReal> sexp(ModelAData::Ndof);
-
-  // iterate over all lattice points
-  for (i = xstart; i < xstart + xdimension; i++) {
-    for (L = 0; L < ModelAData::Ndof; L++) {
-      sexp[L] += measurer.wallX(L,i)/(model->data.NX);
-    }
-  }
-
-  std::cerr << "s0_exp: " << sexp[0] << std::endl;
-  std::cerr << "s1_exp: " << sexp[1] << std::endl;
-  std::cerr << "s2_exp: " << sexp[2] << std::endl;
-  std::cerr << "s3_exp: " << sexp[3] << std::endl;
-
   // for former 'wave initial conditions' do instead:
   // model->initialize_wave_spins();
 }
