@@ -27,10 +27,7 @@ void initialize_event(ModelA *model) {
   // charge is zero
   model->initialize_gaussian_charges();
 
-  // testing output
-  Measurer measurer(model) ;
-  measurer.measure(&model->solution);
-  
+
   // for former 'wave initial conditions' do instead:
   // model->initialize_wave_spins();
 }

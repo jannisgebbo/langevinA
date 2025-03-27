@@ -555,16 +555,6 @@ public:
     DMDAGetCorners(domain, &xstart, &ystart, &zstart, &xdimension, &ydimension,
                    &zdimension);
     
-    // Get a random seed
-    std::random_device rd;
-    // initialize random number generator mersenne twister
-    std::mt19937 gen(rd());
-    // set the intervals for uniform random number generation (phi from 0 to 2pi, thetas 0 to pi)
-    std::uniform_real_distribution<double> uniform_phi(0.0, 2*PI);
-    std::uniform_real_distribution<double> uniform_theta(0.0, PI);
-    // set the interval for uniform sampling in interval [0,1] for rejection sampling
-    std::uniform_real_distribution<double> uniform_guess(0.0, 1.0);
-
     PetscReal R = data.ahandler.init_amp;
     PetscReal phi;
     PetscReal theta1;
@@ -581,7 +571,7 @@ public:
         for (i = xstart; i < xstart + xdimension; i++) {
           
           // get random uniform sample for phi
-          phi = uniform_phi(gen);
+          phi = 2.0 * PI * ModelARndm->uniform();
 
           accepted = false;
         
@@ -589,9 +579,9 @@ public:
           // (needed to sample thetas according to sin(theta1) * sin^2(theta2) )
           while(accepted == false){
             // get random uniform sample for thetas and guess
-            theta1 = uniform_theta(gen);
-            theta2 = uniform_theta(gen);
-            guess = uniform_guess(gen);
+            theta1 = PI * ModelARndm->uniform();
+            theta2 = PI * ModelARndm->uniform();
+            guess = ModelARndm->uniform();
 
             // calculate reference value
             reference = std::sin(theta1) * std::sin(theta2)*std::sin(theta2);
@@ -725,9 +715,6 @@ public:
 
             // charges n_A (4,5,6) and n_V (7,8,9)
             else{
-            // Generate gaussian random numbers for charges
-            //u[k][j][i].x[L] = sqrt(chi) * ModelARndm->normal();
-
               // (n_A)_0 (or n_01)
               if (L == 4){
                 u[k][j][i][L] = wave_k*chi;
