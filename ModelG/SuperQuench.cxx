@@ -73,7 +73,12 @@ void run_event(ModelA* const model,Stepper* const step)
 
   // Open the file and create the measurement object
   Measurer measurer(model) ;
-  measurer_output_fasthdf5 measurer_output(&measurer, filename, file_access);
+  int rank = -1;
+  MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
+  std::unique_ptr<measurer_output_fasthdf5> measurer_output ;
+  if (rank ==0) {
+    measurer_output = std::make_unique<measurer_output_fasthdf5>(&measurer, filename, file_access);
+  }
 
   // Start the loop
   const double tiny = 1.e-10;
@@ -83,7 +88,9 @@ void run_event(ModelA* const model,Stepper* const step)
     if (steps % ahandler.saveFrequency == 0) {
       PetscLogEventBegin(measurements, 0, 0, 0, 0);
       measurer.measure(&model->solution);
-      measurer_output.save() ;
+      if (rank == 0) {
+        measurer_output->save() ;
+      }
       PetscPrintf(PETSC_COMM_WORLD,
                   "Event/Timestep %d/%d: step size = %g, time = %g, final = %g\n", ahandler.current_event, steps,
                   (double)atime.dt(), (double)atime.t(), (double)atime.tfinal());

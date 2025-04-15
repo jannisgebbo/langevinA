@@ -42,7 +42,7 @@ public:
 
   // Compute the fourier transform of an array in
   void execute(nvector<double, 2> &in, nvector<std::complex<double>, 2> &out) {
-    for (int i = 0; i < in.N[0]; i++) {
+    for (size_t i = 0; i < in.N[0]; i++) {
       execute_row(&in(i, 0), &out(i, 0));
     }
   }
@@ -137,7 +137,13 @@ public:
           "Nx, Ny, and Nz must be equal for the correlation analysis to work");
     }
 
-    fftw = make_unique<measurer_fft>(N);
+    // Only need the fft for derived observables
+    int rank = -1;
+    MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
+    if (rank == 0) {
+       fftw = make_unique<measurer_fft>(N);
+    }
+
 
     wallX.resize(NObs, N);
     wallY.resize(NObs, N);
@@ -173,6 +179,7 @@ public:
     computeSliceAverage(solution);
     computeSliceAveragePhase(solution);
 
+    // Take the FFT and other steps based on the data collected
     if (rank == 0) {
       computeDerivedObs();
     }

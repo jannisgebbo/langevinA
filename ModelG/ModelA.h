@@ -549,7 +549,7 @@ public:
     DMDAVecGetArrayDOF(domain, solution, &u);
 
     // Get the Local Corner od the vector
-    PetscInt i, j, k, L, xstart, ystart, zstart, xdimension, ydimension,
+    PetscInt i, j, k, xstart, ystart, zstart, xdimension, ydimension,
         zdimension;
 
     DMDAGetCorners(domain, &xstart, &ystart, &zstart, &xdimension, &ydimension,
