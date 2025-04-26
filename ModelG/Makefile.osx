@@ -52,8 +52,10 @@ LDLIBS := $(shell pkg-config --libs-only-l $(PACKAGES)) -lhdf5
 # C++ source).  This can be built by uncommenting the following two lines.
 
 
-HEADRS = ModelA.h Stepper.h NoiseGenerator.h measurer.h measurer_output.h  O4AlgebraHelper.h gitversion.h
+HEADRS = ModelA.h Stepper.h NoiseGenerator.h measurer.h measurer_output.h O4AlgebraHelper.h ntuple.h gitversion.h
 OBJS = measurer.o measurer_output.o Stepper.o NoiseGenerator.o jsoncpp.o
+
+all: SuperPions.exe x2k.exe x2k_rotated.exe
 
 SuperPions.exe: SuperPions.o $(OBJS)
 	$(LINK.cc) -o $@ $^ $(LDLIBS) -lstdc++
@@ -76,6 +78,17 @@ gitversion.h:
 NoiseGenerator.o: NoiseGenerator.cxx NoiseGenerator.h
 	$(COMPILE.cc) $(OUTPUT_OPTION) $<
 
+x2k.exe : x2k.o $(OBJS)
+	$(LINK.cc) -o $@ $^ $(LDLIBS) -lstdc++
+
+x2k.o: x2k.cxx $(HEADRS)
+	$(COMPILE.cc) $(OUTPUT_OPTION) $<
+
+x2k_rotated.exe : x2k_rotated.o $(OBJS)
+	$(LINK.cc) -o $@ $^ $(LDLIBS) -lstdc++
+
+x2k_rotated.o: x2k_rotated.cxx $(HEADRS)
+	$(COMPILE.cc) $(OUTPUT_OPTION) $<
 
 idealtest.exe: idealtest.o $(OBJS)
 	$(LINK.cc) -o $@ $^ $(LDLIBS) -lstdc++
@@ -106,11 +119,6 @@ test_json.exe: jsoncpp.o test_json.cpp
 	$(COMPILE.cc) test_json.cpp
 	$(LINK.cc) -o test_json.exe test_json.o jsoncpp.o -lstdc++
 
-x2k.exe : x2k.o $(OBJS)
-	$(LINK.cc) -o $@ $^ $(LDLIBS) -lstdc++
-
-x2k.o: x2k.cxx $(HEADRS)
-	$(COMPILE.cc) $(OUTPUT_OPTION) $<
 
 test_ntuple.exe: test_ntuple.o $(OBJS) 
 	$(LINK.cc) -o $@ $^ $(LDLIBS) -lstdc++
