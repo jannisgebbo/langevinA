@@ -700,13 +700,6 @@ ModelGChargeHB::ModelGChargeHB(ModelA &in)
 
 bool ModelGChargeHB::step(const double &dt) {
 
-  // Get pointer to local array
-  data_node ***phi;
-  DMDAVecGetArray(model->domain, phi_local, &phi);
-
-  data_node ***dn;
-  DMDAVecGetArray(model->domain, dn_local, &dn);
-
   // Get the ranges
   PetscInt ixs, iys, izs, nx, ny, nz;
   DMDAGetCorners(model->domain, &ixs, &iys, &izs, &nx, &ny, &nz);
@@ -740,6 +733,15 @@ bool ModelGChargeHB::step(const double &dt) {
 
       // Zero out the differences
       VecSet(dn_local, 0.);
+
+      // Get the array to store the charge transfers
+      data_node ***dn;
+      DMDAVecGetArray(model->domain, dn_local, &dn);
+
+      // Get pointer to local array
+      data_node ***phi;
+      DMDAVecGetArray(model->domain, phi_local, &phi);
+
       for (int k = izs; k < izs + nz; k++) {
         for (int j = iys; j < iys + ny; j++) {
           for (int i = ixs; i < ixs + nx; i++) {
@@ -762,10 +764,11 @@ bool ModelGChargeHB::step(const double &dt) {
         }
       }
       DMLocalToGlobal(model->domain, dn_local, ADD_VALUES, model->solution);
+
+      DMDAVecRestoreArray(model->domain, dn_local, &dn);
+      DMDAVecRestoreArray(model->domain, phi_local, &phi);
     }
   }
-  DMDAVecRestoreArray(model->domain, phi_local, &phi);
-  DMDAVecRestoreArray(model->domain, dn_local, &dn);
 
   return true;
 };

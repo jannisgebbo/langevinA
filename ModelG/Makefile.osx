@@ -29,7 +29,7 @@ FFLAGS := $(shell pkg-config --variable=fflags_extra $(PACKAGES))
 CPPFLAGS := $(shell pkg-config --cflags-only-I $(PACKAGES))
 LDFLAGS := $(shell pkg-config --libs-only-L --libs-only-other $(PACKAGES))
 LDFLAGS += $(patsubst -L%, $(shell pkg-config --variable=ldflag_rpath $(PACKAGES))%, $(shell pkg-config --libs-only-L $(PACKAGES)))
-LDLIBS := $(shell pkg-config --libs-only-l $(PACKAGES)) -lm -lfftw3 -lhdf5
+LDLIBS := $(shell pkg-config --libs-only-l $(PACKAGES)) -lhdf5
 
 #CXXFLAGS += -DMODELA_NO_HDF5 -DMODELA_NO_MAKE_UNIQUE
 
@@ -52,7 +52,7 @@ LDLIBS := $(shell pkg-config --libs-only-l $(PACKAGES)) -lm -lfftw3 -lhdf5
 # C++ source).  This can be built by uncommenting the following two lines.
 
 
-HEADRS = ModelA.h Stepper.h NoiseGenerator.h measurer.h measurer_output.h  O4AlgebraHelper.h
+HEADRS = ModelA.h Stepper.h NoiseGenerator.h measurer.h measurer_output.h  O4AlgebraHelper.h gitversion.h
 OBJS = measurer.o measurer_output.o Stepper.o NoiseGenerator.o jsoncpp.o
 
 SuperPions.exe: SuperPions.o $(OBJS)
@@ -70,8 +70,12 @@ measurer.o: measurer.cxx $(HEADRS)
 measurer_output.o: measurer_output.cxx $(HEADRS)
 	$(COMPILE.cc) $(OUTPUT_OPTION) $<
 
+gitversion.h:
+	echo "#ifndef GITVERSION_H\n#define GITVERSION_H\nconst char *gitversion = \"$(shell git rev-parse HEAD)\";\n#endif" > $@
+
 NoiseGenerator.o: NoiseGenerator.cxx NoiseGenerator.h
 	$(COMPILE.cc) $(OUTPUT_OPTION) $<
+
 
 idealtest.exe: idealtest.o $(OBJS)
 	$(LINK.cc) -o $@ $^ $(LDLIBS) -lstdc++

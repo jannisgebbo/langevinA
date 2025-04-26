@@ -187,6 +187,10 @@ struct g_face_case {
   int iB;  // either zero or one (indexing of the B cell relative to A)
   int jB;  // either zero or one  (indexing of the B cell relative to A)
   int kB;  // either zero or one  (indexing of the B cell relative to A)
+  void print() {
+    std::cout << "(EOA,iB,jB,kB): " << eoA << " (" << iB << "," << jB << ","
+              << kB << ")" << std::endl;
+  }
 };
 
 extern g_face_case g_face_cases[3][2];
@@ -271,10 +275,9 @@ private:
   EulerLangevinHB hbPhi;
   ModelGChargeHB hbN;
 
+  std::array<unsigned int, 2> stepcounts;
   bool nodiffusion;
   bool onlydiffusion;
-
-  std::array<unsigned int, 2> stepcounts;
 };
 
 #endif
