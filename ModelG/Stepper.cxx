@@ -67,6 +67,12 @@ bool IdealPV2::step(const double &dt) {
 }
 
 bool IdealPV2::step_no_reject(const double &dt) {
+  
+  // drifts the solution by dt / 2.0
+  G_node ***phinew;
+  DMDAVecGetArray(da, model->solution, &phinew);
+  rotatePhi(phinew, dt / 2.0);
+  DMDAVecRestoreArray(da, model->solution, &phinew);
 
   // Get a local vector with ghost cells
   Vec localU;
@@ -79,7 +85,6 @@ bool IdealPV2::step_no_reject(const double &dt) {
   // Get Access to arrays with drifted solution
   G_node ***phi;
   DMDAVecGetArrayRead(da, localU, &phi);
-  G_node ***phinew;
   DMDAVecGetArray(da, model->solution, &phinew);
 
 
@@ -92,8 +97,6 @@ bool IdealPV2::step_no_reject(const double &dt) {
   PetscScalar advxx, advyy, advzz;
   PetscInt s1, s2, epsilon;
 
-  // drifts the solution by dt / 2.0
-  rotatePhi(phinew, dt / 2.0);
 
   // Loop over central elements
   for (PetscInt k = zstart; k < zstart + zdimension; k++) {
