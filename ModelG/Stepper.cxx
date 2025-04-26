@@ -4,146 +4,6 @@
 #include <algorithm>
 #include <cstdio>
 
-IdealLF::IdealLF(ModelA &in) : model(&in) {}
-
-bool IdealLF::step(const double &dt) {
-
-  DM da = model->domain;
-  // Get a local vector with ghost cells
-  Vec localU;
-  DMGetLocalVector(da, &localU);
-
-  // Fill in the ghost celss with mpicalls
-  DMGlobalToLocalBegin(da, model->previoussolution, INSERT_VALUES, localU);
-  DMGlobalToLocalEnd(da, model->previoussolution, INSERT_VALUES, localU);
-
-  const auto &data = model->data;
-  const auto &coeff = data.acoefficients;
-
-  G_node ***phi;
-  DMDAVecGetArrayRead(da, localU, &phi);
-
-  G_node ***phinew;
-  DMDAVecGetArray(da, model->solution, &phinew);
-
-  const PetscReal H[4] = {coeff.H, 0., 0., 0.};
-  const PetscReal axx = pow(1. / data.hX(), 2);
-  const PetscReal ayy = pow(1. / data.hY(), 2);
-  const PetscReal azz = pow(1. / data.hZ(), 2);
-
-  PetscScalar advxx, advyy, advzz;
-  PetscInt s1, s2, epsilon;
-  PetscInt xstart, ystart, zstart, xdimension, ydimension, zdimension;
-  DMDAGetCorners(da, &xstart, &ystart, &zstart, &xdimension, &ydimension,
-                 &zdimension);
-
-  // Loop over central elements
-  for (PetscInt k = zstart; k < zstart + zdimension; k++) {
-    for (PetscInt j = ystart; j < ystart + ydimension; j++) {
-      for (PetscInt i = xstart; i < xstart + xdimension; i++) {
-        // First evolve the momenta nab
-
-        G_node &centralPhi = phi[k][j][i];
-        G_node &phixplus = phi[k][j][i + 1];
-        G_node &phixminus = phi[k][j][i - 1];
-        G_node &phiyplus = phi[k][j + 1][i];
-        G_node &phiyminus = phi[k][j - 1][i];
-        G_node &phizplus = phi[k + 1][j][i];
-        G_node &phizminus = phi[k - 1][j][i];
-
-        for (PetscInt l = 0; l < ModelAData::NA; l++) {
-          advxx = (-phixplus.f[0] * centralPhi.f[l + 1] +
-                   centralPhi.f[0] * phixplus.f[l + 1] +
-                   centralPhi.f[0] * phixminus.f[l + 1] -
-                   phixminus.f[0] * centralPhi.f[l + 1]) *
-                  axx;
-
-          advyy = (-phiyplus.f[0] * centralPhi.f[l + 1] +
-                   centralPhi.f[0] * phiyplus.f[l + 1] +
-                   centralPhi.f[0] * phiyminus.f[l + 1] -
-                   phiyminus.f[0] * centralPhi.f[l + 1]) *
-                  ayy;
-
-          advzz = (-phizplus.f[0] * centralPhi.f[l + 1] +
-                   centralPhi.f[0] * phizplus.f[l + 1] +
-                   centralPhi.f[0] * phizminus.f[l + 1] -
-                   phizminus.f[0] * centralPhi.f[l + 1]) *
-                  azz;
-
-          phinew[k][j][i].A[l] +=
-              dt * (advxx + advyy + advzz - H[0] * centralPhi.f[l + 1]);
-        }
-
-        for (PetscInt s = 0; s < ModelAData::NV; s++) {
-
-          s1 = (s + 1) % 3;
-          s2 = (s + 2) % 3;
-          epsilon = ((PetscScalar)(s - s1) * (s1 - s2) * (s2 - s)) / 2.;
-          // advection term with epsilon
-          advxx = epsilon *
-                  (phixplus.f[1 + s2] * centralPhi.f[1 + s1] -
-                   centralPhi.f[1 + s2] * phixminus.f[1 + s1] -
-                   phixplus.f[1 + s1] * centralPhi.f[1 + s2] +
-                   centralPhi.f[1 + s1] * phixminus.f[1 + s2]) *
-                  axx;
-
-          advyy = epsilon *
-                  (phiyplus.f[1 + s2] * centralPhi.f[1 + s1] -
-                   centralPhi.f[1 + s2] * phiyminus.f[1 + s1] -
-                   phiyplus.f[1 + s1] * centralPhi.f[1 + s2] +
-                   centralPhi.f[1 + s1] * phiyminus.f[1 + s2]) *
-                  ayy;
-
-          advzz = epsilon *
-                  (phizplus.f[1 + s2] * centralPhi.f[1 + s1] -
-                   centralPhi.f[1 + s2] * phizminus.f[1 + s1] -
-                   phizplus.f[1 + s1] * centralPhi.f[1 + s2] +
-                   centralPhi.f[1 + s1] * phizminus.f[1 + s2]) *
-                  azz;
-
-          phinew[k][j][i].V[s] += dt * (advxx + advyy + advzz);
-        }
-      }
-    }
-  }
-
-  // Loop over central elements
-  for (PetscInt k = zstart; k < zstart + zdimension; k++) {
-    for (PetscInt j = ystart; j < ystart + ydimension; j++) {
-      for (PetscInt i = xstart; i < xstart + xdimension; i++) {
-
-        // here we have to convert the charge from the chemical potential
-        PetscScalar axialmu[ModelAData::NA], vectormu[ModelAData::NV];
-
-        for (PetscInt s = 0; s < ModelAData::NV; s++) {
-
-          vectormu[s] = -phinew[k][j][i].V[s] / coeff.chi * dt;
-        }
-
-        for (PetscInt s = 0; s < ModelAData::NA; s++) {
-
-          axialmu[s] = -phinew[k][j][i].A[s] / coeff.chi * dt;
-        }
-
-        O4AlgebraHelper::O4Rotation(vectormu, axialmu, phinew[k][j][i].f);
-      }
-    }
-  }
-
-  // Then we rotate phi by n.
-
-  //   O4AlgebraHelper::O4Rotation(phinew[k][j][i].V,
-  //   phinew[k][j][i].A,phinew[k][j][i].f);
-
-  DMDAVecRestoreArrayRead(da, localU, &phi);
-  DMRestoreLocalVector(da, &localU);
-
-  DMDAVecRestoreArray(da, model->solution, &phinew);
-
-  return true;
-}
-
-void IdealLF::finalize() {}
 
 ///////////////////////////////////////////////////////////////////////////
 
@@ -207,12 +67,6 @@ bool IdealPV2::step(const double &dt) {
 }
 
 bool IdealPV2::step_no_reject(const double &dt) {
-  G_node ***phinew;
-  DMDAVecGetArray(da, model->solution, &phinew);
-
-  // drifts dt / 2.0
-
-  rotatePhi(phinew, dt / 2.0);
 
   // Get a local vector with ghost cells
   Vec localU;
@@ -222,8 +76,12 @@ bool IdealPV2::step_no_reject(const double &dt) {
   DMGlobalToLocalBegin(da, model->solution, INSERT_VALUES, localU);
   DMGlobalToLocalEnd(da, model->solution, INSERT_VALUES, localU);
 
+  // Get Access to arrays with drifted solution
   G_node ***phi;
   DMDAVecGetArrayRead(da, localU, &phi);
+  G_node ***phinew;
+  DMDAVecGetArray(da, model->solution, &phinew);
+
 
   const auto &coeff = data.acoefficients;
   const PetscReal H[4] = {coeff.H, 0., 0., 0.};
@@ -233,6 +91,9 @@ bool IdealPV2::step_no_reject(const double &dt) {
 
   PetscScalar advxx, advyy, advzz;
   PetscInt s1, s2, epsilon;
+
+  // drifts the solution by dt / 2.0
+  rotatePhi(phinew, dt / 2.0);
 
   // Loop over central elements
   for (PetscInt k = zstart; k < zstart + zdimension; k++) {
@@ -303,15 +164,13 @@ bool IdealPV2::step_no_reject(const double &dt) {
       }
     }
   }
-
-  // drifts dt / 2.0
-
+  
+  // drifts dt / 2.0 
   rotatePhi(phinew, dt / 2.0);
 
+  DMDAVecRestoreArray(da, model->solution, &phinew);
   DMDAVecRestoreArrayRead(da, localU, &phi);
   DMRestoreLocalVector(da, &localU);
-
-  DMDAVecRestoreArray(da, model->solution, &phinew);
 
   return true;
 }
@@ -418,115 +277,6 @@ void IdealPV2::finalize() {
     }
   }
 }
-///////////////////////////////////////////////////////////////////////////
-
-ForwardEuler::ForwardEuler(ModelA &in, bool wnoise)
-    : model(&in), withNoise(wnoise) {
-  VecDuplicate(model->solution, &noise);
-}
-void ForwardEuler::finalize() { VecDestroy(&noise); }
-
-bool ForwardEuler::step(const double &dt) {
-
-  PetscLogEvent random, loop, create;
-  PetscLogEventRegister("FillRandomVec", 0, &random);
-  PetscLogEventRegister("PotentialEval", 0, &loop);
-  PetscLogEventRegister("CreationAndMPI", 0, &create);
-
-  /////////////////////////////////////////////////////////////////////////
-  PetscLogEventBegin(random, 0, 0, 0, 0);
-  if (withNoise) {
-    ModelARndm->fillVec(noise);
-  } else {
-    VecZeroEntries(noise);
-  }
-  PetscLogEventEnd(random, 0, 0, 0, 0);
-  /////////////////////////////////////////////////////////////////////////
-
-  /////////////////////////////////////////////////////////////////////////
-  PetscLogEventBegin(create, 0, 0, 0, 0);
-  DM da = model->domain;
-  // Get a local vector with ghost cells
-  Vec localU;
-  DMGetLocalVector(da, &localU);
-
-  // Fill in the ghost celss with mpicalls
-  DMGlobalToLocalBegin(da, model->previoussolution, INSERT_VALUES, localU);
-  DMGlobalToLocalEnd(da, model->previoussolution, INSERT_VALUES, localU);
-
-  G_node ***phi;
-  DMDAVecGetArrayRead(da, localU, &phi);
-
-  G_node ***gaussiannoise;
-  DMDAVecGetArrayRead(da, noise, &gaussiannoise);
-
-  G_node ***phinew;
-  DMDAVecGetArray(da, model->solution, &phinew);
-
-  PetscLogEventEnd(create, 0, 0, 0, 0);
-
-  /////////////////////////////////////////////////////////////////////////
-
-  PetscLogEventBegin(loop, 0, 0, 0, 0);
-
-  // Get The local coordinates
-  const ModelAData &data = model->data;
-  PetscInt i, j, k, l, xstart, ystart, zstart, xdimension, ydimension,
-      zdimension;
-  DMDAGetCorners(da, &xstart, &ystart, &zstart, &xdimension, &ydimension,
-                 &zdimension);
-
-  // Parameters for loop
-  const auto &coeff = data.acoefficients;
-  const PetscReal dtg = coeff.gamma * dt;
-  const PetscReal xdtg = sqrt(2. / dtg);
-  const PetscReal &m2 = data.mass();
-  const PetscReal &lambda = coeff.lambda;
-  const PetscReal H[4] = {coeff.H, 0., 0., 0.};
-  const PetscReal axx = pow(1. / data.hX(), 2);
-  const PetscReal ayy = pow(1. / data.hY(), 2);
-  const PetscReal azz = pow(1. / data.hZ(), 2);
-  G_node phidotI = {};
-
-  // Loop over central elements
-  for (k = zstart; k < zstart + zdimension; k++) {
-    for (j = ystart; j < ystart + ydimension; j++) {
-      for (i = xstart; i < xstart + xdimension; i++) {
-        const PetscReal(&f)[4] = phi[k][j][i].f;
-        const PetscReal(&xi)[4] = gaussiannoise[k][j][i].f;
-        const PetscReal &phi2 =
-            f[0] * f[0] + f[1] * f[1] + f[2] * f[2] + f[3] * f[3];
-
-        for (l = 0; l < ModelAData::Nphi; l++) {
-          const PetscReal uxx =
-              phi[k][j][i + 1].f[l] + phi[k][j][i - 1].f[l] - 2. * f[l];
-          const PetscReal uyy =
-              phi[k][j + 1][i].f[l] + phi[k][j - 1][i].f[l] - 2. * f[l];
-          const PetscReal uzz =
-              phi[k + 1][j][i].f[l] + phi[k - 1][j][i].f[l] - 2. * f[l];
-          const PetscReal lap = axx * uxx + ayy * uyy + azz * uzz;
-
-          phidotI.f[l] =
-              lap - (m2 * f[l] + lambda * phi2 * f[l]) + H[l] + xdtg * xi[l];
-
-          phinew[k][j][i].f[l] = f[l] + dtg * phidotI.f[l];
-        }
-      }
-    }
-  }
-  PetscLogEventEnd(loop, 0, 0, 0, 0);
-
-  /////////////////////////////////////////////////////////////////////////
-
-  DMDAVecRestoreArray(da, model->solution, &phinew);
-
-  DMDAVecRestoreArrayRead(da, noise, &gaussiannoise);
-  DMDAVecRestoreArrayRead(da, localU, &phi);
-  DMRestoreLocalVector(da, &localU);
-
-  return true;
-}
-
 /////////////////////////////////////////////////////////////////////////
 
 EulerLangevinHB::EulerLangevinHB(ModelA &in)
@@ -536,12 +286,6 @@ EulerLangevinHB::EulerLangevinHB(ModelA &in)
 
 bool EulerLangevinHB::step(const double &dt) {
 
-  // Get pointer to local array
-  G_node ***phi;
-  DMDAVecGetArray(model->domain, phi_local, &phi);
-  // Get pointer to local array
-  G_node ***phinew;
-  DMDAVecGetArray(model->domain, model->solution, &phinew);
 
   // Get the ranges
   PetscInt ixs, iys, izs, nx, ny, nz;
@@ -571,6 +315,12 @@ bool EulerLangevinHB::step(const double &dt) {
     DMGlobalToLocalEnd(model->domain, model->solution, INSERT_VALUES,
                        phi_local);
     PetscLogEventEnd(communication, 0, 0, 0, 0);
+    // Get pointer to local array
+    G_node ***phi;
+    DMDAVecGetArray(model->domain, phi_local, &phi);
+    // Get pointer global array
+    G_node ***phinew;
+    DMDAVecGetArray(model->domain, model->solution, &phinew);
 
     PetscLogEventBegin(loop, 0, 0, 0, 0);
     for (int k = izs; k < izs + nz; k++) {
@@ -631,11 +381,11 @@ bool EulerLangevinHB::step(const double &dt) {
       }
     }
     PetscLogEventEnd(loop, 0, 0, 0, 0);
+    // Retstore the arrays
+    DMDAVecRestoreArray(model->domain, phi_local, &phi);
+    DMDAVecRestoreArray(model->domain, model->solution, &phinew);
   }
 
-  // Retstore the array
-  DMDAVecRestoreArray(model->domain, phi_local, &phi);
-  DMDAVecRestoreArray(model->domain, model->solution, &phinew);
 
   return true;
 }
@@ -763,10 +513,11 @@ bool ModelGChargeHB::step(const double &dt) {
           }
         }
       }
-      DMLocalToGlobal(model->domain, dn_local, ADD_VALUES, model->solution);
-
       DMDAVecRestoreArray(model->domain, dn_local, &dn);
       DMDAVecRestoreArray(model->domain, phi_local, &phi);
+
+      DMLocalToGlobal(model->domain, dn_local, ADD_VALUES, model->solution);
+
     }
   }
 
@@ -785,231 +536,6 @@ void ModelGChargeHB::finalize() {
 }
 
 /////////////////////////////////////////////////////////////////////////
-
-ModelGChargeCN::ModelGChargeCN(ModelA &in, bool wnoise)
-    : model(&in), withNoise(wnoise) {
-
-  VecDuplicate(model->solution, &rhs);
-  VecDuplicate(model->solution, &dn);
-  DMCreateLocalVector(model->domain, &noise_local);
-
-  DMCreateMatrix(model->domain, &J);
-
-  double hx = model->data.hX();
-  double hy = model->data.hY();
-  double hz = model->data.hZ();
-  Form3PointLaplacian(model->domain, J, hx, hy, hz);
-
-  MatConvert(J, MATSAME, MAT_INITIAL_MATRIX, &A);
-  KSPCreate(PETSC_COMM_WORLD, &ksp);
-}
-
-void ModelGChargeCN::finalize() {
-  KSPDestroy(&ksp);
-  MatDestroy(&A);
-  MatDestroy(&J);
-  VecDestroy(&noise_local);
-  VecDestroy(&dn);
-  VecDestroy(&rhs);
-}
-
-// We are solving
-//
-// (1/dtD  + J) n_+ = n/dtD  +  1/D div.xi
-//
-// Here J = - nabla^2,  dtD = dt * D
-bool ModelGChargeCN::step(const double &dt) {
-
-  PetscScalar ****bI;
-  DMDAVecGetArrayDOF(model->domain, rhs, &bI);
-
-  PetscScalar ****phiI;
-  DMDAVecGetArrayDOF(model->domain, model->solution, &phiI);
-
-  PetscScalar ****xiI;
-  DMDAVecGetArrayDOF(model->domain, noise_local, &xiI);
-
-  // accumulates the divergence of xi
-  PetscScalar ****dnI;
-  DMDAVecGetArrayDOF(model->domain, dn, &dnI);
-
-  PetscInt i, j, k, L, xstart, ystart, zstart, xdimension, ydimension,
-      zdimension;
-
-  // Compute the random fluxes
-  DMDAGetCorners(model->domain, &xstart, &ystart, &zstart, &xdimension,
-                 &ydimension, &zdimension);
-
-  // Parameters needed
-  const auto &coeff = model->data.acoefficients;
-  const PetscReal &dtD = dt * coeff.D();
-  ;
-  const PetscReal &rxbyD = sqrt(2. * coeff.chi / dtD);
-
-  // Compute the divergence of the noise
-  VecSet(noise_local, 0.);
-  VecSet(dn, 0.);
-  if (withNoise) {
-    for (int ixyz = 0; ixyz < 3; ixyz++) {
-      for (int ieo = 0; ieo < 2; ieo++) {
-        // get the face case that we will update
-        g_face_case face = g_face_cases[ixyz][ieo];
-        for (k = zstart; k < zstart + zdimension; k++) {
-          for (j = ystart; j < ystart + ydimension; j++) {
-            for (i = xstart; i < xstart + xdimension; i++) {
-              if ((k + j + i) % 2 != face.eoA) {
-                continue;
-              }
-              for (int L = ModelAData::Nphi; L < ModelAData::Ndof; L++) {
-
-                int iB = i + face.iB;
-                int jB = j + face.jB;
-                int kB = k + face.kB;
-
-                // Assumes that hx = hy = hz=1!
-                PetscScalar q = rxbyD * ModelARndm->variance1();
-                xiI[k][j][i][L] -= q;
-                xiI[kB][jB][iB][L] += q;
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-  DMLocalToGlobal(model->domain, noise_local, ADD_VALUES, dn);
-
-  // Compute the RHS of the equation to be solved
-  for (k = zstart; k < zstart + zdimension; k++) {
-    for (j = ystart; j < ystart + ydimension; j++) {
-      for (i = xstart; i < xstart + xdimension; i++) {
-
-        const PetscScalar *phi = phiI[k][j][i];
-        const PetscScalar *q = dnI[k][j][i];
-        PetscScalar *b = bI[k][j][i];
-
-        for (L = 0; L < ModelAData::Nphi; L++) {
-          b[L] = phi[L] / dtD;
-        }
-        for (L = ModelAData::Nphi; L < ModelAData::Ndof; L++) {
-          b[L] = phi[L] / dtD + q[L];
-        }
-      }
-    }
-  }
-  DMDAVecRestoreArrayDOF(model->domain, dn, &dnI);
-  DMDAVecRestoreArrayDOF(model->domain, noise_local, &xiI);
-  DMDAVecRestoreArrayDOF(model->domain, model->solution, &phiI);
-  DMDAVecRestoreArrayDOF(model->domain, rhs, &bI);
-
-  // Construct the matrix for the equation to be solved
-  MatCopy(J, A, SAME_NONZERO_PATTERN);
-  MatShift(A, 1. / dtD);
-
-  // Actually solve
-  KSPSetOperators(ksp, A, A);
-  KSPSetFromOptions(ksp);
-  KSPSolve(ksp, rhs, model->solution);
-
-  return true;
-}
-
-// Form the Jacobian the Jabian generic interface
-PetscErrorCode ModelGChargeCN::Form3PointLaplacian(DM da, Mat J,
-                                                   const double &hx,
-                                                   const double &hy,
-                                                   const double &hz) {
-  // Get the local information and store in info
-  DMDALocalInfo info;
-  DMDAGetLocalInfo(da, &info);
-  PetscInt i, j, k, l;
-  for (k = info.zs; k < info.zs + info.zm; k++) {
-    for (j = info.ys; j < info.ys + info.ym; j++) {
-      for (i = info.xs; i < info.xs + info.xm; i++) {
-        for (l = 0; l < ModelAData::Nphi; l++) {
-          PetscInt nc = 0;
-          MatStencil row, column[10];
-          PetscScalar value[10];
-          // here we insert the position of the row
-          row.i = i;
-          row.j = j;
-          row.k = k;
-          row.c = l;
-          MatSetValuesStencil(J, 1, &row, nc, column, value, INSERT_VALUES);
-        }
-        for (l = ModelAData::Nphi; l < ModelAData::Ndof; l++) {
-          // we define the column
-          PetscInt nc = 0;
-          MatStencil row, column[10];
-          PetscScalar value[10];
-          // here we insert the position of the row
-          row.i = i;
-          row.j = j;
-          row.k = k;
-          row.c = l;
-          // here we define de position of the non-vansih column for the given
-          // row in total there are 7*4 entries and nc is the total number of
-          // column per row x direction
-          column[nc].i = i - 1;
-          column[nc].j = j;
-          column[nc].k = k;
-          column[nc].c = l;
-          value[nc++] = -1. / (hx * hx);
-          column[nc].i = i + 1;
-          column[nc].j = j;
-          column[nc].k = k;
-          column[nc].c = l;
-          value[nc++] = -1. / (hx * hx);
-          // y direction
-          column[nc].i = i;
-          column[nc].j = j - 1;
-          column[nc].k = k;
-          column[nc].c = l;
-          value[nc++] = -1. / (hy * hy);
-          column[nc].i = i;
-          column[nc].j = j + 1;
-          column[nc].k = k;
-          column[nc].c = l;
-          value[nc++] = -1. / (hy * hy);
-          // z direction
-          column[nc].i = i;
-          column[nc].j = j;
-          column[nc].k = k - 1;
-          column[nc].c = l;
-          value[nc++] = -1. / (hz * hz);
-          column[nc].i = i;
-          column[nc].j = j;
-          column[nc].k = k + 1;
-          column[nc].c = l;
-          value[nc++] = -1. / (hz * hz);
-
-          // The central element need a loop over the flavour index of the
-          // column (is a full matrix in the flavour index )
-          column[nc].i = i;
-          column[nc].j = j;
-          column[nc].k = k;
-          column[nc].c = l;
-          value[nc++] = 2.0 / (hx * hx) + 2.0 / (hy * hy) + 2.0 / (hz * hz);
-
-          // here we set the matrix
-          MatSetValuesStencil(J, 1, &row, nc, column, value, INSERT_VALUES);
-        }
-      }
-    }
-  }
-  MatAssemblyBegin(J, MAT_FINAL_ASSEMBLY);
-  MatAssemblyEnd(J, MAT_FINAL_ASSEMBLY);
-  return (0);
-}
-
-LFHBSplit::LFHBSplit(ModelA &in) : lf(in), hbPhi(in), hbN(in) {}
-
-bool LFHBSplit::step(const double &dt) {
-  lf.step(dt);
-  hbPhi.step(dt);
-  hbN.step(dt);
-  return true;
-}
 
 PV2HBSplit::PV2HBSplit(ModelA &in, const std::array<unsigned int, 2> &scounts,
                        const bool &nodiffuse, const bool &onlydiffuse)
