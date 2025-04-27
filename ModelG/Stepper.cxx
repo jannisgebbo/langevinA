@@ -4,7 +4,6 @@
 #include <algorithm>
 #include <cstdio>
 
-
 ///////////////////////////////////////////////////////////////////////////
 
 IdealPV2::IdealPV2(ModelA &in, const bool &accept_reject_in)
@@ -26,7 +25,7 @@ bool IdealPV2::step(const double &dt) {
 
   // Do some setup for the accept reject procedure
   if (accept_reject) {
-    VecCopy(model->solution, previoussolution);
+    PetscCall(VecCopy(model->solution, previoussolution));
   }
   oldEnergy = computeEnergy(dt);
 
@@ -60,33 +59,32 @@ bool IdealPV2::step(const double &dt) {
     MPI_Bcast(&reject, 1, MPIU_BOOL, 0, MPI_COMM_WORLD);
 
     if (reject) {
-      VecCopy(previoussolution, model->solution);
+      PetscCall(VecCopy(previoussolution, model->solution));
     }
   }
   return success;
 }
 
 bool IdealPV2::step_no_reject(const double &dt) {
-  
+
   // drifts the solution by dt / 2.0
   G_node ***phinew;
-  DMDAVecGetArray(da, model->solution, &phinew);
+  PetscCall(DMDAVecGetArray(da, model->solution, &phinew));
   rotatePhi(phinew, dt / 2.0);
-  DMDAVecRestoreArray(da, model->solution, &phinew);
+  PetscCall(DMDAVecRestoreArray(da, model->solution, &phinew));
 
   // Get a local vector with ghost cells
   Vec localU;
-  DMGetLocalVector(da, &localU);
+  PetscCall(DMGetLocalVector(da, &localU));
 
   // Fill in the ghost celss with mpicalls
-  DMGlobalToLocalBegin(da, model->solution, INSERT_VALUES, localU);
-  DMGlobalToLocalEnd(da, model->solution, INSERT_VALUES, localU);
+  PetscCall(DMGlobalToLocalBegin(da, model->solution, INSERT_VALUES, localU));
+  PetscCall(DMGlobalToLocalEnd(da, model->solution, INSERT_VALUES, localU));
 
   // Get Access to arrays with drifted solution
   G_node ***phi;
-  DMDAVecGetArrayRead(da, localU, &phi);
-  DMDAVecGetArray(da, model->solution, &phinew);
-
+  PetscCall(DMDAVecGetArrayRead(da, localU, &phi));
+  PetscCall(DMDAVecGetArray(da, model->solution, &phinew));
 
   const auto &coeff = data.acoefficients;
   const PetscReal H[4] = {coeff.H, 0., 0., 0.};
@@ -96,7 +94,6 @@ bool IdealPV2::step_no_reject(const double &dt) {
 
   PetscScalar advxx, advyy, advzz;
   PetscInt s1, s2, epsilon;
-
 
   // Loop over central elements
   for (PetscInt k = zstart; k < zstart + zdimension; k++) {
@@ -167,13 +164,13 @@ bool IdealPV2::step_no_reject(const double &dt) {
       }
     }
   }
-  
-  // drifts dt / 2.0 
+
+  // drifts dt / 2.0
   rotatePhi(phinew, dt / 2.0);
 
-  DMDAVecRestoreArray(da, model->solution, &phinew);
-  DMDAVecRestoreArrayRead(da, localU, &phi);
-  DMRestoreLocalVector(da, &localU);
+  PetscCall(DMDAVecRestoreArray(da, model->solution, &phinew));
+  PetscCall(DMDAVecRestoreArrayRead(da, localU, &phi));
+  PetscCall(DMRestoreLocalVector(da, &localU));
 
   return true;
 }
@@ -289,10 +286,9 @@ EulerLangevinHB::EulerLangevinHB(ModelA &in)
 
 bool EulerLangevinHB::step(const double &dt) {
 
-
   // Get the ranges
   PetscInt ixs, iys, izs, nx, ny, nz;
-  DMDAGetCorners(model->domain, &ixs, &iys, &izs, &nx, &ny, &nz);
+  PetscCall(DMDAGetCorners(model->domain, &ixs, &iys, &izs, &nx, &ny, &nz));
 
   G_node heff = {};
   G_node phi_o = {};
@@ -313,17 +309,17 @@ bool EulerLangevinHB::step(const double &dt) {
   for (int ieo = 0; ieo < 2; ieo++) {
     // take the global vector U and distribute to the local vector localU
     PetscLogEventBegin(communication, 0, 0, 0, 0);
-    DMGlobalToLocalBegin(model->domain, model->solution, INSERT_VALUES,
-                         phi_local);
-    DMGlobalToLocalEnd(model->domain, model->solution, INSERT_VALUES,
-                       phi_local);
+    PetscCall(DMGlobalToLocalBegin(model->domain, model->solution,
+                                   INSERT_VALUES, phi_local));
+    PetscCall(DMGlobalToLocalEnd(model->domain, model->solution, INSERT_VALUES,
+                                 phi_local));
     PetscLogEventEnd(communication, 0, 0, 0, 0);
     // Get pointer to local array
     G_node ***phi;
-    DMDAVecGetArray(model->domain, phi_local, &phi);
+    PetscCall(DMDAVecGetArray(model->domain, phi_local, &phi));
     // Get pointer global array
     G_node ***phinew;
-    DMDAVecGetArray(model->domain, model->solution, &phinew);
+    PetscCall(DMDAVecGetArray(model->domain, model->solution, &phinew));
 
     PetscLogEventBegin(loop, 0, 0, 0, 0);
     for (int k = izs; k < izs + nz; k++) {
@@ -385,10 +381,9 @@ bool EulerLangevinHB::step(const double &dt) {
     }
     PetscLogEventEnd(loop, 0, 0, 0, 0);
     // Retstore the arrays
-    DMDAVecRestoreArray(model->domain, phi_local, &phi);
-    DMDAVecRestoreArray(model->domain, model->solution, &phinew);
+    PetscCall(DMDAVecRestoreArray(model->domain, phi_local, &phi));
+    PetscCall(DMDAVecRestoreArray(model->domain, model->solution, &phinew));
   }
-
 
   return true;
 }
@@ -455,7 +450,7 @@ bool ModelGChargeHB::step(const double &dt) {
 
   // Get the ranges
   PetscInt ixs, iys, izs, nx, ny, nz;
-  DMDAGetCorners(model->domain, &ixs, &iys, &izs, &nx, &ny, &nz);
+  PetscCall(DMDAGetCorners(model->domain, &ixs, &iys, &izs, &nx, &ny, &nz));
 
   const auto &coeff = model->data.acoefficients;
   const PetscReal rdtsigma = sqrt(2. * dt * coeff.sigma());
@@ -479,21 +474,21 @@ bool ModelGChargeHB::step(const double &dt) {
       g_face_case &face = g_face_cases[orderxyz[ixyz]][ordereo[ieo]];
 
       // take the global vector U and distribute to the local vector localU
-      DMGlobalToLocalBegin(model->domain, model->solution, INSERT_VALUES,
-                           phi_local);
-      DMGlobalToLocalEnd(model->domain, model->solution, INSERT_VALUES,
-                         phi_local);
+      PetscCall(DMGlobalToLocalBegin(model->domain, model->solution,
+                                     INSERT_VALUES, phi_local));
+      PetscCall(DMGlobalToLocalEnd(model->domain, model->solution,
+                                   INSERT_VALUES, phi_local));
 
       // Zero out the differences
-      VecSet(dn_local, 0.);
+      PetscCall(VecSet(dn_local, 0.));
 
       // Get the array to store the charge transfers
       data_node ***dn;
-      DMDAVecGetArray(model->domain, dn_local, &dn);
+      PetscCall(DMDAVecGetArray(model->domain, dn_local, &dn));
 
       // Get pointer to local array
       data_node ***phi;
-      DMDAVecGetArray(model->domain, phi_local, &phi);
+      PetscCall(DMDAVecGetArray(model->domain, phi_local, &phi));
 
       for (int k = izs; k < izs + nz; k++) {
         for (int j = iys; j < iys + ny; j++) {
@@ -516,11 +511,10 @@ bool ModelGChargeHB::step(const double &dt) {
           }
         }
       }
-      DMDAVecRestoreArray(model->domain, dn_local, &dn);
-      DMDAVecRestoreArray(model->domain, phi_local, &phi);
-
-      DMLocalToGlobal(model->domain, dn_local, ADD_VALUES, model->solution);
-
+      PetscCall(DMDAVecRestoreArray(model->domain, dn_local, &dn));
+      PetscCall(DMDAVecRestoreArray(model->domain, phi_local, &phi));
+      PetscCall(DMLocalToGlobal(model->domain, dn_local, ADD_VALUES,
+                                model->solution));
     }
   }
 
@@ -528,8 +522,8 @@ bool ModelGChargeHB::step(const double &dt) {
 };
 
 void ModelGChargeHB::finalize() {
-  VecDestroy(&phi_local);
-  VecDestroy(&dn_local);
+  PetscCallVoid(VecDestroy(&phi_local));
+  PetscCallVoid(VecDestroy(&dn_local));
 
   int rank;
   MPI_Comm_rank(PETSC_COMM_WORLD, &rank);

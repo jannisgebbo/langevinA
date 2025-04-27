@@ -13,16 +13,18 @@
 #endif
 #include "make_unique.h"
 
-// This header file defines the structure and behavior of a simulation model called ModelA.
-// It includes necessary libraries and defines several classes and structures to manage the simulation data, parameters, and operations.
+// This header file defines the structure and behavior of a simulation model
+// called ModelA. It includes necessary libraries and defines several classes
+// and structures to manage the simulation data, parameters, and operations.
 
-// The ModelATime structure manages time-stepping information for the simulation.
-// The ModelACoefficients structure holds thermodynamic and transport coefficients.
-// The ModelAHandlerData structure contains options and settings for managing the simulation run.
-// The ModelAData class aggregates all static data and configuration options for the simulation.
-// The G_node and define data types for grid nodes in the simulation.
-// The ModelA class encapsulates the entire simulation, including grid setup, initialization, and finalization.
-
+// The ModelATime structure manages time-stepping information for the
+// simulation. The ModelACoefficients structure holds thermodynamic and
+// transport coefficients. The ModelAHandlerData structure contains options and
+// settings for managing the simulation run. The ModelAData class aggregates all
+// static data and configuration options for the simulation. The G_node and
+// define data types for grid nodes in the simulation. The ModelA class
+// encapsulates the entire simulation, including grid setup, initialization, and
+// finalization.
 
 // POD structure for recording the time stepping information. The finaltime is
 // the final time of the simulation, the initialtime is the initial time, and
@@ -132,10 +134,10 @@ struct ModelAHandlerData {
 
   // Quench Mode:
   //
-  // In quench mode we start with some mass, quench_mode_mass0, and 
+  // In quench mode we start with some mass, quench_mode_mass0, and
   // thermalize the system with that mass. At time t=0 we start the simulation
   // with a different mass, as given by acoefficients.mass0
-  bool quench_mode = false ;
+  bool quench_mode = false;
   double quench_mode_mass0 = -4.70052;
 
   void read(Json::Value &params) {
@@ -149,8 +151,8 @@ struct ModelAHandlerData {
         params.get("thermalization_time", thermalization_time).asDouble();
 
     quench_mode = params.get("quench_mode", quench_mode).asBool();
-    quench_mode_mass0 = params.get("quench_mode_mass0", quench_mode_mass0).asDouble() ;
-
+    quench_mode_mass0 =
+        params.get("quench_mode_mass0", quench_mode_mass0).asDouble();
 
     eventmode = params.get("eventmode", eventmode).asBool();
     nevents = params.get("nevents", nevents).asInt();
@@ -169,7 +171,8 @@ struct ModelAHandlerData {
 
     PetscPrintf(PETSC_COMM_WORLD, "quench_mode = %s\n",
                 (quench_mode ? "true" : "false"));
-    PetscPrintf(PETSC_COMM_WORLD, "quench_mode_mass0 = %e\n", quench_mode_mass0);
+    PetscPrintf(PETSC_COMM_WORLD, "quench_mode_mass0 = %e\n",
+                quench_mode_mass0);
 
     PetscPrintf(PETSC_COMM_WORLD, "eventmode = %s\n",
                 (eventmode ? "true" : "false"));
@@ -425,7 +428,7 @@ public:
 
     // This Get a pointer to do the calculation
     PetscScalar ****u;
-    DMDAVecGetArrayDOF(domain, solution, &u);
+    PetscCall(DMDAVecGetArrayDOF(domain, solution, &u));
 
     // Get the Local Corner od the vector
     PetscInt i, j, k, L, xstart, ystart, zstart, xdimension, ydimension,
@@ -451,7 +454,7 @@ public:
         }
       }
     }
-    DMDAVecRestoreArrayDOF(domain, solution, &u);
+    PetscCall(DMDAVecRestoreArrayDOF(domain, solution, &u));
     return (0);
   }
 
@@ -463,19 +466,19 @@ public:
 
     // This Get a pointer to do the calculation
     PetscScalar ****u;
-    DMDAVecGetArrayDOF(domain, solution, &u);
+    PetscCall(DMDAVecGetArrayDOF(domain, solution, &u));
 
     // Get the Local Corner od the vector
     PetscInt i, j, k, L, xstart, ystart, zstart, xdimension, ydimension,
         zdimension;
 
-    DMDAGetCorners(domain, &xstart, &ystart, &zstart, &xdimension, &ydimension,
-                   &zdimension);
+    PetscCall(DMDAGetCorners(domain, &xstart, &ystart, &zstart, &xdimension,
+                             &ydimension, &zdimension));
 
     std::vector<PetscScalar> charge_sum_local(ModelAData::Ndof, 0.);
     std::vector<PetscScalar> charge_sum(ModelAData::Ndof, 0.);
 
-    PetscScalar chi = data.acoefficients.chi ;
+    PetscScalar chi = data.acoefficients.chi;
     for (k = zstart; k < zstart + zdimension; k++) {
       for (j = ystart; j < ystart + ydimension; j++) {
         for (i = xstart; i < xstart + xdimension; i++) {
@@ -489,7 +492,7 @@ public:
             u[k][j][i][L] = sqrt(chi) * ModelARndm->normal();
 
             // Accumulate the total charge in a Buffer
-            charge_sum_local[L] += u[k][j][i][L] ;
+            charge_sum_local[L] += u[k][j][i][L];
           }
         }
       }
@@ -500,7 +503,7 @@ public:
                   MPIU_SCALAR, MPI_SUM, PETSC_COMM_WORLD);
 
     // Subtract the zero mode. Assumes lattice spacing is one
-    PetscScalar V = data.NX * data.NY * data.NX;
+    PetscScalar V = data.NX * data.NY * data.NZ;
     for (k = zstart; k < zstart + zdimension; k++) {
       for (j = ystart; j < ystart + ydimension; j++) {
         for (i = xstart; i < xstart + xdimension; i++) {
@@ -514,7 +517,7 @@ public:
       }
     }
 
-    DMDAVecRestoreArrayDOF(domain, solution, &u);
+    PetscCall(DMDAVecRestoreArrayDOF(domain, solution, &u));
 
     return (0);
   }
