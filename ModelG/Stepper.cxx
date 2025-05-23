@@ -166,7 +166,7 @@ bool IdealPV2::step(const double &dt) {
 
   // Do some setup for the accept reject procedure
   if (accept_reject) {
-    VecCopy(model->solution, previoussolution);
+    PetscCall(VecCopy(model->solution, previoussolution));
   }
   oldEnergy = computeEnergy(dt);
 
@@ -200,7 +200,7 @@ bool IdealPV2::step(const double &dt) {
     MPI_Bcast(&reject, 1, MPIU_BOOL, 0, MPI_COMM_WORLD);
 
     if (reject) {
-      VecCopy(previoussolution, model->solution);
+      PetscCall(VecCopy(previoussolution, model->solution));
     }
   }
   return success;
@@ -208,22 +208,26 @@ bool IdealPV2::step(const double &dt) {
 
 bool IdealPV2::step_no_reject(const double &dt) {
   G_node ***phinew;
-  DMDAVecGetArray(da, model->solution, &phinew);
+  PetscCall(DMDAVecGetArray(da, model->solution, &phinew));
 
   // drifts dt / 2.0
-
   rotatePhi(phinew, dt / 2.0);
+  // this was missing compared to master branch
+  PetscCall(DMDAVecRestoreArray(da, model->solution, &phinew));
 
   // Get a local vector with ghost cells
   Vec localU;
-  DMGetLocalVector(da, &localU);
+  PetscCall(DMGetLocalVector(da, &localU));
 
   // Fill in the ghost celss with mpicalls
-  DMGlobalToLocalBegin(da, model->solution, INSERT_VALUES, localU);
-  DMGlobalToLocalEnd(da, model->solution, INSERT_VALUES, localU);
+  PetscCall(DMGlobalToLocalBegin(da, model->solution, INSERT_VALUES, localU));
+  PetscCall(DMGlobalToLocalEnd(da, model->solution, INSERT_VALUES, localU));
 
   G_node ***phi;
   DMDAVecGetArrayRead(da, localU, &phi);
+  PetscCall(DMDAVecGetArrayRead(da, localU, &phi));
+  // also missing compared to master 
+  PetscCall(DMDAVecGetArray(da, model->solution, &phinew));
 
   const auto &coeff = data.acoefficients;
   const PetscReal H[4] = {coeff.H, 0., 0., 0.};
@@ -308,10 +312,9 @@ bool IdealPV2::step_no_reject(const double &dt) {
 
   rotatePhi(phinew, dt / 2.0);
 
-  DMDAVecRestoreArrayRead(da, localU, &phi);
-  DMRestoreLocalVector(da, &localU);
-
-  DMDAVecRestoreArray(da, model->solution, &phinew);
+  PetscCall(DMDAVecRestoreArray(da, model->solution, &phinew));
+  PetscCall(DMDAVecRestoreArrayRead(da, localU, &phi));
+  PetscCall(DMRestoreLocalVector(da, &localU));
 
   return true;
 }
@@ -545,7 +548,7 @@ bool EulerLangevinHB::step(const double &dt) {
 
   // Get the ranges
   PetscInt ixs, iys, izs, nx, ny, nz;
-  DMDAGetCorners(model->domain, &ixs, &iys, &izs, &nx, &ny, &nz);
+  PetscCall(DMDAGetCorners(model->domain, &ixs, &iys, &izs, &nx, &ny, &nz));
 
   G_node heff = {};
   G_node phi_o = {};
