@@ -440,7 +440,7 @@ public:
 
     // This Get a pointer to do the calculation
     PetscScalar ****u;
-    Petsc(DMDAVecGetArrayDOF(domain, solution, &u));
+    PetscCall(DMDAVecGetArrayDOF(domain, solution, &u));
 
     // Get the Local Corner od the vector
     PetscInt i, j, k, L, xstart, ystart, zstart, xdimension, ydimension,
