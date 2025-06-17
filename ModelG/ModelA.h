@@ -701,7 +701,8 @@ public:
       PetscInt domain_size_y = My / domain_partition;
       PetscInt domain_size_z = Mz / domain_partition;
 
-      PetscReal R = data.ahandler.init_amp;
+      PetscReal t = data.atime.t();
+      PetscReal R = sqrt(data.acoefficients.f2(t));
       PetscReal phi;
       PetscReal theta1;
       PetscReal theta2;
