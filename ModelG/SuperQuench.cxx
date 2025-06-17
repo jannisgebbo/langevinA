@@ -23,16 +23,23 @@ void initialize_event(ModelA *model) {
   
   // call ModelA subroutine that initializes random spin configurations
   model->initialize_random_spins();
-  // initialize random spin domains
-  //model->initialize_random_domains();
+  // initialize random spin domains (not multithread safe)
+  /*
+  int size;
+  MPI_Comm_size(PETSC_COMM_WORLD, &size);
+  if (size > 1){
+    std::cerr << "Abort! Running with" << size << " process(es) but initialize_random_domains" << 
+               " is not multihread-safe." << std::endl;
+    std::exit(EXIT_FAILURE);
+  }
+  else{
+    model->initialize_random_domains();
+  }
+  */
   // and subroutine that initializes gaussian random charges with normalization such that total
   // charge is zero
   model->initialize_gaussian_charges();
   //model->initialize_gaussian_const();
-
-
-  // for former 'wave initial conditions' do instead:
-  // model->initialize_wave_spins();
 }
 
 
