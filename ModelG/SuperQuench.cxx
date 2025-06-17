@@ -23,9 +23,12 @@ void initialize_event(ModelA *model) {
   
   // call ModelA subroutine that initializes random spin configurations
   model->initialize_random_spins();
+  // initialize random spin domains
+  //model->initialize_random_domains();
   // and subroutine that initializes gaussian random charges with normalization such that total
   // charge is zero
   model->initialize_gaussian_charges();
+  //model->initialize_gaussian_const();
 
 
   // for former 'wave initial conditions' do instead:
