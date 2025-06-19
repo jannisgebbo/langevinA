@@ -180,8 +180,14 @@ public:
   // takes a step of A, then B, then C  each for size dt
   //
   // The string which was primarily used in production model g code is
-  // "ABBABBABBC" . The timestep for B = dt/6, the timestep for A = dt/3, and
-  // the timestep for C = dt.
+  // "ABBABBABBC" . In this case, the timestep for B = dt/6, the timestep for A
+  // = dt/3, and the timestep for C = dt.
+  //
+  // The default is to include all steps, i.e. ideal, heat bath and diffusion.
+  // But the individual steps can be turned off by setting the flags, ideal,
+  // heatbath, and diffusion to false. This can be done at construction
+  // PV2HBSplit(ModelA &in, "ABBABBABBC", true, true, true)  or later with
+  // setmode().
   PV2HBSplit(ModelA &in, const std::string &inputsteps,
              const bool &ideal = true, const bool &heatbath = true,
              const bool &diffusion = true);
