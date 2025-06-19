@@ -24,7 +24,7 @@ public:
 // Minimal output of scalar array to a text file
 class measurer_output_txt : public measurer_output {
 public:
-  measurer_output_txt(Measurer *in);
+  measurer_output_txt(Measurer *in, const std::string &filename);
   ~measurer_output_txt();
   virtual void save(const std::string &what);
 
