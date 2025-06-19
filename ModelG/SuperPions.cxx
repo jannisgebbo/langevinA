@@ -18,7 +18,7 @@
 #include "measurer.h"
 #include "measurer_output.h"
 
-void thermalize_event(ModelA *const model) {
+void thermalize_modelg_event(ModelA *const model) {
   const auto &ahandler = model->data.ahandler;
   auto &atime = model->data.atime;
   auto &acoefficients = model->data.acoefficients;
@@ -75,14 +75,15 @@ void thermalize_event(ModelA *const model) {
   }
 }
 
-void run_event(ModelA *const model, Stepper *const step) {
+void run_event(ModelA *const model, Stepper *const step,
+               nlohmann::json &inputs) {
 
   const auto &ahandler = model->data.ahandler;
   auto &atime = model->data.atime;
   atime.reset();
 
   if (not ahandler.restart) {
-    thermalize_event(model);
+    thermalize_modelg_event(model);
   }
 
   // Set up logging for PETSc so we can find out how much time
@@ -93,7 +94,7 @@ void run_event(ModelA *const model, Stepper *const step) {
   PetscLogEventRegister("Saving the fields", 0, &saving);
   PetscLogEventRegister("Steps", 0, &stepmonitor);
 
-  // Set filename
+  // Set filename for the hdf5 ouput file
   std::string filename;
   if (ahandler.eventmode) {
     std::stringstream namestream;
@@ -103,7 +104,7 @@ void run_event(ModelA *const model, Stepper *const step) {
   } else {
     filename = ahandler.outputfiletag + ".h5";
   }
-  // Set file access
+  // Set file access which is append if we are restarting
   PetscFileMode file_access = FILE_MODE_WRITE;
   if (ahandler.restart) {
     file_access = FILE_MODE_APPEND;
@@ -111,6 +112,8 @@ void run_event(ModelA *const model, Stepper *const step) {
   // Open the file and create the measurement object
   Measurer measurer(model);
 
+  // Creat the measurer output object, which will write the measurements
+  // to the h5 file.
   int rank = -1;
   MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
   std::unique_ptr<measurer_output_fasthdf5> measurer_output;
@@ -174,41 +177,34 @@ void Run(nlohmann::json &inputs) {
   std::unique_ptr<Stepper> step;
   auto &etype = inputdata.ahandler.evolverType;
   if (etype == "PV2HBSplit23") {
-    std::array<unsigned int, 2> s = {2, 3};
     // Default is to include all steps
-    step = std::make_unique<PV2HBSplit>(model, s);
-  } else if (etype == "PV2HBSplit23NoDiffuse") {
-    std::array<unsigned int, 2> s = {2, 3};
-    const bool ideal = true;
-    const bool heatbath = true;
-    const bool diffuse = false;
-    step = std::make_unique<PV2HBSplit>(model, s, ideal, heatbath, diffuse);
-  } else if (etype == "PV2HBSplit23OnlyDiffuse") {
-    std::array<unsigned int, 2> s = {2, 3};
-    const bool ideal = false;
-    const bool heatbath = false;
-    const bool diffuse = true;
-    step = std::make_unique<PV2HBSplit>(model, s, ideal, heatbath, diffuse);
+    step = std::make_unique<PV2HBSplit>(model, "ABBABBABBC", true, true, true);
+  } else if (etype == "PV2HBSplitGeneral") {
+    nlohmann::json general_stepper = inputs["pv2hb_split_general"];
+    std::string steps = general_stepper.value("steps", "ABBABBABBC");
+    const bool ideal = general_stepper.value("include_ideal", true);
+    const bool heatbath = general_stepper.value("include_heatbath", true);
+    const bool diffuse = general_stepper.value("include_diffuse", true);
+    step = std::make_unique<PV2HBSplit>(model, steps, ideal, heatbath, diffuse);
   } else {
     PetscPrintf(PETSC_COMM_WORLD, "Unrecognized stepper type %s. Aborting...\n",
                 etype.c_str());
-    return ;
+    return;
   }
 
   auto &ahandler = model.data.ahandler;
   if (ahandler.eventmode) {
     for (int i = 0; i < ahandler.nevents; i++) {
-      run_event(&model, step.get());
+      run_event(&model, step.get(), inputs);
       ahandler.current_event++;
     }
   } else {
-    run_event(&model, step.get());
+    run_event(&model, step.get(), inputs);
   }
   // Destroy everything
   step->finalize();
   model.finalize();
 }
-
 
 int main(int argc, char **argv) {
 
@@ -225,7 +221,7 @@ int main(int argc, char **argv) {
   char filename[PETSC_MAX_PATH_LEN] = "";
   ierr = PetscOptionsGetString(NULL, NULL, "-input", filename, sizeof(filename),
                                NULL);
-  nlohmann::json  inputs;
+  nlohmann::json inputs;
   std::ifstream ifs(filename);
   if (ifs) {
     ifs >> inputs;
@@ -235,7 +231,7 @@ int main(int argc, char **argv) {
     return PetscFinalize();
   }
   PetscPrintf(PETSC_COMM_WORLD, "Current version: %s\n", gitversion);
-  
+
   Run(inputs);
 
   return PetscFinalize();

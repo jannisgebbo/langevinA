@@ -176,16 +176,13 @@ class PV2HBSplit : public Stepper {
 public:
   // The ideal step is A, heat bath step is B, the diffusion step is C.
   //
-  // The format for  scounts = {inner, outer}.
-  // With scounts  {1, 1} the stepping is (AB)C
-  // With scounts  {3, 1} the stepping is (ABBB)C
-  // With scounts  {1, 2} the stepping is (AB)(AB) C
-  // With scounts  {2, 3} the stepping is (ABB)(ABB) (ABB) C
+  // The order of the steps is specified with a string, e.g. "ABC"
+  // takes a step of A, then B, then C  each for size dt
   //
-  // One can switch off the diffusion step by setting nodiffuse=true
-  //
-  // One can only do diffusion by setting onlydiffuse=true
-  PV2HBSplit(ModelA &in, const std::array<unsigned int, 2> &scounts = {1, 1},
+  // The string which was primarily used in production model g code is
+  // "ABBABBABBC" . The timestep for B = dt/6, the timestep for A = dt/3, and
+  // the timestep for C = dt.
+  PV2HBSplit(ModelA &in, const std::string &inputsteps,
              const bool &ideal = true, const bool &heatbath = true,
              const bool &diffusion = true);
   bool step(const double &dt) override;
@@ -196,6 +193,15 @@ public:
   }
   const IdealPV2 &getIdealPV2() const { return pv2; }
 
+  // Set the mode of the stepper. If ideal is false, then the ideal step is not
+  // performed, etc. The default, which is all true, is set with setmode().
+  void setmode(const bool &ideal = true, const bool &heatbath = true,
+               const bool &diffusion = true) {
+    include_ideal = ideal;
+    include_heatbath = heatbath;
+    include_diffusion = diffusion;
+  }
+
   ~PV2HBSplit() { ; }
 
 private:
@@ -205,11 +211,14 @@ private:
   EulerLangevinHB hbPhi;
   ModelGChargeHB hbN;
 
-  std::array<unsigned int, 2> stepcounts;
+  std::string steps; // The steps to take, e.g. "ABC"
 
   bool include_ideal;     // If true, do the ideal step
   bool include_heatbath;  // If true, do the heat bath step
   bool include_diffusion; // If true, do the diffusion step
+  double A_count;         // Number of A steps in the string steps
+  double B_count;         // Number of B steps in the string steps
+  double C_count;         // Number of C steps in the string steps
 };
 
 #endif

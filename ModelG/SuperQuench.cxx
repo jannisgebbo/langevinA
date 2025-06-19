@@ -2,10 +2,10 @@
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
-#include <iostream>
 #include <iomanip>
-#include <sstream>
+#include <iostream>
 #include <memory>
+#include <sstream>
 #include <vector>
 
 #include "ModelA.h"
@@ -17,40 +17,37 @@
 #include "measurer.h"
 #include "measurer_output.h"
 
-
-// call subroutines of ModelA that assign initial values to all fields (charges and phis)
+// call subroutines of ModelA that assign initial values to all fields (charges
+// and phis)
 void initialize_event(ModelA *model) {
-  
+
   // call ModelA subroutine that initializes random spin configurations
   model->initialize_random_spins();
-  // and subroutine that initializes gaussian random charges with normalization such that total
-  // charge is zero
+  // and subroutine that initializes gaussian random charges with normalization
+  // such that total charge is zero
   model->initialize_gaussian_charges();
-
 
   // for former 'wave initial conditions' do instead:
   // model->initialize_wave_spins();
 }
 
-
 // This is the main loop of the program. It is a simple loop that steps the
-// solution forward in time until the final time is reached. The data is analyzed
-// and saved every saveFrequency steps.
-void run_event(ModelA* const model,Stepper* const step) 
-{
+// solution forward in time until the final time is reached. The data is
+// analyzed and saved every saveFrequency steps.
+void run_event(ModelA *const model, Stepper *const step) {
 
-  const auto &ahandler = model->data.ahandler ;
-  auto &atime = model->data.atime ;
-  atime.reset() ;
+  const auto &ahandler = model->data.ahandler;
+  auto &atime = model->data.atime;
+  atime.reset();
 
-  initialize_event(model) ;
+  initialize_event(model);
   // Write the grid to a file so we can see the initial conditions
   // The "outputfiletag" is the base name of the file. The grid will be
   // written to a file with the name outputfiletag_save.h5. The _save.h5
   // is added by the write function.
-  model->write(ahandler.outputfiletag + "_grid") ;
+  model->write(ahandler.outputfiletag + "_grid");
 
-  // Set up logging for PETSc so we can find out how much time 
+  // Set up logging for PETSc so we can find out how much time
   // each part takes
   PetscInt steps = 0;
   PetscLogEvent measurements, stepmonitor, saving;
@@ -69,15 +66,16 @@ void run_event(ModelA* const model,Stepper* const step)
     filename = ahandler.outputfiletag + ".h5";
   }
   // Set file access mode for the hdf5 output of measurements
-  PetscFileMode file_access = FILE_MODE_WRITE ;
+  PetscFileMode file_access = FILE_MODE_WRITE;
 
   // Open the file and create the measurement object
-  Measurer measurer(model) ;
+  Measurer measurer(model);
   int rank = -1;
   MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
-  std::unique_ptr<measurer_output_fasthdf5> measurer_output ;
-  if (rank ==0) {
-    measurer_output = std::make_unique<measurer_output_fasthdf5>(&measurer, filename, file_access);
+  std::unique_ptr<measurer_output_fasthdf5> measurer_output;
+  if (rank == 0) {
+    measurer_output = std::make_unique<measurer_output_fasthdf5>(
+        &measurer, filename, file_access);
   }
 
   // Start the loop
@@ -89,20 +87,22 @@ void run_event(ModelA* const model,Stepper* const step)
       PetscLogEventBegin(measurements, 0, 0, 0, 0);
       measurer.measure(&model->solution);
       if (rank == 0) {
-        measurer_output->save() ;
+        measurer_output->save();
       }
-      PetscPrintf(PETSC_COMM_WORLD,
-                  "Event/Timestep %d/%d: step size = %g, time = %g, final = %g\n", ahandler.current_event, steps,
-                  (double)atime.dt(), (double)atime.t(), (double)atime.tfinal());
+      PetscPrintf(
+          PETSC_COMM_WORLD,
+          "Event/Timestep %d/%d: step size = %g, time = %g, final = %g\n",
+          ahandler.current_event, steps, (double)atime.dt(), (double)atime.t(),
+          (double)atime.tfinal());
       PetscLogEventEnd(measurements, 0, 0, 0, 0);
     }
 
     // Write the solution to tape if writeFrequency > 0. This is used for
     // plotting of the solution. It is normally not analyzed, or written.
-    if(ahandler.writeFrequency > 0 and steps % ahandler.writeFrequency == 0) {
+    if (ahandler.writeFrequency > 0 and steps % ahandler.writeFrequency == 0) {
       PetscLogEventBegin(saving, 0, 0, 0, 0);
       std::ostringstream tString;
-      tString << std::setprecision(4) <<"_t_" << atime.t();
+      tString << std::setprecision(4) << "_t_" << atime.t();
       model->write(ahandler.outputfiletag + tString.str());
       PetscLogEventEnd(saving, 0, 0, 0, 0);
     }
@@ -117,7 +117,6 @@ void run_event(ModelA* const model,Stepper* const step)
     atime += atime.dt();
   }
 }
-
 
 int main(int argc, char **argv) {
 
@@ -156,21 +155,21 @@ int main(int argc, char **argv) {
     return PetscFinalize();
   }
 
-  // allocate the grid 
+  // allocate the grid
   ModelA model(inputdata);
 
-  // Construct the stepper 
-  std::unique_ptr<Stepper> step; 
+  // Construct the stepper
+  std::unique_ptr<Stepper> step;
   step = make_unique<IdealPV2>(model);
 
-  auto &ahandler = model.data.ahandler ;
-  if (ahandler.eventmode) { 
-    for (int i = 0 ;  i < ahandler.nevents ; i++ )  {
-      run_event(&model, step.get()) ;
-      ahandler.current_event++ ;
+  auto &ahandler = model.data.ahandler;
+  if (ahandler.eventmode) {
+    for (int i = 0; i < ahandler.nevents; i++) {
+      run_event(&model, step.get());
+      ahandler.current_event++;
     }
-  } else  {
-    run_event(&model, step.get()) ;
+  } else {
+    run_event(&model, step.get());
   }
 
   // Destroy everything

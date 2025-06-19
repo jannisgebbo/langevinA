@@ -569,12 +569,36 @@ void ModelGChargeHB::finalize() {
 
 /////////////////////////////////////////////////////////////////////////
 
-PV2HBSplit::PV2HBSplit(ModelA &in, const std::array<unsigned int, 2> &scounts,
+PV2HBSplit::PV2HBSplit(ModelA &in, const std::string &insteps,
                        const bool &ideal, const bool &heatbath,
                        const bool &diffusion)
-    : model(&in), pv2(in), hbPhi(in), hbN(in), stepcounts(scounts),
+    : model(&in), pv2(in), hbPhi(in), hbN(in), steps(insteps),
       include_ideal(ideal), include_heatbath(heatbath),
-      include_diffusion(diffusion) {}
+      include_diffusion(diffusion), A_count(0), B_count(0), C_count(0) {
+
+  // Check if string contains only A, B, C characters
+  for (char c : steps) {
+    if (c != 'A' and c != 'B' and c != 'C') {
+      throw std::invalid_argument(
+          "String contains invalid character: " + std::string(1, c) +
+          ". Only A, B, C are allowed.");
+    }
+  }
+  // Count occurrences of each character
+  for (char c : steps) {
+    switch (c) {
+    case 'A':
+      ++A_count;
+      break;
+    case 'B':
+      ++B_count;
+      break;
+    case 'C':
+      ++C_count;
+      break;
+    }
+  }
+}
 
 bool PV2HBSplit::step(const double &dt) {
 
@@ -583,33 +607,24 @@ bool PV2HBSplit::step(const double &dt) {
 
   PetscLogEvent ideal_log, hb_log, qhb_log;
 
-  // Format of steps is ABBB,ABBB,C  for (3,2)
+  // Format of steps is ABBBABBBC
   PetscLogEventRegister("IdealStep", 0, &ideal_log);
   PetscLogEventRegister("HBStep", 0, &hb_log);
+  PetscLogEventRegister("QHBStep", 0, &qhb_log);
 
-  for (size_t i1 = 0; i1 < stepcounts[1]; i1++) {
-    if (include_ideal) {
+  for (char s : steps) {
+    if (s == 'A' and include_ideal) {
       PetscLogEventBegin(ideal_log, 0, 0, 0, 0);
-      pv2.step(dt / (stepcounts[1]));
+      pv2.step(dt / A_count);
       PetscLogEventEnd(ideal_log, 0, 0, 0, 0);
-    }
-
-    if (include_heatbath) {
+    } else if (s == 'B' and include_heatbath) {
       PetscLogEventBegin(hb_log, 0, 0, 0, 0);
-      for (size_t i0 = 0; i0 < stepcounts[0]; i0++) {
-        hbPhi.step(dt / (stepcounts[0] * stepcounts[1]));
-      }
-      PetscLogEventEnd(hb_log, 0, 0, 0, 0);
+      hbPhi.step(dt / B_count);
+    } else if (s == 'C' and include_diffusion) {
+      PetscLogEventBegin(qhb_log, 0, 0, 0, 0);
+      hbN.step(dt / C_count);
+      PetscLogEventEnd(qhb_log, 0, 0, 0, 0);
     }
   }
-
-  if (include_diffusion) {
-    PetscLogEventRegister("QHBStep", 0, &qhb_log);
-
-    PetscLogEventBegin(qhb_log, 0, 0, 0, 0);
-    hbN.step(dt);
-    PetscLogEventEnd(qhb_log, 0, 0, 0, 0);
-  }
-
   return true;
 }
