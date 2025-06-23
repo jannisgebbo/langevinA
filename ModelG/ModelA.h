@@ -582,6 +582,45 @@ public:
 
     return (0);
   }
+  
+  // Routine that initializes the fields all pointing into the same direction, i.e. s_0 = f
+  // and s_i = 0 
+  PetscErrorCode initialize_cold_spins() {
+    
+    const auto &ahandler = data.ahandler;
+
+    // This Get a pointer to do the calculation
+    PetscScalar ****u;
+    PetscCall(DMDAVecGetArrayDOF(domain, solution, &u));
+
+    // Get the Local Corner od the vector
+    PetscInt i, j, k, L, xstart, ystart, zstart, xdimension, ydimension,
+        zdimension;
+
+    DMDAGetCorners(domain, &xstart, &ystart, &zstart, &xdimension, &ydimension,
+                   &zdimension);
+
+    PetscReal R = sqrt(data.acoefficients.f2(data.atime.t()));
+
+    // iterate over all lattice points
+    for (k = zstart; k < zstart + zdimension; k++) {
+      for (j = ystart; j < ystart + ydimension; j++) {
+        for (i = xstart; i < xstart + xdimension; i++) {
+          for (L = 0; L < ModelAData::Nphi; L++) {
+            if (ahandler.superfluidmode and L == 0) {
+              u[k][j][i][L] = R;
+            } else {
+              u[k][j][i][L] = 0.;
+            }
+          }
+        }
+      }
+    }
+
+    PetscCall(DMDAVecRestoreArrayDOF(domain, solution, &u));
+
+    return (0);
+  }
 
   // Routine that initializes the fields randomly under the constraint phi^2 = R, i.e. uniformly 
   // distributed spins on a 4d sphere
@@ -595,12 +634,6 @@ public:
   // Measure: sin(theta1) sin^2(theta2) dphi dtheta1 dtheta2
   PetscErrorCode initialize_random_spins() {
     
-    Vec globalVec, localVec;
-    PetscCall(DMCreateGlobalVector(domain, &globalVec));
-    PetscCall(DMCreateLocalVector(domain, &localVec));
-
-    int rank;
-    MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
     constexpr auto PI = 3.14159265358979323846;
 
     // This Get a pointer to do the calculation

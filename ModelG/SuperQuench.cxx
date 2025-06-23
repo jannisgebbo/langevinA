@@ -22,7 +22,8 @@
 void initialize_event(ModelA *model) {
   
   // call ModelA subroutine that initializes random spin configurations
-  model->initialize_random_spins();
+  //model->initialize_random_spins();
+  model->initialize_cold_spins();
   // initialize random spin domains (not multithread safe)
   /*
   int size;
@@ -128,6 +129,52 @@ void run_event(ModelA* const model,Stepper* const step)
   }
 }
 
+void Run(nlohmann::json &inputs) {
+  // Digest the inputs, some fields may be modified on ouptut
+  ModelAData inputdata(inputs);
+
+  // allocate the grid and initialize
+  ModelA model(inputdata);
+
+  // Construct the stepper
+  std::unique_ptr<Stepper> step;
+  auto &etype = inputdata.ahandler.evolverType;
+  if (etype == "PV2HBSplit23") {
+    std::array<unsigned int, 2> s = {2, 3};
+    // Default is to include all steps
+    step = std::make_unique<PV2HBSplit>(model, s);
+  } else if (etype == "PV2HBSplit23NoDiffuse") {
+    std::array<unsigned int, 2> s = {2, 3};
+    const bool ideal = true;
+    const bool heatbath = true;
+    const bool diffuse = false;
+    step = std::make_unique<PV2HBSplit>(model, s, ideal, heatbath, diffuse);
+  } else if (etype == "PV2HBSplit23OnlyDiffuse") {
+    std::array<unsigned int, 2> s = {2, 3};
+    const bool ideal = false;
+    const bool heatbath = false;
+    const bool diffuse = true;
+    step = std::make_unique<PV2HBSplit>(model, s, ideal, heatbath, diffuse);
+  } else {
+    PetscPrintf(PETSC_COMM_WORLD, "Unrecognized stepper type %s. Aborting...\n",
+                etype.c_str());
+    return ;
+  }
+
+  auto &ahandler = model.data.ahandler;
+  if (ahandler.eventmode) {
+    for (int i = 0; i < ahandler.nevents; i++) {
+      run_event(&model, step.get());
+      ahandler.current_event++;
+    }
+  } else {
+    run_event(&model, step.get());
+  }
+  // Destroy everything
+  step->finalize();
+  model.finalize();
+}
+
 
 int main(int argc, char **argv) {
 
@@ -153,7 +200,9 @@ int main(int argc, char **argv) {
                 filename);
     return PetscFinalize();
   }
-
+  
+  Run(inputs);
+  /*
   // Digest the inputs, some fields may be modified on ouptut.
   // If you need to add more parameters add them to ModelAData
   ModelAData inputdata(inputs);
@@ -186,5 +235,6 @@ int main(int argc, char **argv) {
   // Destroy everything
   step->finalize();
   model.finalize();
+  */
   return PetscFinalize();
 }
