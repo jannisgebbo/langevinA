@@ -18,26 +18,9 @@
 #include "measurer.h"
 #include "measurer_output.h"
 
-void thermalize_modelg_event(ModelA *const model) {
+void thermalize_event(ModelA *const model) {
   const auto &ahandler = model->data.ahandler;
   auto &atime = model->data.atime;
-  auto &acoefficients = model->data.acoefficients;
-
-  // Initialize a quench.  Set the initial temperature (mass parameter)
-  // according a given value and thermalize this initial condition.  Then,
-  // after the thremalization process reset the mass to the one used for the
-  // actual running (as opposed to initializing) the code. The reset process
-  // is handled below
-  const double mass0 = acoefficients.mass0; // Store the mass for reset process
-  const double dmassdt =
-      acoefficients.dmassdt; // Store the slope for reset process
-  if (ahandler.quench_mode) {
-    acoefficients.mass0 = ahandler.quench_mode_mass0;
-    acoefficients.dmassdt = 0.;
-    PetscPrintf(PETSC_COMM_WORLD,
-                "Settinng up a quench initial condition with initial mass %e\n",
-                acoefficients.mass0);
-  }
 
   // Thermalize the state in memory at the initial time ;
   int nsteps = static_cast<int>(ahandler.thermalization_time / atime.dt());
@@ -60,31 +43,65 @@ void thermalize_modelg_event(ModelA *const model) {
                 (double)atime.t(), nsteps, model->data.mass());
   }
   thermalizer->finalize();
+}
 
-  // If we are performing a quench, set the mass back to its nominal value.
-  if (ahandler.quench_mode) {
+void initialize_event(const int &ievent, ModelA *const model,
+                      nlohmann::json &inputs) {
+  const auto &ahandler = model->data.ahandler;
+  std::string initialization = inputs["initialization"]; 
+
+  if (initialization == "default") {
+    // Do a cold start and thermalize the event
+    if (ievent == 0) {
+      model->initialize();
+    }
+    thermalize_event(model);
+  } else if (initialization == "restart") {
+    // Look for a previously saved initial condtitions
+    model->read(ahandler.outputfiletag);
+  } else if (initialization == "quench_mode") {
+    // Initialize a quench.  Set the initial temperature (mass parameter)
+    // according a given value and thermalize this initial condition.  Then,
+    // after the thremalization process reset the mass to the one used for the
+    // actual running (as opposed to initializing) the code. The reset process
+    // is handled below
+
+    auto &acoefficients = model->data.acoefficients;
+    const double mass0 =
+        acoefficients.mass0; // Store the mass for reset process
+    const double dmassdt =
+        acoefficients.dmassdt; // Store the slope for reset process
+
+    // Set the quench mass
+    acoefficients.mass0 = ahandler.quench_mode_mass0;
+    acoefficients.dmassdt = 0.;
     PetscPrintf(PETSC_COMM_WORLD,
-                "Finalizing  quench initial condition with initial mass %e\n",
+                "Settinng up a quench initial condition with initial mass %e\n",
                 acoefficients.mass0);
 
+    // Thermalize at the quench mass
+    if (ievent == 0) {
+      model->initialize();
+    }
+    thermalize_event(model);
+
+    // Reset the mass and teh slope
     acoefficients.mass0 = mass0;
     acoefficients.dmassdt = dmassdt;
 
     PetscPrintf(PETSC_COMM_WORLD, "and final initial mass %e\n",
                 acoefficients.mass0);
+  } else if (initialization == "randomspins") {
+    model->initialize_random_spins();
+    model->initialize_gaussian_charges();
   }
 }
 
-void run_event(ModelA *const model, Stepper *const step,
+void run_event(const int &ievent, ModelA *const model, Stepper *const step,
                nlohmann::json &inputs) {
 
   const auto &ahandler = model->data.ahandler;
   auto &atime = model->data.atime;
-  atime.reset();
-
-  if (not ahandler.restart) {
-    thermalize_modelg_event(model);
-  }
 
   // Set up logging for PETSc so we can find out how much time
   // each part takes
@@ -170,9 +187,6 @@ void Run(nlohmann::json &inputs) {
   // allocate the grid and initialize
   ModelA model(inputdata);
 
-  // Read in the initial conditions or initialize to zero
-  model.initialize();
-
   // Construct the stepper
   std::unique_ptr<Stepper> step;
   auto &etype = inputdata.ahandler.evolverType;
@@ -193,14 +207,15 @@ void Run(nlohmann::json &inputs) {
   }
 
   auto &ahandler = model.data.ahandler;
-  if (ahandler.eventmode) {
-    for (int i = 0; i < ahandler.nevents; i++) {
-      run_event(&model, step.get(), inputs);
-      ahandler.current_event++;
-    }
-  } else {
-    run_event(&model, step.get(), inputs);
+  auto &atime = model.data.atime;
+  int nevents = std::max(ahandler.nevents, 1) ; 
+  for (int i = 0; i < nevents; i++) {
+    atime.reset();
+    initialize_event(i, &model, inputs);
+    run_event(i, &model, step.get(), inputs);
+    ahandler.current_event++;
   }
+
   // Destroy everything
   step->finalize();
   model.finalize();
@@ -231,6 +246,10 @@ int main(int argc, char **argv) {
     return PetscFinalize();
   }
   PetscPrintf(PETSC_COMM_WORLD, "Current version: %s\n", gitversion);
+
+  PetscPrintf(PETSC_COMM_WORLD, "Running SuperPions with input file %s\n",
+              filename);
+  std::cout << "Input parameters:\n" << inputs.dump(2) << std::endl;
 
   Run(inputs);
 

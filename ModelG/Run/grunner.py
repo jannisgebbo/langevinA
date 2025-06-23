@@ -49,6 +49,9 @@ data = {
     "saveFrequency": 3,
     "thermalization_time": 0.0,
 
+    # Options are [ "default", "restart", "quench_mode" ,  "randomspins"]
+    "initialization" : "default",
+
     # for quenched initial conditions
     "quench_mode": False,
     "quench_mode_mass0": -4.70052,
@@ -76,9 +79,6 @@ def checkinputs():
         raise SystemExit('The parameters mass0 should be negative')
     if data["dmassdt"] > 0:
         raise SystemExit('The parameters dmassdt should be negative')
-    if data["diffusiononly"]:
-        raise SystemExit(
-            'Do not run in diffusiononly mode without asking derek')
     if data["chi"] != 5.:
         raise SystemExit('Chi should be five')
     if data["evolverType"] != "PV2HBSplit23":
