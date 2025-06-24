@@ -170,6 +170,28 @@ PetscScalar modelg_update_charge_pair(const double &chi, const double &rms,
                                       const PetscScalar &nA,
                                       const PetscScalar &nB,
                                       o4_stepper_monitor &monitor);
+/////////////////////////////////////////////////////////////////////////
+// The Crank Nicholson step for q fields
+class ModelGDiffusionStep : public Stepper {
+public:
+  ModelGDiffusionStep(ModelA &in);
+  bool step(const double &dt);
+  void finalize();
+  ~ModelGDiffusionStep() { ; }
+  static PetscErrorCode Form3PointLaplacian(DM da, Mat J, const double &hx,
+                                            const double &hy, const double &hz,
+                                            const double &GammaOverD);
+
+private:
+  ModelA *model;
+
+  Vec rhs;
+  Vec dn;
+  Mat J;
+  Mat A;
+
+  KSP ksp;
+};
 
 /////////////////////////////////////////////////////////////////////////
 class PV2HBSplit : public Stepper {

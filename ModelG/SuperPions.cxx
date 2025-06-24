@@ -12,6 +12,7 @@
 #include "NoiseGenerator.h"
 #include "Stepper.h"
 #include "gitversion.h"
+#include "initialize.h"
 #include "make_unique.h"
 
 // Measurer, where the Petsc are included
@@ -48,7 +49,7 @@ void thermalize_event(ModelA *const model) {
 void initialize_event(const int &ievent, ModelA *const model,
                       nlohmann::json &inputs) {
   const auto &ahandler = model->data.ahandler;
-  std::string initialization = inputs["initialization"]; 
+  std::string initialization = inputs["initialization"];
 
   if (initialization == "default") {
     // Do a cold start and thermalize the event
@@ -94,6 +95,9 @@ void initialize_event(const int &ievent, ModelA *const model,
   } else if (initialization == "randomspins") {
     model->initialize_random_spins();
     model->initialize_gaussian_charges();
+  } else if (initialization == "gaussians") {
+    model->initialize(initialize_gaussians, &inputs["gaussians_params"]);
+    model->write(inputs["outputfiletag"].get<std::string>() + "_initial");
   }
 }
 
@@ -164,7 +168,8 @@ void run_event(const int &ievent, ModelA *const model, Stepper *const step,
     if (ahandler.writeFrequency > 0 and steps % ahandler.writeFrequency == 0) {
       PetscLogEventBegin(saving, 0, 0, 0, 0);
       std::ostringstream tString;
-      tString << std::setprecision(4) << "_t_" << atime.t();
+      // Set the precision to 2 digits after the decimal point filled with 0
+      tString << std::fixed << std::setprecision(2) << "_t_" << atime.t();
       model->write(ahandler.outputfiletag + tString.str());
       PetscLogEventEnd(saving, 0, 0, 0, 0);
     }
@@ -200,6 +205,8 @@ void Run(nlohmann::json &inputs) {
     const bool heatbath = general_stepper.value("include_heatbath", true);
     const bool diffuse = general_stepper.value("include_diffuse", true);
     step = std::make_unique<PV2HBSplit>(model, steps, ideal, heatbath, diffuse);
+  } else if (etype == "ModelGDiffusionStep") {
+    step = std::make_unique<ModelGDiffusionStep>(model);
   } else {
     PetscPrintf(PETSC_COMM_WORLD, "Unrecognized stepper type %s. Aborting...\n",
                 etype.c_str());
@@ -208,7 +215,7 @@ void Run(nlohmann::json &inputs) {
 
   auto &ahandler = model.data.ahandler;
   auto &atime = model.data.atime;
-  int nevents = std::max(ahandler.nevents, 1) ; 
+  int nevents = std::max(ahandler.nevents, 1);
   for (int i = 0; i < nevents; i++) {
     atime.reset();
     initialize_event(i, &model, inputs);
