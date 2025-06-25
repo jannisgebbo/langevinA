@@ -98,6 +98,9 @@ void initialize_event(const int &ievent, ModelA *const model,
   } else if (initialization == "gaussians") {
     model->initialize(initialize_gaussians, &inputs["gaussians_params"]);
     model->write(inputs["outputfiletag"].get<std::string>() + "_initial");
+  } else if (initialization == "wave_spins") {
+    model->initialize(initialize_wave_spins, &inputs["wave_params"]);
+    model->write(inputs["outputfiletag"].get<std::string>() + "_initial");
   }
 }
 
