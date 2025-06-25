@@ -77,7 +77,7 @@ void initialize_event(const int &ievent, ModelA *const model,
     acoefficients.mass0 = ahandler.quench_mode_mass0;
     acoefficients.dmassdt = 0.;
     PetscPrintf(PETSC_COMM_WORLD,
-                "Settinng up a quench initial condition with initial mass %e\n",
+                "Setting up a quench initial condition with initial mass %e\n",
                 acoefficients.mass0);
 
     // Thermalize at the quench mass
@@ -97,6 +97,9 @@ void initialize_event(const int &ievent, ModelA *const model,
     model->initialize_gaussian_charges();
   } else if (initialization == "gaussians") {
     model->initialize(initialize_gaussians, &inputs["gaussians_params"]);
+    model->write(inputs["outputfiletag"].get<std::string>() + "_initial");
+  } else if (initialization == "wave_spins") {
+    model->initialize(initialize_wave_spins, &inputs["wave_params"]);
     model->write(inputs["outputfiletag"].get<std::string>() + "_initial");
   }
 }
