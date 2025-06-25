@@ -143,10 +143,12 @@ PetscErrorCode PetscViewerASCIIOpenMode(MPI_Comm comm, const char *name,
   return (0);
 }
 
-measurer_output_txt::measurer_output_txt(Measurer *in) : measure(in) {
+measurer_output_txt::measurer_output_txt(Measurer *in,
+                                         const std::string &filename)
+    : measure(in) {
 
   const auto &ahandler = measure->getModel()->data.ahandler;
-  std::string name(ahandler.outputfiletag + "_averages.txt");
+  std::string name = filename + std::string("_averages.txt");
   PetscInt ierr = PetscViewerASCIIOpenMode(
       PETSC_COMM_SELF, name.c_str(), FILE_MODE_WRITE, &averages_asciiviewer);
   CHKERRV(ierr);

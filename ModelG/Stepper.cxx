@@ -569,12 +569,210 @@ void ModelGChargeHB::finalize() {
 
 /////////////////////////////////////////////////////////////////////////
 
-PV2HBSplit::PV2HBSplit(ModelA &in, const std::array<unsigned int, 2> &scounts,
+ModelGDiffusionStep::ModelGDiffusionStep(ModelA &in) : model(&in) {
+
+  VecDuplicate(model->solution, &rhs);
+  VecDuplicate(model->solution, &dn);
+  DMCreateMatrix(model->domain, &J);
+
+  double hx = model->data.hX();
+  double hy = model->data.hY();
+  double hz = model->data.hZ();
+  double GammaOverD =
+      model->data.acoefficients.Gamma() / model->data.acoefficients.D();
+  Form3PointLaplacian(model->domain, J, hx, hy, hz, GammaOverD);
+
+  MatConvert(J, MATSAME, MAT_INITIAL_MATRIX, &A);
+  KSPCreate(PETSC_COMM_WORLD, &ksp);
+  KSPSetFromOptions(ksp);
+}
+
+void ModelGDiffusionStep::finalize() {
+  KSPDestroy(&ksp);
+  MatDestroy(&A);
+  MatDestroy(&J);
+  VecDestroy(&dn);
+  VecDestroy(&rhs);
+}
+
+// We are solving at first order Crank-Nicolson scheme
+//
+// (1/dtD  + J) n_+ = n/dtD
+//
+// Here J = - nabla^2,  dtD = dt * D
+//
+// At second order Crank-Nicolson scheme we have
+//
+//  (2/dtD + J) n_+ = 2 n/dtD - J n
+//
+bool ModelGDiffusionStep::step(const double &dt) {
+
+  // Parameters needed
+  const auto &coeff = model->data.acoefficients;
+  const PetscReal &dtD = dt * coeff.D();
+  const auto &f2 = model->data.f2();
+  bool superfluidmode = model->data.ahandler.superfluidmode;
+
+  // This was used for the first order Crank-Nicolson scheme
+  // VecCopy(model->solution, rhs);
+  // VecScale(rhs, 1. / dtD);
+
+  // Second order Crank-Nicolson scheme
+  MatMult(J, model->solution, dn);
+  VecCopy(model->solution, rhs);
+  VecScale(rhs, 2. / dtD);
+  VecAXPY(rhs, -1.0, dn); // rhs = rhs - J * n
+
+  // This is for the second order Crank-Nicolson scheme
+  MatCopy(J, A, SAME_NONZERO_PATTERN);
+  // 2/dtD is for second order Crank-Nicolson scheme
+  MatShift(A, 2. / dtD);
+
+  // Actually solve the linear system
+  KSPSetOperators(ksp, A, A);
+  KSPSolve(ksp, rhs, model->solution);
+
+  if (superfluidmode) {
+    // Normalize the first four components of the solution
+    PetscInt i, j, k, L, xstart, ystart, zstart, xdimension, ydimension,
+        zdimension;
+
+    DMDAGetCorners(model->domain, &xstart, &ystart, &zstart, &xdimension,
+                   &ydimension, &zdimension);
+
+    G_node ***phi;
+    PetscCall(DMDAVecGetArray(model->domain, model->solution, &phi));
+    for (k = zstart; k < zstart + zdimension; k++) {
+      for (j = ystart; j < ystart + ydimension; j++) {
+        for (i = xstart; i < xstart + xdimension; i++) {
+          PetscScalar norm = 0.;
+          for (L = 0; L < ModelAData::Nphi; L++) {
+            norm += pow(phi[k][j][i].f[L], 2);
+          }
+          for (L = 0; L < ModelAData::Nphi; L++) {
+            phi[k][j][i].f[L] *= sqrt(f2 / norm);
+          }
+        }
+      }
+    }
+    PetscCall(DMDAVecRestoreArray(model->domain, model->solution, &phi));
+  }
+
+  return true;
+}
+
+// Form the Jacobian the Jabian generic interface
+PetscErrorCode
+ModelGDiffusionStep::Form3PointLaplacian(DM da, Mat J, const double &hx,
+                                         const double &hy, const double &hz,
+                                         const double &GammaOverD) {
+  // Get the local information and store in info
+  DMDALocalInfo info;
+  DMDAGetLocalInfo(da, &info);
+  PetscInt i, j, k, l;
+  for (k = info.zs; k < info.zs + info.zm; k++) {
+    for (j = info.ys; j < info.ys + info.ym; j++) {
+      for (i = info.xs; i < info.xs + info.xm; i++) {
+        for (l = 0; l < ModelAData::Ndof; l++) {
+          PetscScalar r = (l < ModelAData::Nphi) ? GammaOverD : 1.0;
+          // we define the column
+          PetscInt nc = 0;
+          MatStencil row, column[10];
+          PetscScalar value[10];
+          // here we insert the position of the row
+          row.i = i;
+          row.j = j;
+          row.k = k;
+          row.c = l;
+          // here we define de position of the non-vansih column for the given
+          // row in total there are 7*4 entries and nc is the total number of
+          // column per row x direction
+          column[nc].i = i - 1;
+          column[nc].j = j;
+          column[nc].k = k;
+          column[nc].c = l;
+          value[nc++] = -1. * r / (hx * hx);
+          column[nc].i = i + 1;
+          column[nc].j = j;
+          column[nc].k = k;
+          column[nc].c = l;
+          value[nc++] = -1. * r / (hx * hx);
+          // y direction
+          column[nc].i = i;
+          column[nc].j = j - 1;
+          column[nc].k = k;
+          column[nc].c = l;
+          value[nc++] = -1. * r / (hy * hy);
+          column[nc].i = i;
+          column[nc].j = j + 1;
+          column[nc].k = k;
+          column[nc].c = l;
+          value[nc++] = -1. * r / (hy * hy);
+          // z direction
+          column[nc].i = i;
+          column[nc].j = j;
+          column[nc].k = k - 1;
+          column[nc].c = l;
+          value[nc++] = -1. * r / (hz * hz);
+          column[nc].i = i;
+          column[nc].j = j;
+          column[nc].k = k + 1;
+          column[nc].c = l;
+          value[nc++] = -1. * r / (hz * hz);
+
+          // The central element need a loop over the flavour index of the
+          // column (is a full matrix in the flavour index )
+          column[nc].i = i;
+          column[nc].j = j;
+          column[nc].k = k;
+          column[nc].c = l;
+          value[nc++] =
+              2.0 * r / (hx * hx) + 2.0 * r / (hy * hy) + 2.0 * r / (hz * hz);
+
+          // here we set the matrix. Petsc wraps the boundary conditions
+          // autmatically
+          MatSetValuesStencil(J, 1, &row, nc, column, value, INSERT_VALUES);
+        }
+      }
+    }
+  }
+  MatAssemblyBegin(J, MAT_FINAL_ASSEMBLY);
+  MatAssemblyEnd(J, MAT_FINAL_ASSEMBLY);
+  return (0);
+}
+
+/////////////////////////////////////////////////////////////////////////
+
+PV2HBSplit::PV2HBSplit(ModelA &in, const std::string &insteps,
                        const bool &ideal, const bool &heatbath,
                        const bool &diffusion)
-    : model(&in), pv2(in), hbPhi(in), hbN(in), stepcounts(scounts),
+    : model(&in), pv2(in), hbPhi(in), hbN(in), steps(insteps),
       include_ideal(ideal), include_heatbath(heatbath),
-      include_diffusion(diffusion) {}
+      include_diffusion(diffusion), A_count(0), B_count(0), C_count(0) {
+
+  // Check if string contains only A, B, C characters
+  for (char c : steps) {
+    if (c != 'A' and c != 'B' and c != 'C') {
+      throw std::invalid_argument(
+          "String contains invalid character: " + std::string(1, c) +
+          ". Only A, B, C are allowed.");
+    }
+  }
+  // Count occurrences of each character
+  for (char c : steps) {
+    switch (c) {
+    case 'A':
+      ++A_count;
+      break;
+    case 'B':
+      ++B_count;
+      break;
+    case 'C':
+      ++C_count;
+      break;
+    }
+  }
+}
 
 bool PV2HBSplit::step(const double &dt) {
 
@@ -583,33 +781,24 @@ bool PV2HBSplit::step(const double &dt) {
 
   PetscLogEvent ideal_log, hb_log, qhb_log;
 
-  // Format of steps is ABBB,ABBB,C  for (3,2)
+  // Format of steps is ABBBABBBC
   PetscLogEventRegister("IdealStep", 0, &ideal_log);
   PetscLogEventRegister("HBStep", 0, &hb_log);
+  PetscLogEventRegister("QHBStep", 0, &qhb_log);
 
-  for (size_t i1 = 0; i1 < stepcounts[1]; i1++) {
-    if (include_ideal) {
+  for (char s : steps) {
+    if (s == 'A' and include_ideal) {
       PetscLogEventBegin(ideal_log, 0, 0, 0, 0);
-      pv2.step(dt / (stepcounts[1]));
+      pv2.step(dt / A_count);
       PetscLogEventEnd(ideal_log, 0, 0, 0, 0);
-    }
-
-    if (include_heatbath) {
+    } else if (s == 'B' and include_heatbath) {
       PetscLogEventBegin(hb_log, 0, 0, 0, 0);
-      for (size_t i0 = 0; i0 < stepcounts[0]; i0++) {
-        hbPhi.step(dt / (stepcounts[0] * stepcounts[1]));
-      }
-      PetscLogEventEnd(hb_log, 0, 0, 0, 0);
+      hbPhi.step(dt / B_count);
+    } else if (s == 'C' and include_diffusion) {
+      PetscLogEventBegin(qhb_log, 0, 0, 0, 0);
+      hbN.step(dt / C_count);
+      PetscLogEventEnd(qhb_log, 0, 0, 0, 0);
     }
   }
-
-  if (include_diffusion) {
-    PetscLogEventRegister("QHBStep", 0, &qhb_log);
-
-    PetscLogEventBegin(qhb_log, 0, 0, 0, 0);
-    hbN.step(dt);
-    PetscLogEventEnd(qhb_log, 0, 0, 0, 0);
-  }
-
   return true;
 }

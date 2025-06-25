@@ -87,6 +87,7 @@ struct ModelACoefficients {
   PetscReal mass(const double &t) const { return mass0 + dmassdt * t; }
 
   PetscReal sigma() const { return diffusion * chi; }
+  PetscReal Gamma() const { return gamma; }
   PetscReal D() const { return diffusion; }
 
   // These are superfluid coefficients
@@ -232,6 +233,8 @@ public:
 
   // Convenience function for returning the mass at the current time
   PetscReal mass() const { return acoefficients.mass(atime.t()); }
+  // Convenience function for returning f2 at the current time
+  PetscReal f2() const { return acoefficients.f2(atime.t()); }
 
   // Options for management ;
   ModelAHandlerData ahandler;
@@ -423,9 +426,9 @@ public:
   // data from Derek's file. Otherwise fill with  random numbers, or if
   // zeroStart is true set to zero. Finally  if a function is provided,
   // f(x,y,z,L, params), this function will be used.
-  PetscErrorCode initialize(double (*func)(const double &x, const double &y,
-                                           const double &z, const int &L,
-                                           void *params) = 0,
+  PetscErrorCode initialize(void (*func)(G_node *node, const double &x,
+                                         const double &y, const double &z,
+                                         ModelA *model, void *params) = 0,
                             void *params = 0) {
 
     const auto &ahandler = data.ahandler;
@@ -463,16 +466,16 @@ public:
         PetscReal y = j * hy;
         for (i = xstart; i < xstart + xdimension; i++) {
           PetscReal x = i * hx;
-          for (L = 0; L < ModelAData::Ndof; L++) {
-            if (func) {
-              u[k][j][i][L] = func(x, y, z, L, params);
-            } else {
+          if (!func) {
+            for (L = 0; L < ModelAData::Ndof; L++) {
               if (ahandler.superfluidmode and L == 0) {
                 u[k][j][i][L] = sqrt(data.acoefficients.f2(data.atime.t()));
               } else {
                 u[k][j][i][L] = 0.;
               }
             }
+          } else {
+            func(reinterpret_cast<G_node *>(u[k][j][i]), x, y, z, this, params);
           }
         }
       }

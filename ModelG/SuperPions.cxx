@@ -12,6 +12,7 @@
 #include "NoiseGenerator.h"
 #include "Stepper.h"
 #include "gitversion.h"
+#include "initialize.h"
 #include "make_unique.h"
 
 // Measurer, where the Petsc are included
@@ -21,23 +22,6 @@
 void thermalize_event(ModelA *const model) {
   const auto &ahandler = model->data.ahandler;
   auto &atime = model->data.atime;
-  auto &acoefficients = model->data.acoefficients;
-
-  // Initialize a quench.  Set the initial temperature (mass parameter)
-  // according a given value and thermalize this initial condition.  Then,
-  // after the thremalization process reset the mass to the one used for the
-  // actual running (as opposed to initializing) the code. The reset process
-  // is handled below
-  const double mass0 = acoefficients.mass0; // Store the mass for reset process
-  const double dmassdt =
-      acoefficients.dmassdt; // Store the slope for reset process
-  if (ahandler.quench_mode) {
-    acoefficients.mass0 = ahandler.quench_mode_mass0;
-    acoefficients.dmassdt = 0.;
-    PetscPrintf(PETSC_COMM_WORLD,
-                "Settinng up a quench initial condition with initial mass %e\n",
-                acoefficients.mass0);
-  }
 
   // Thermalize the state in memory at the initial time ;
   int nsteps = static_cast<int>(ahandler.thermalization_time / atime.dt());
@@ -60,30 +44,68 @@ void thermalize_event(ModelA *const model) {
                 (double)atime.t(), nsteps, model->data.mass());
   }
   thermalizer->finalize();
+}
 
-  // If we are performing a quench, set the mass back to its nominal value.
-  if (ahandler.quench_mode) {
+void initialize_event(const int &ievent, ModelA *const model,
+                      nlohmann::json &inputs) {
+  const auto &ahandler = model->data.ahandler;
+  std::string initialization = inputs["initialization"];
+
+  if (initialization == "default") {
+    // Do a cold start and thermalize the event
+    if (ievent == 0) {
+      model->initialize();
+    }
+    thermalize_event(model);
+  } else if (initialization == "restart") {
+    // Look for a previously saved initial condtitions
+    model->read(ahandler.outputfiletag);
+  } else if (initialization == "quench_mode") {
+    // Initialize a quench.  Set the initial temperature (mass parameter)
+    // according a given value and thermalize this initial condition.  Then,
+    // after the thremalization process reset the mass to the one used for the
+    // actual running (as opposed to initializing) the code. The reset process
+    // is handled below
+
+    auto &acoefficients = model->data.acoefficients;
+    const double mass0 =
+        acoefficients.mass0; // Store the mass for reset process
+    const double dmassdt =
+        acoefficients.dmassdt; // Store the slope for reset process
+
+    // Set the quench mass
+    acoefficients.mass0 = ahandler.quench_mode_mass0;
+    acoefficients.dmassdt = 0.;
     PetscPrintf(PETSC_COMM_WORLD,
-                "Finalizing  quench initial condition with initial mass %e\n",
+                "Setting up a quench initial condition with initial mass %e\n",
                 acoefficients.mass0);
 
+    // Thermalize at the quench mass
+    if (ievent == 0) {
+      model->initialize();
+    }
+    thermalize_event(model);
+
+    // Reset the mass and teh slope
     acoefficients.mass0 = mass0;
     acoefficients.dmassdt = dmassdt;
 
     PetscPrintf(PETSC_COMM_WORLD, "and final initial mass %e\n",
                 acoefficients.mass0);
+  } else if (initialization == "randomspins") {
+    model->initialize_random_spins();
+    model->initialize_gaussian_charges();
+  } else if (initialization == "gaussians") {
+    model->initialize(initialize_gaussians, &inputs["gaussians_params"]);
+    model->write(inputs["outputfiletag"].get<std::string>() + "_initial");
   }
 }
 
-void run_event(ModelA *const model, Stepper *const step) {
+void run_event(const int &ievent, ModelA *const model, Stepper *const step,
+               nlohmann::json &inputs) {
 
   const auto &ahandler = model->data.ahandler;
   auto &atime = model->data.atime;
-  atime.reset();
-
-  if (not ahandler.restart) {
-    thermalize_event(model);
-  }
 
   // Set up logging for PETSc so we can find out how much time
   // each part takes
@@ -93,7 +115,7 @@ void run_event(ModelA *const model, Stepper *const step) {
   PetscLogEventRegister("Saving the fields", 0, &saving);
   PetscLogEventRegister("Steps", 0, &stepmonitor);
 
-  // Set filename
+  // Set filename for the hdf5 ouput file
   std::string filename;
   if (ahandler.eventmode) {
     std::stringstream namestream;
@@ -103,7 +125,7 @@ void run_event(ModelA *const model, Stepper *const step) {
   } else {
     filename = ahandler.outputfiletag + ".h5";
   }
-  // Set file access
+  // Set file access which is append if we are restarting
   PetscFileMode file_access = FILE_MODE_WRITE;
   if (ahandler.restart) {
     file_access = FILE_MODE_APPEND;
@@ -111,6 +133,8 @@ void run_event(ModelA *const model, Stepper *const step) {
   // Open the file and create the measurement object
   Measurer measurer(model);
 
+  // Creat the measurer output object, which will write the measurements
+  // to the h5 file.
   int rank = -1;
   MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
   std::unique_ptr<measurer_output_fasthdf5> measurer_output;
@@ -144,7 +168,8 @@ void run_event(ModelA *const model, Stepper *const step) {
     if (ahandler.writeFrequency > 0 and steps % ahandler.writeFrequency == 0) {
       PetscLogEventBegin(saving, 0, 0, 0, 0);
       std::ostringstream tString;
-      tString << std::setprecision(4) << "_t_" << atime.t();
+      // Set the precision to 2 digits after the decimal point filled with 0
+      tString << std::fixed << std::setprecision(2) << "_t_" << atime.t();
       model->write(ahandler.outputfiletag + tString.str());
       PetscLogEventEnd(saving, 0, 0, 0, 0);
     }
@@ -167,48 +192,41 @@ void Run(nlohmann::json &inputs) {
   // allocate the grid and initialize
   ModelA model(inputdata);
 
-  // Read in the initial conditions or initialize to zero
-  model.initialize();
-
   // Construct the stepper
   std::unique_ptr<Stepper> step;
   auto &etype = inputdata.ahandler.evolverType;
   if (etype == "PV2HBSplit23") {
-    std::array<unsigned int, 2> s = {2, 3};
     // Default is to include all steps
-    step = std::make_unique<PV2HBSplit>(model, s);
-  } else if (etype == "PV2HBSplit23NoDiffuse") {
-    std::array<unsigned int, 2> s = {2, 3};
-    const bool ideal = true;
-    const bool heatbath = true;
-    const bool diffuse = false;
-    step = std::make_unique<PV2HBSplit>(model, s, ideal, heatbath, diffuse);
-  } else if (etype == "PV2HBSplit23OnlyDiffuse") {
-    std::array<unsigned int, 2> s = {2, 3};
-    const bool ideal = false;
-    const bool heatbath = false;
-    const bool diffuse = true;
-    step = std::make_unique<PV2HBSplit>(model, s, ideal, heatbath, diffuse);
+    step = std::make_unique<PV2HBSplit>(model, "ABBABBABBC", true, true, true);
+  } else if (etype == "PV2HBSplitGeneral") {
+    nlohmann::json general_stepper = inputs["pv2hb_split_general"];
+    std::string steps = general_stepper.value("steps", "ABBABBABBC");
+    const bool ideal = general_stepper.value("include_ideal", true);
+    const bool heatbath = general_stepper.value("include_heatbath", true);
+    const bool diffuse = general_stepper.value("include_diffuse", true);
+    step = std::make_unique<PV2HBSplit>(model, steps, ideal, heatbath, diffuse);
+  } else if (etype == "ModelGDiffusionStep") {
+    step = std::make_unique<ModelGDiffusionStep>(model);
   } else {
     PetscPrintf(PETSC_COMM_WORLD, "Unrecognized stepper type %s. Aborting...\n",
                 etype.c_str());
-    return ;
+    return;
   }
 
   auto &ahandler = model.data.ahandler;
-  if (ahandler.eventmode) {
-    for (int i = 0; i < ahandler.nevents; i++) {
-      run_event(&model, step.get());
-      ahandler.current_event++;
-    }
-  } else {
-    run_event(&model, step.get());
+  auto &atime = model.data.atime;
+  int nevents = std::max(ahandler.nevents, 1);
+  for (int i = 0; i < nevents; i++) {
+    atime.reset();
+    initialize_event(i, &model, inputs);
+    run_event(i, &model, step.get(), inputs);
+    ahandler.current_event++;
   }
+
   // Destroy everything
   step->finalize();
   model.finalize();
 }
-
 
 int main(int argc, char **argv) {
 
@@ -225,7 +243,7 @@ int main(int argc, char **argv) {
   char filename[PETSC_MAX_PATH_LEN] = "";
   ierr = PetscOptionsGetString(NULL, NULL, "-input", filename, sizeof(filename),
                                NULL);
-  nlohmann::json  inputs;
+  nlohmann::json inputs;
   std::ifstream ifs(filename);
   if (ifs) {
     ifs >> inputs;
@@ -235,7 +253,11 @@ int main(int argc, char **argv) {
     return PetscFinalize();
   }
   PetscPrintf(PETSC_COMM_WORLD, "Current version: %s\n", gitversion);
-  
+
+  PetscPrintf(PETSC_COMM_WORLD, "Running SuperPions with input file %s\n",
+              filename);
+  std::cout << "Input parameters:\n" << inputs.dump(2) << std::endl;
+
   Run(inputs);
 
   return PetscFinalize();

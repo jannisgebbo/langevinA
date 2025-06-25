@@ -52,10 +52,11 @@ LDLIBS := $(shell pkg-config --libs-only-l $(PACKAGES)) -lm -lfftw3 -lhdf5
 # C++ source).  This can be built by uncommenting the following two lines.
 
 
-HEADRS = ModelA.h Stepper.h NoiseGenerator.h measurer.h measurer_output.h O4AlgebraHelper.h ntuple.h gitversion.h
-OBJS = measurer.o measurer_output.o Stepper.o NoiseGenerator.o jsoncpp.o
+HEADRS = ModelA.h Stepper.h NoiseGenerator.h measurer.h measurer_output.h O4AlgebraHelper.h ntuple.h gitversion.h initialize.h
+OBJS = measurer.o measurer_output.o Stepper.o NoiseGenerator.o jsoncpp.o initialize.o
 
-all: SuperPions.exe SuperQuench.exe
+all: SuperQuench.exe SuperPions.exe
+
 
 SuperPions.exe: SuperPions.o $(OBJS)
 	$(LINK.cc) -o $@ $^ $(LDLIBS) -lstdc++
@@ -76,6 +77,12 @@ measurer.o: measurer.cxx $(HEADRS)
 	$(COMPILE.cc) $(OUTPUT_OPTION) $<
 
 measurer_output.o: measurer_output.cxx $(HEADRS)
+	$(COMPILE.cc) $(OUTPUT_OPTION) $<
+
+initialize.exe: initialize.o $(OBJS)
+	$(LINK.cc) -o $@ $^ $(LDLIBS) -lstdc++
+
+initialize.o: initialize.cxx $(HEADRS)
 	$(COMPILE.cc) $(OUTPUT_OPTION) $<
 
 gitversion.h:
