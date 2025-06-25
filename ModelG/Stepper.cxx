@@ -569,7 +569,8 @@ void ModelGChargeHB::finalize() {
 
 /////////////////////////////////////////////////////////////////////////
 
-ModelGDiffusionStep::ModelGDiffusionStep(ModelA &in) : model(&in) {
+ModelGDiffusionStep::ModelGDiffusionStep(ModelA &in, const bool &implicit_step)
+    : model(&in), use_implicit_step(implicit_step) {
 
   VecDuplicate(model->solution, &rhs);
   VecDuplicate(model->solution, &dn);
@@ -595,16 +596,28 @@ void ModelGDiffusionStep::finalize() {
   VecDestroy(&rhs);
 }
 
-// We are solving at first order Crank-Nicolson scheme
+// We are solving the diffusion equation for model G:
+//
+// \partial_t n = D nabla^2 n
+//
+// The fields phi,  in superfluid mode,  are normalized to f2,  so after
+// updating the phi fields according the diffusion equation, we need to
+// normalize the first four components of the solution to f2.
+//
+// If use_implicit method is true  the  second order Crank-Nicolson scheme is
+// used. At first order Crank-Nicolson scheme we have
 //
 // (1/dtD  + J) n_+ = n/dtD
 //
-// Here J = - nabla^2,  dtD = dt * D
+// Here J = - nabla^2,  dtD = dt * D and n_+ are the fields at time t + dt.
 //
-// At second order Crank-Nicolson scheme we have
+// At second order Crank-Nicolson scheme we have, similarly,
 //
 //  (2/dtD + J) n_+ = 2 n/dtD - J n
 //
+// If use_implicit_step is false,  we are using the explicit second order
+// Runge-Kutta scheme.  The timestep should be smaller than 1/(12*D) to
+// ensure stability.
 bool ModelGDiffusionStep::step(const double &dt) {
 
   // Parameters needed
@@ -613,24 +626,33 @@ bool ModelGDiffusionStep::step(const double &dt) {
   const auto &f2 = model->data.f2();
   bool superfluidmode = model->data.ahandler.superfluidmode;
 
-  // This was used for the first order Crank-Nicolson scheme
-  // VecCopy(model->solution, rhs);
-  // VecScale(rhs, 1. / dtD);
+  if (use_implicit_step) {
+    // This was used for the first order Crank-Nicolson scheme
+    // VecCopy(model->solution, rhs);
+    // VecScale(rhs, 1. / dtD);
 
-  // Second order Crank-Nicolson scheme
-  MatMult(J, model->solution, dn);
-  VecCopy(model->solution, rhs);
-  VecScale(rhs, 2. / dtD);
-  VecAXPY(rhs, -1.0, dn); // rhs = rhs - J * n
+    // Second order Crank-Nicolson scheme
+    MatMult(J, model->solution, dn);
+    VecCopy(model->solution, rhs);
+    VecScale(rhs, 2. / dtD);
+    VecAXPY(rhs, -1.0, dn); // rhs = rhs - J * n
 
-  // This is for the second order Crank-Nicolson scheme
-  MatCopy(J, A, SAME_NONZERO_PATTERN);
-  // 2/dtD is for second order Crank-Nicolson scheme
-  MatShift(A, 2. / dtD);
+    // This is for the second order Crank-Nicolson scheme
+    MatCopy(J, A, SAME_NONZERO_PATTERN);
+    // 2/dtD is for second order Crank-Nicolson scheme
+    MatShift(A, 2. / dtD);
 
-  // Actually solve the linear system
-  KSPSetOperators(ksp, A, A);
-  KSPSolve(ksp, rhs, model->solution);
+    // Actually solve the linear system
+    KSPSetOperators(ksp, A, A);
+    KSPSolve(ksp, rhs, model->solution);
+  } else {
+    // Explicit second order Runge-Kutta scheme
+    MatMult(J, model->solution, dn);
+    VecCopy(model->solution, rhs);
+    VecAXPY(rhs, -0.5 * dtD, dn); // comput n at t + dt/2
+    MatMult(J, rhs, dn);
+    VecAXPY(model->solution, -1. * dtD, dn); //
+  }
 
   if (superfluidmode) {
     // Normalize the first four components of the solution

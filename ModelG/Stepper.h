@@ -174,7 +174,7 @@ PetscScalar modelg_update_charge_pair(const double &chi, const double &rms,
 // The Crank Nicholson step for q fields
 class ModelGDiffusionStep : public Stepper {
 public:
-  ModelGDiffusionStep(ModelA &in);
+  ModelGDiffusionStep(ModelA &in, const bool &implicit_step = true);
   bool step(const double &dt);
   void finalize();
   ~ModelGDiffusionStep() { ; }
@@ -184,6 +184,7 @@ public:
 
 private:
   ModelA *model;
+  bool use_implicit_step; // If true, use implicit step, otherwise explicit
 
   Vec rhs;
   Vec dn;

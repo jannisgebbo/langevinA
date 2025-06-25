@@ -206,7 +206,8 @@ void Run(nlohmann::json &inputs) {
     const bool diffuse = general_stepper.value("include_diffuse", true);
     step = std::make_unique<PV2HBSplit>(model, steps, ideal, heatbath, diffuse);
   } else if (etype == "ModelGDiffusionStep") {
-    step = std::make_unique<ModelGDiffusionStep>(model);
+    bool use_implicit_step = inputs["ModelGDiffusionStep"]["use_implicit_step"];
+    step = std::make_unique<ModelGDiffusionStep>(model, use_implicit_step);
   } else {
     PetscPrintf(PETSC_COMM_WORLD, "Unrecognized stepper type %s. Aborting...\n",
                 etype.c_str());

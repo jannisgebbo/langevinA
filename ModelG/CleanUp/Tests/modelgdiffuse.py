@@ -26,7 +26,7 @@ def main():
     prgrm = grunner.find_program('SuperPions.exe')
     pprint.pprint(grunner.data)
     grunner.data["NX"] = 32
-    grunner.data["deltat"] = 1.0
+    grunner.data["deltat"] = 1.
     grunner.data["outputfiletag"] = "modelgdiffuse"
     grunner.data["finaltime"] = 40
     grunner.data["initialization"] = "gaussians"  
@@ -34,8 +34,11 @@ def main():
     grunner.data["gaussians_params"] =  { "sigmax" : 3., 
                                          "sigmay" : 3*10e8, 
                                          "sigmaz" : 3*10e8, 
-                                         "amplitude" : 1 }
+                                         "amplitude" : 1, 
+                                         "theta" : 0.0,
+                                         "phi" : 0.0}
     grunner.data["evolverType"] = "ModelGDiffusionStep"
+    grunner.data["ModelGDiffusionStep"] = { "use_implicit_step" : True} 
     grunner.run(dry_run=False, seed=123,ncpus="2", mpiexec=mpiexec, moreopts =sys.argv[1:])
 
 if __name__ == "__main__":
