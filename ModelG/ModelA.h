@@ -292,13 +292,28 @@ public:
 /////////////////////////////////////////////////////////////////////////
 
 // This describes the data at each lattice site of the grid
-typedef struct {
+typedef struct G_node {
   // this is the field phi for a = 1,2,3,4
   PetscScalar f[ModelAData::Nphi];
   // this is the the axial vector charge for s = 1,2,3
   PetscScalar A[ModelAData::NA];
   // this is the the vector charge for s = 1,2,3
   PetscScalar V[ModelAData::NV];
+  // Normalize the field phi[0:3] so that is "radius" if f
+  static void normalize_phi(PetscScalar *phi, const double &f) {
+    PetscReal norm = 0.;
+    for (PetscInt i = 0; i < ModelAData::Nphi; i++) {
+      norm += phi[i] * phi[i];
+    }
+    if (norm > std::numeric_limits<double>::min()) {
+      norm = sqrt(norm);
+      for (PetscInt i = 0; i < ModelAData::Nphi; i++) {
+        phi[i] *= f / norm;
+      }
+    } else {
+      phi[0] = f; // Set to a default value if norm is zero
+    }
+  }
 } G_node;
 
 // This describes the data at each lattice site as a single vector x
@@ -559,8 +574,8 @@ public:
     PetscCall(DMDAGetCorners(domain, &xstart, &ystart, &zstart, &xdimension,
                              &ydimension, &zdimension));
 
-  // We are going initialize the grid with the charges being gaussian random
-  // numbers. The charges are normalized so that the total charge is zero. 
+    // We are going initialize the grid with the charges being gaussian random
+    // numbers. The charges are normalized so that the total charge is zero.
     std::vector<PetscScalar> charge_sum_local(ModelAData::Ndof, 0.);
     std::vector<PetscScalar> charge_sum(ModelAData::Ndof, 0.);
 
@@ -575,7 +590,6 @@ public:
             }
 
             u[k][j][i][L] = sqrt(chi) * 0.5;
-
           }
         }
       }
@@ -585,9 +599,9 @@ public:
 
     return (0);
   }
-  
-  // Routine that initializes the fields randomly under the constraint phi^2 = R, i.e. uniformly 
-  // distributed spins on a 4d sphere
+
+  // Routine that initializes the fields randomly under the constraint phi^2 =
+  // R, i.e. uniformly distributed spins on a 4d sphere
   //
   // Use hyperspherical coordinates:
   // s_0 = R * sin(phi) * sin(theta1) * sin(theta2)
@@ -597,7 +611,7 @@ public:
   //
   // Measure: sin(theta1) sin^2(theta2) dphi dtheta1 dtheta2
   PetscErrorCode initialize_random_spins() {
-    
+
     constexpr auto PI = 3.14159265358979323846;
 
     // This Get a pointer to do the calculation
@@ -664,19 +678,20 @@ public:
     return (0);
   }
 
-  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! CAUTION !!!!!!!!!!!!!!!!!!!!!!!!!!1!!!!!!!!!!!!!!!!!
-  // Cannot be run on multiple cores, this will crash because random domains are not
-  // multithread safe !!
-  
-  // Routine that initializes the domains of size (L/4)**3 randomly. Fields are still constrained 
-  // by phi^2 = R, i.e. uniformly distributed spins on a 4d sphere
+  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! CAUTION
+  // !!!!!!!!!!!!!!!!!!!!!!!!!!1!!!!!!!!!!!!!!!!! Cannot be run on multiple
+  // cores, this will crash because random domains are not multithread safe !!
+
+  // Routine that initializes the domains of size (L/4)**3 randomly. Fields are
+  // still constrained by phi^2 = R, i.e. uniformly distributed spins on a 4d
+  // sphere
   //
   // Use hyperspherical coordinates:
   // s_0 = R * sin(phi) * sin(theta1) * sin(theta2)
   // s_1 = R * cos(phi) * sin(theta1) * sin(theta2)
   // s_2 = R * cos(theta1) * sin(theta2)
   // s_3 = R * cos(theta2)
-  // 
+  //
   // Measure: sin(theta1) sin^2(theta2) dphi dtheta1 dtheta2
   PetscErrorCode initialize_random_domains() {
 
@@ -688,12 +703,13 @@ public:
     // This Get a pointer to do the calculation
     PetscScalar ****u;
     PetscCall(DMDAVecGetArrayDOF(domain, solution, &u));
-      
+
     // Get global domain size
     PetscInt Mx, My, Mz, i, j, k, bx, by, bz;
-    PetscCall(DMDAGetInfo(domain, nullptr, &Mx, &My, &Mz, nullptr, nullptr, nullptr,
-                          nullptr, nullptr, nullptr, nullptr, nullptr, nullptr));
-    
+    PetscCall(DMDAGetInfo(domain, nullptr, &Mx, &My, &Mz, nullptr, nullptr,
+                          nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+                          nullptr));
+
     if (rank == 0) {
 
       // domain settings
@@ -714,29 +730,32 @@ public:
       PetscReal guess;
       PetscReal reference;
 
-      // iterate over all domains 
+      // iterate over all domains
       for (bx = 0; bx < domain_partition; bx++) {
         for (by = 0; by < domain_partition; by++) {
           for (bz = 0; bz < domain_partition; bz++) {
-          
+
             // get random uniform sample for phi's of this domain
             phi = 2.0 * PI * ModelARndm->uniform();
 
             accepted = false;
-        
-            // loop for rejection sampling 
-            // (needed to sample thetas according to sin(theta1) * sin^2(theta2) )
-            while(accepted == false){
+
+            // loop for rejection sampling
+            // (needed to sample thetas according to sin(theta1) * sin^2(theta2)
+            // )
+            while (accepted == false) {
               // get random uniform sample for thetas and guess
               theta1 = PI * ModelARndm->uniform();
               theta2 = PI * ModelARndm->uniform();
               guess = ModelARndm->uniform();
 
               // calculate reference value
-              reference = std::sin(theta1) * std::sin(theta2)*std::sin(theta2);
+              reference =
+                  std::sin(theta1) * std::sin(theta2) * std::sin(theta2);
 
               // accept if guess <= reference, otherwise reject (loop again)
-              if(guess <= reference) accepted = true; 
+              if (guess <= reference)
+                accepted = true;
             }
 
             PetscInt kstart = domain_size_z * bz;
@@ -745,28 +764,28 @@ public:
             PetscInt jend = domain_size_y * (by + 1);
             PetscInt istart = domain_size_x * bx;
             PetscInt iend = domain_size_x * (bx + 1);
-            
-            // iterate over all lattice sites of this domain and initialize fields to accepted angles
-            // careful: initialize u only inside local owned part
+
+            // iterate over all lattice sites of this domain and initialize
+            // fields to accepted angles careful: initialize u only inside local
+            // owned part
             for (k = kstart; k < kend; k++) {
               for (j = jstart; j < jend; j++) {
                 for (i = istart; i < iend; i++) {
-                
-                  u[k][j][i][0] = R * std::sin(phi) * std::sin(theta1) * std::sin(theta2);
-                  u[k][j][i][1] = R * std::cos(phi) * std::sin(theta1) * std::sin(theta2);
+
+                  u[k][j][i][0] =
+                      R * std::sin(phi) * std::sin(theta1) * std::sin(theta2);
+                  u[k][j][i][1] =
+                      R * std::cos(phi) * std::sin(theta1) * std::sin(theta2);
                   u[k][j][i][2] = R * std::cos(theta1) * std::sin(theta2);
                   u[k][j][i][3] = R * std::cos(theta2);
-                
                 }
               }
             }
-
           }
         }
       }
 
       PetscCall(DMDAVecRestoreArrayDOF(domain, solution, &u));
- 
     }
 
     return (0);

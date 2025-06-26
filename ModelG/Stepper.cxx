@@ -664,16 +664,11 @@ bool ModelGDiffusionStep::step(const double &dt) {
 
     G_node ***phi;
     PetscCall(DMDAVecGetArray(model->domain, model->solution, &phi));
+    double f = sqrt(f2);
     for (k = zstart; k < zstart + zdimension; k++) {
       for (j = ystart; j < ystart + ydimension; j++) {
         for (i = xstart; i < xstart + xdimension; i++) {
-          PetscScalar norm = 0.;
-          for (L = 0; L < ModelAData::Nphi; L++) {
-            norm += pow(phi[k][j][i].f[L], 2);
-          }
-          for (L = 0; L < ModelAData::Nphi; L++) {
-            phi[k][j][i].f[L] *= sqrt(f2 / norm);
-          }
+          G_node::normalize_phi(phi[k][j][i].f, f);
         }
       }
     }

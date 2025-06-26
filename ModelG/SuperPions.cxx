@@ -96,11 +96,16 @@ void initialize_event(const int &ievent, ModelA *const model,
     model->initialize_random_spins();
     model->initialize_gaussian_charges();
   } else if (initialization == "gaussians") {
-    model->initialize(initialize_gaussians, &inputs["gaussians_params"]);
+    model->initialize(initialize_gaussians, &inputs["gaussians"]);
     model->write(inputs["outputfiletag"].get<std::string>() + "_initial");
-  } else if (initialization == "wave_spins") {
-    model->initialize(initialize_wave_spins, &inputs["wave_params"]);
+  } else if (initialization == "spinwaves") {
+    model->initialize(initialize_wave_spins, &inputs["spinwaves"]);
     model->write(inputs["outputfiletag"].get<std::string>() + "_initial");
+  } else {
+    throw std::runtime_error(
+        "Unknown initialization type: " + initialization +
+        ". Please use one of the following: default, restart, quench_mode, "
+        "randomspins, gaussians, spinwaves.");
   }
 }
 
@@ -211,6 +216,11 @@ void Run(nlohmann::json &inputs) {
   } else if (etype == "ModelGDiffusionStep") {
     bool use_implicit_step = inputs["ModelGDiffusionStep"]["use_implicit_step"];
     step = std::make_unique<ModelGDiffusionStep>(model, use_implicit_step);
+  } else if (etype == "SuperSplitStep") {
+    bool use_implicit_step =
+        inputs["SuperSplitStep"].value<bool>("use_implicit_step", true);
+    step = std::make_unique<SuperSplitStep>(model, use_implicit_step);
+    ;
   } else {
     PetscPrintf(PETSC_COMM_WORLD, "Unrecognized stepper type %s. Aborting...\n",
                 etype.c_str());

@@ -46,112 +46,39 @@ void initialize_gaussians(G_node *node, const double &x, const double &y,
   }
 }
 // Routine that initializes the fields according to a wave with wave number k =
-// 4pi/L and normalization phi^2 = init_amp = R
+// n * 2 Pi/L and normalization phi^2 = f
 //
-// if init_dim = 1 and standing_waves = false
-// s_0 = R * cos(kx)
-// s_1 = R * sin(kx)
-// n_01 = k * chi = omega * chi
-// rest 0
-//
-// if init_dim = 2
-// s_0 = R * cos(kx) cos(ky)
-// s_1 = R * sin(kx) cos(ky)
-// s_2 = R * sin(ky)
-// n_01 = k * chi = omega * chi
-// n_02 = k * chi = omega * chi
-// n_12 = k * chi = omega * chi
-// rest 0
-//
-// if init_dim = 1 and standing_waves = true
-// s_0 = R * cos(kx)
-// s_1 = 0
-// s_2 = R * sin(ky)
-// n_01 = k * chi = omega * chi
-// rest 0
+// The specific form of the wave depends on the test_case parameter, which is passed through the input file. The inputfile is the "context" for this routine. 
 void initialize_wave_spins(G_node *node, const double &x, const double &y,
                            const double &z, ModelA *model, void *ctx) {
-
   auto &inputs = *reinterpret_cast<nlohmann::json *>(ctx);
   PetscScalar *u = reinterpret_cast<PetscScalar *>(node);
 
-  int init_dimension = inputs["init_dimension"].get<int>();
-  bool standing_waves = inputs["standing_waves"].get<bool>();
+  int test_case = inputs["test_case"];
+  double f = sqrt(model->data.f2());
 
-  double init_amp = sqrt(model->data.f2());
-  constexpr auto PI = 3.14159265358979323846;
+  int wave_number = inputs.value("wave_number", 2);
+  PetscReal k = wave_number * 2 * M_PI / model->data.LX;
 
-  PetscScalar chi = model->data.acoefficients.chi;
-  PetscReal wave_k = 4 * PI / model->data.LX;
-  PetscReal argument = wave_k;
-
+  // PetscScalar chi = model->data.acoefficients.chi;
   for (int L = 0; L < ModelAData::Ndof; L++) {
-    u[L] = 0;
+    u[L] = 0.0; // Initialize all components to zero
+  }
 
-    // field components s_a
-    if (L < ModelAData::Nphi) {
-
-      // s_0 component
-      if (L == 0) {
-        u[L] = init_amp;
-        // 1d init cond.
-        if (init_dimension == 1) {
-          u[L] *= cos(argument * x);
-        }
-        // 2d init cond.
-        else if (init_dimension == 2) {
-          u[L] *= cos(argument * x) * cos(argument * y);
-        }
-      }
-      // s_1 component
-      else if (L == 1) {
-        u[L] = init_amp;
-        // 1d init cond.
-        if (init_dimension == 1) {
-          // if standing wave solution
-          if (standing_waves) {
-            u[L] *= 0.0;
-          } else {
-            u[L] *= sin(argument * x);
-          }
-        }
-        // 2d init cond.
-        else if (init_dimension == 2) {
-          u[L] *= sin(argument * x) * cos(argument * y);
-        }
-      }
-      // s_2 component
-      else if (L == 2) {
-        u[L] = init_amp;
-        // 1d init cond.
-        if (init_dimension == 1) {
-          // if standing wave solution
-          if (standing_waves) {
-            u[L] *= sin(argument * x);
-          } else {
-            u[L] *= 0.0;
-          }
-        }
-        // 2d init cond.
-        else if (init_dimension == 2) {
-          u[L] *= sin(argument * y);
-        }
-      }
-    }
-
-    // charges n_A (4,5,6) and n_V (7,8,9)
-    else {
-      // (n_A)_0 (or n_01)
-      if (L == 4) {
-        u[L] = wave_k * chi;
-      }
-      // (n_A)_0 (or n_01) OR (n_V)_2 (or n_12)
-      else if (L == 5 || L == 9) {
-        // 2d init cond.
-        if (init_dimension == 2) {
-          u[L] = wave_k * chi;
-        }
-      }
-    }
-  } // end of assignment for single point
+  if (test_case ==1) {
+    u[0] = f * cos(k * x) ;
+    u[1] = f * sin(k * x) ;
+    // u[4] = k * chi ; // n_01
+  } else if (test_case == 2) {
+    u[0] = f * cos(k * x) * cos(k * y) ;
+    u[1] = f * sin(k * x) * cos(k * y) ;
+    u[2] = f * sin(k * y) ;
+    // u[4] = k * chi ; // n_01
+    // u[5] = k * chi ; // n_02
+    // u[9] = k * chi ; // n_12 or nv[2]
+  } else if (test_case == 3) {
+    double a = M_PI ;
+    u[0] = f * cos(a * sin(k * x)) ;
+    u[1] = f * sin(a * sin(k * x)) ;
+  }
 }

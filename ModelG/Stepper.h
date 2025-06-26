@@ -171,7 +171,7 @@ PetscScalar modelg_update_charge_pair(const double &chi, const double &rms,
                                       const PetscScalar &nB,
                                       o4_stepper_monitor &monitor);
 /////////////////////////////////////////////////////////////////////////
-// The Crank Nicholson step for q fields
+// Implements a deterministic diffusive step in Model G
 class ModelGDiffusionStep : public Stepper {
 public:
   ModelGDiffusionStep(ModelA &in, const bool &implicit_step = true);
@@ -192,6 +192,31 @@ private:
   Mat A;
 
   KSP ksp;
+};
+/////////////////////////////////////////////////////////////////////////
+
+// Solve the deterministic superfluid equations of motion using operator
+// splitting
+class SuperSplitStep : public Stepper {
+public:
+  SuperSplitStep(ModelA &in, const bool &use_implicit = false)
+      : model(&in), pv2(in), diffusion(in, use_implicit) {
+    ;
+  }
+  bool step(const double &dt) override {
+    bool ok = pv2.step(dt);
+    ok = ok && diffusion.step(dt);
+    return ok;
+  }
+  void finalize() override {
+    pv2.finalize();
+    diffusion.finalize();
+  }
+
+private:
+  ModelA *model;
+  IdealPV2 pv2;
+  ModelGDiffusionStep diffusion;
 };
 
 /////////////////////////////////////////////////////////////////////////

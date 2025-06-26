@@ -25,20 +25,17 @@ def main():
 
     prgrm = grunner.find_program('SuperPions.exe')
     pprint.pprint(grunner.data)
-    grunner.data["NX"] = 32
-    grunner.data["deltat"] = 1.
-    grunner.data["outputfiletag"] = "modelgdiffuse"
-    grunner.data["finaltime"] = 40
-    grunner.data["initialization"] = "gaussians"  
+    grunner.data["NX"] =32
+    grunner.data["deltat"] = 3./12.
+    grunner.data["outputfiletag"] = "modelgwaves"
+    grunner.data["finaltime"] = 65.
+    grunner.data["initialization"] = "spinwaves"  
     grunner.data["writeFrequency"] = 1
-    grunner.data["gaussians"] =  { "sigmax" : 3.,
-                                         "sigmay" : 3*10e8, 
-                                         "sigmaz" : 3*10e8, 
-                                         "amplitude" : 1, 
-                                         "theta" : 0.0,
-                                         "phi" : 0.0}
-    grunner.data["evolverType"] = "ModelGDiffusionStep"
-    grunner.data["ModelGDiffusionStep"] = { "use_implicit_step" : True} 
+    grunner.data['f2_constant'] = 5.0
+    grunner.data["superfluidmode"] = True
+    grunner.data["evolverType"] = "SuperSplitStep"
+    grunner.data["SuperSplitStep"] = {"use_implicit_step": True}
+    grunner.data["spinwaves"] = {"test_case" : 2,  "wave_number" : 1}
     grunner.run(dry_run=False, seed=123,ncpus="2", mpiexec=mpiexec, moreopts =sys.argv[1:])
 
 if __name__ == "__main__":
