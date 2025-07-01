@@ -48,7 +48,9 @@ void initialize_gaussians(G_node *node, const double &x, const double &y,
 // Routine that initializes the fields according to a wave with wave number k =
 // n * 2 Pi/L and normalization phi^2 = f
 //
-// The specific form of the wave depends on the test_case parameter, which is passed through the input file. The inputfile is the "context" for this routine. 
+// The specific form of the wave depends on the test_case parameter, which is
+// passed through the input file. The inputfile is the "context" for this
+// routine.
 void initialize_wave_spins(G_node *node, const double &x, const double &y,
                            const double &z, ModelA *model, void *ctx) {
   auto &inputs = *reinterpret_cast<nlohmann::json *>(ctx);
@@ -65,20 +67,29 @@ void initialize_wave_spins(G_node *node, const double &x, const double &y,
     u[L] = 0.0; // Initialize all components to zero
   }
 
-  if (test_case ==1) {
-    u[0] = f * cos(k * x) ;
-    u[1] = f * sin(k * x) ;
+  if (test_case == 1) {
+    u[0] = f * cos(k * x);
+    u[1] = f * sin(k * x);
     // u[4] = k * chi ; // n_01
   } else if (test_case == 2) {
-    u[0] = f * cos(k * x) * cos(k * y) ;
-    u[1] = f * sin(k * x) * cos(k * y) ;
-    u[2] = f * sin(k * y) ;
+    u[0] = f * cos(k * x) * cos(k * y);
+    u[1] = f * sin(k * x) * cos(k * y);
+    u[2] = f * sin(k * y);
     // u[4] = k * chi ; // n_01
     // u[5] = k * chi ; // n_02
     // u[9] = k * chi ; // n_12 or nv[2]
   } else if (test_case == 3) {
-    double a = M_PI ;
-    u[0] = f * cos(a * sin(k * x)) ;
-    u[1] = f * sin(a * sin(k * x)) ;
+    double a = M_PI;
+    u[0] = f * cos(a * sin(k * x));
+    u[1] = f * sin(a * sin(k * x));
+  } else if (test_case == 4) {
+    // Sod problem
+    if (x >= model->data.LX / 4. and x < 3 * model->data.LX / 4.) {
+      u[0] = f;
+    } else {
+      u[1] = f;
+    }
+  } else {
+    throw std::runtime_error("Unknown test_case in initialize_wave_spins");
   }
 }

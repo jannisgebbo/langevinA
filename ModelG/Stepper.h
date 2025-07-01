@@ -193,6 +193,19 @@ private:
 
   KSP ksp;
 };
+
+/////////////////////////////////////////////////////////////////////////
+// Implements a deterministic explict diffusive step in Model G
+class ModelGExplicitDiffusionStep : public Stepper {
+public:
+  ModelGExplicitDiffusionStep(ModelA &in) : model(&in) { ; }
+  bool step(const double &dt) override;
+  void finalize() override { ; }
+  ~ModelGExplicitDiffusionStep() { ; }
+
+private:
+  ModelA *model;
+};
 /////////////////////////////////////////////////////////////////////////
 
 // Solve the deterministic superfluid equations of motion using operator
@@ -200,23 +213,37 @@ private:
 class SuperSplitStep : public Stepper {
 public:
   SuperSplitStep(ModelA &in, const bool &use_implicit = false)
-      : model(&in), pv2(in), diffusion(in, use_implicit) {
-    ;
+      : model(&in), pv2(in) {
+    if (use_implicit) {
+      diffusion = std::make_unique<ModelGDiffusionStep>(in, true);
+    } else {
+      // diffusion = std::make_unique<ModelGDiffusionStep>(in, false);
+      diffusion = std::make_unique<ModelGExplicitDiffusionStep>(in);
+    }
   }
   bool step(const double &dt) override {
+    PetscLogEvent ideal_log, diffusive_log;
+    PetscLogEventRegister("ExplicitDiffusion", 0, &diffusive_log);
+    PetscLogEventRegister("IdealStep", 0, &ideal_log);
+
+    PetscLogEventBegin(ideal_log, 0, 0, 0, 0);
     bool ok = pv2.step(dt);
-    ok = ok && diffusion.step(dt);
+    PetscLogEventEnd(ideal_log, 0, 0, 0, 0);
+
+    PetscLogEventBegin(diffusive_log, 0, 0, 0, 0);
+    ok = ok && diffusion->step(dt);
+    PetscLogEventEnd(diffusive_log, 0, 0, 0, 0);
     return ok;
   }
   void finalize() override {
     pv2.finalize();
-    diffusion.finalize();
+    diffusion->finalize();
   }
 
 private:
   ModelA *model;
   IdealPV2 pv2;
-  ModelGDiffusionStep diffusion;
+  std::unique_ptr<Stepper> diffusion;
 };
 
 /////////////////////////////////////////////////////////////////////////

@@ -760,6 +760,102 @@ ModelGDiffusionStep::Form3PointLaplacian(DM da, Mat J, const double &hx,
 
 /////////////////////////////////////////////////////////////////////////
 
+bool ModelGExplicitDiffusionStep::step(const double &dt) {
+
+  auto &data = model->data;
+
+  // Get a local vector with ghost cells
+  DM da = model->domain;
+  Vec localU;
+  PetscCall(DMGetLocalVector(da, &localU));
+
+  // Fill in the ghost celss with mpicalls
+  PetscCall(DMGlobalToLocalBegin(da, model->solution, INSERT_VALUES, localU));
+  PetscCall(DMGlobalToLocalEnd(da, model->solution, INSERT_VALUES, localU));
+
+  // Get Access to arrays with drifted solution
+  G_node ***phi;
+  PetscCall(DMDAVecGetArrayRead(da, localU, &phi));
+  G_node ***phinew;
+  PetscCall(DMDAVecGetArray(da, model->solution, &phinew));
+
+  const auto &coeff = data.acoefficients;
+  PetscReal H[4] = {coeff.H, 0., 0., 0.};
+  if (data.ahandler.superfluidmode) {
+    H[0] *= coeff.sigmabyf(data.atime.t());
+  }
+  const PetscReal axx = pow(1. / data.hX(), 2);
+  const PetscReal ayy = pow(1. / data.hY(), 2);
+  const PetscReal azz = pow(1. / data.hZ(), 2);
+
+  PetscReal dtG = dt * coeff.Gamma();
+  PetscReal dtD = dt * coeff.D();
+  PetscReal f = sqrt(data.f2());
+
+  PetscInt xstart, ystart, zstart, xdimension, ydimension, zdimension;
+  DMDAGetCorners(da, &xstart, &ystart, &zstart, &xdimension, &ydimension,
+                 &zdimension);
+
+  // Loop over central elements
+  for (PetscInt k = zstart; k < zstart + zdimension; k++) {
+    for (PetscInt j = ystart; j < ystart + ydimension; j++) {
+      for (PetscInt i = xstart; i < xstart + xdimension; i++) {
+        // First evolve the momenta nab
+
+        G_node &centralPhi = phi[k][j][i];
+        G_node &phixplus = phi[k][j][i + 1];
+        G_node &phixminus = phi[k][j][i - 1];
+        G_node &phiyplus = phi[k][j + 1][i];
+        G_node &phiyminus = phi[k][j - 1][i];
+        G_node &phizplus = phi[k + 1][j][i];
+        G_node &phizminus = phi[k - 1][j][i];
+
+        for (PetscInt l = 0; l < ModelAData::Nphi; l++) {
+
+          // Compute the nabla^2 phi
+          phinew[k][j][i].f[l] +=
+              dtG * (axx * (phixplus.f[l] + phixminus.f[l]) +
+                     ayy * (phiyplus.f[l] + phiyminus.f[l]) +
+                     azz * (phizplus.f[l] + phizminus.f[l]) -
+                     2. * (axx + ayy + azz) * centralPhi.f[l]);
+
+          // // Add the drift term
+          // phinew[k][j][i].f[l] += dt * H[l];
+        }
+        if (data.ahandler.superfluidmode) {
+          // In superfluid mode we need to normalize the first four components
+          // of the solution to f2
+          G_node::normalize_phi(phinew[k][j][i].f, f);
+        }
+
+        for (PetscInt l = 0; l < ModelAData::NA; l++) {
+          // Compute the nabla^2 A
+          phinew[k][j][i].A[l] +=
+              dtD * (axx * (phixplus.A[l] + phixminus.A[l]) +
+                     ayy * (phiyplus.A[l] + phiyminus.A[l]) +
+                     azz * (phizplus.A[l] + phizminus.A[l]) -
+                     2. * (axx + ayy + azz) * centralPhi.A[l]);
+        }
+
+        for (PetscInt l = 0; l < ModelAData::NV; l++) {
+          phinew[k][j][i].V[l] +=
+              dtD * (axx * (phixplus.V[l] + phixminus.V[l]) +
+                     ayy * (phiyplus.V[l] + phiyminus.V[l]) +
+                     azz * (phizplus.V[l] + phizminus.V[l]) -
+                     2. * (axx + ayy + azz) * centralPhi.V[l]);
+        }
+      }
+    }
+  }
+  PetscCall(DMDAVecRestoreArray(da, model->solution, &phinew));
+  PetscCall(DMDAVecRestoreArrayRead(da, localU, &phi));
+  PetscCall(DMRestoreLocalVector(da, &localU));
+
+  return true;
+}
+
+/////////////////////////////////////////////////////////////////////////
+
 PV2HBSplit::PV2HBSplit(ModelA &in, const std::string &insteps,
                        const bool &ideal, const bool &heatbath,
                        const bool &diffusion)

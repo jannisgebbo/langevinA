@@ -16,7 +16,7 @@ def plot_h5_data(file_path, dataset_name, time, field):
 
         for i in range(0, 1):
             v = data[int(L/2), int(L/2) + i, :, field]
-            plt.plot(x, v, label=dataset_name + f'_x{i}')
+            plt.plot(x, v, 'r-', label=dataset_name + f'_x{i}')
 
         # for i in range(0, 8, 4):
         #     v = data[16, :, 16 + i, 0]
@@ -52,7 +52,7 @@ def plot_solution(time, params, field):
         gaussian += amplitude * \
             np.exp(-((x - L)**2) / (2 * sigmaxt**2)) * sigmax/sigmaxt
 
-    plt.plot(x, gaussian, label=f'Gaussian at t={time:.2f}', linestyle='--')
+    plt.plot(x, gaussian, 'b--', label=f'Gaussian at t={time:.2f}')
 
 
 if __name__ == "__main__":
@@ -70,7 +70,7 @@ if __name__ == "__main__":
     dt = params.get('deltat')
     finaltime = params.get('finaltime', 40)
     arange = np.arange(0, finaltime, dt)
-    for t in arange[::8]:
+    for t in arange[::24]:
         file = f'./modelgdiffuse/modelgdiffuse_t_{t:.2f}_save.h5'
 
         # check if the file exists

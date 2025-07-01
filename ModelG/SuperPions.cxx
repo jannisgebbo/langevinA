@@ -205,8 +205,14 @@ void Run(nlohmann::json &inputs) {
   auto &etype = inputdata.ahandler.evolverType;
   if (etype == "PV2HBSplit23") {
     // Default is to include all steps
+    PetscPrintf(
+        PETSC_COMM_WORLD,
+        "Using the default stepper PV2HBSplit23 with steps ABBABBABBC\n");
     step = std::make_unique<PV2HBSplit>(model, "ABBABBABBC", true, true, true);
   } else if (etype == "PV2HBSplitGeneral") {
+    PetscPrintf(
+        PETSC_COMM_WORLD,
+        "Using the general stepper PV2HBSplit with steps from input file\n");
     nlohmann::json general_stepper = inputs["pv2hb_split_general"];
     std::string steps = general_stepper.value("steps", "ABBABBABBC");
     const bool ideal = general_stepper.value("include_ideal", true);
@@ -214,11 +220,23 @@ void Run(nlohmann::json &inputs) {
     const bool diffuse = general_stepper.value("include_diffuse", true);
     step = std::make_unique<PV2HBSplit>(model, steps, ideal, heatbath, diffuse);
   } else if (etype == "ModelGDiffusionStep") {
+    // Solves the diffusion equation
+    PetscPrintf(PETSC_COMM_WORLD, "Using the ModelGDiffusionStep stepper with "
+                                  "use_implicit step option\n");
     bool use_implicit_step = inputs["ModelGDiffusionStep"]["use_implicit_step"];
-    step = std::make_unique<ModelGDiffusionStep>(model, use_implicit_step);
+    if (use_implicit_step) {
+      PetscPrintf(PETSC_COMM_WORLD, "Using implicit step\n");
+      step = std::make_unique<ModelGDiffusionStep>(model, use_implicit_step);
+    } else {
+      PetscPrintf(PETSC_COMM_WORLD, "Using explicit step\n");
+      step = std::make_unique<ModelGExplicitDiffusionStep>(model);
+    }
   } else if (etype == "SuperSplitStep") {
+    PetscPrintf(
+        PETSC_COMM_WORLD,
+        "Using the SuperSplitStep stepper with use_implicit_step option\n");
     bool use_implicit_step =
-        inputs["SuperSplitStep"].value<bool>("use_implicit_step", true);
+        inputs["SuperSplitStep"].value<bool>("use_implicit_step", false);
     step = std::make_unique<SuperSplitStep>(model, use_implicit_step);
     ;
   } else {
