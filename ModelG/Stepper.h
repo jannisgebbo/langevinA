@@ -212,13 +212,20 @@ private:
 // splitting
 class SuperSplitStep : public Stepper {
 public:
-  SuperSplitStep(ModelA &in, const bool &use_implicit = false)
-      : model(&in), pv2(in) {
+  SuperSplitStep(ModelA &in, const std::string &step_sequence = "AB",
+                 const bool &use_implicit = false)
+      : model(&in), pv2(in), steps(step_sequence), A_count(0), B_count(0) {
     if (use_implicit) {
       diffusion = std::make_unique<ModelGDiffusionStep>(in, true);
     } else {
-      // diffusion = std::make_unique<ModelGDiffusionStep>(in, false);
       diffusion = std::make_unique<ModelGExplicitDiffusionStep>(in);
+    }
+    for (char s : steps) {
+      if (s == 'A') {
+        A_count++;
+      } else if (s == 'B') {
+        B_count++;
+      }
     }
   }
   bool step(const double &dt) override {
@@ -226,13 +233,18 @@ public:
     PetscLogEventRegister("ExplicitDiffusion", 0, &diffusive_log);
     PetscLogEventRegister("IdealStep", 0, &ideal_log);
 
-    PetscLogEventBegin(ideal_log, 0, 0, 0, 0);
-    bool ok = pv2.step(dt);
-    PetscLogEventEnd(ideal_log, 0, 0, 0, 0);
-
-    PetscLogEventBegin(diffusive_log, 0, 0, 0, 0);
-    ok = ok && diffusion->step(dt);
-    PetscLogEventEnd(diffusive_log, 0, 0, 0, 0);
+    bool ok = true;
+    for (char s : steps) {
+      if (s == 'A') {
+        PetscLogEventBegin(ideal_log, 0, 0, 0, 0);
+        ok = ok && pv2.step(dt / A_count);
+        PetscLogEventEnd(ideal_log, 0, 0, 0, 0);
+      } else if (s == 'B') {
+        PetscLogEventBegin(diffusive_log, 0, 0, 0, 0);
+        ok = ok && diffusion->step(dt / B_count);
+        PetscLogEventEnd(diffusive_log, 0, 0, 0, 0);
+      }
+    }
     return ok;
   }
   void finalize() override {
@@ -244,6 +256,9 @@ private:
   ModelA *model;
   IdealPV2 pv2;
   std::unique_ptr<Stepper> diffusion;
+  std::string steps;  // The steps to take, e.g. "ABBB"
+  double A_count = 0; // Number of A steps in the string steps
+  double B_count = 0; // Number of B steps in the string steps
 };
 
 /////////////////////////////////////////////////////////////////////////

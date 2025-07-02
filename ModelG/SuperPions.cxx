@@ -237,7 +237,10 @@ void Run(nlohmann::json &inputs) {
         "Using the SuperSplitStep stepper with use_implicit_step option\n");
     bool use_implicit_step =
         inputs["SuperSplitStep"].value<bool>("use_implicit_step", false);
-    step = std::make_unique<SuperSplitStep>(model, use_implicit_step);
+    std::string step_sequence =
+        inputs["SuperSplitStep"].value<std::string>("step_sequence", "AB");
+    step = std::make_unique<SuperSplitStep>(model, step_sequence,
+                                            use_implicit_step);
     ;
   } else {
     PetscPrintf(PETSC_COMM_WORLD, "Unrecognized stepper type %s. Aborting...\n",
