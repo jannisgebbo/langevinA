@@ -7,12 +7,13 @@ import pprint
 
 even_odd = True
 
+
 def plot_h5_data(file_path, time, field):
     global even_odd
     # Open the h5 file
     with h5.File(file_path, 'r') as f:
         # Read the dataset
-        data = f['o4fields'] 
+        data = f['o4fields']
 
         L = data.shape[0]
         x = np.arange(L)
@@ -28,7 +29,6 @@ def plot_h5_data(file_path, time, field):
         plt.draw()
         plt.pause(0.4)
 
-
         # for i in range(0, 8, 4):
         #     v = data[16, :, 16 + i, 0]
         #     plt.plot(x, v, label=dataset_name + f'_y{i}')
@@ -36,6 +36,7 @@ def plot_h5_data(file_path, time, field):
         # for i in range(0, 8, 4):
         #     v = data[:, 16, 16 + i, 0]
         #     plt.plot(x, v, label=dataset_name + f'_z{i}')
+
 
 if __name__ == "__main__":
     even_odd = False
@@ -65,7 +66,7 @@ if __name__ == "__main__":
     arange = np.arange(0, finaltime, dt)
     trange = int(0.125 * finaltime / dt)
     plt.ylim(-1.1*f, 1.1*f)
-    for t in arange[0*trange:8*trange:int(2./dt)]:
+    for t in arange[0*trange:1*trange:int(0.5/dt)]:
         file = f'./modelgwaves/modelgwaves_t_{t:.2f}_save.h5'
         print(f"Plotting data from {file} at time {t:.2f} for field {field}")
 

@@ -336,9 +336,6 @@ public:
   // Solution
   Vec solution;
 
-  // Previous solution
-  Vec previoussolution;
-
   // Rank of this processor
   int rank;
 
@@ -357,7 +354,6 @@ public:
     DMSetUp(domain);
 
     DMCreateGlobalVector(domain, &solution);
-    VecDuplicate(solution, &previoussolution);
 
     // Setup the random number generation. If we are in in restart mode then we
     // try to read in the random number generator too.
@@ -382,7 +378,6 @@ public:
       ModelARndm->write(ahandler.outputfiletag);
       write(ahandler.outputfiletag);
     }
-    VecDestroy(&previoussolution);
     VecDestroy(&solution);
     DMDestroy(&domain);
   }
