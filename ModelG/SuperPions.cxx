@@ -288,7 +288,12 @@ int main(int argc, char **argv) {
 
   PetscPrintf(PETSC_COMM_WORLD, "Running SuperPions with input file %s\n",
               filename);
-  std::cout << "Input parameters:\n" << inputs.dump(2) << std::endl;
+
+  int rank = 0;
+  MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
+  if (rank ==0) {
+     std::cout << "Input parameters:\n" << inputs.dump(2) << std::endl;
+  }
 
   Run(inputs);
 
