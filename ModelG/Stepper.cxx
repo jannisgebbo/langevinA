@@ -820,7 +820,7 @@ bool ModelGExplicitDiffusionStep::step(const double &dt) {
                      2. * (axx + ayy + azz) * centralPhi.f[l]);
 
           // Add the mass term (H[l]  is  H * sigma/f)
-          phinew[k][j][i].f[l] += dtG * H[l]
+          phinew[k][j][i].f[l] += dtG * H[l];
         }
         if (data.ahandler.superfluidmode) {
           // In superfluid mode we need to normalize the first four components
