@@ -367,6 +367,9 @@ public:
     MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
   }
 
+  const std::unique_ptr<NoiseGenerator>& getRNG() const { return ModelARndm; }
+
+
   void finalize() {
     const auto &ahandler = data.ahandler;
 

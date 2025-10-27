@@ -89,6 +89,20 @@ void initialize_wave_spins(G_node *node, const double &x, const double &y,
     } else {
       u[1] = f;
     }
+  } else if (test_case == 5) {
+    // Sod problem with random shocks
+      double guess = model->getRNG()->uniform();
+      if (guess > 0.5){
+          u[0] = f;
+      }
+      else {
+          u[1] = f;
+      }
+  } else if (test_case == 6) {
+    // 1D periodic pertubations
+    double phi = 0.1 * cos(k * x);
+    u[0] = f - 0.5*phi*phi;
+    u[1] = phi;
   } else {
     throw std::runtime_error("Unknown test_case in initialize_wave_spins");
   }

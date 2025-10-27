@@ -46,6 +46,43 @@ void thermalize_event(ModelA *const model) {
   thermalizer->finalize();
 }
 
+// routine to smoothen initial conditions by running a small number of diffusion steps
+void smoothen_event(ModelA *const model, nlohmann::json &inputs) {
+
+  const auto &ahandler = model->data.ahandler;
+  auto &atime = model->data.atime;
+
+  int nsteps = inputs["nsteps_smoothen"];
+  PetscPrintf(PETSC_COMM_WORLD, "Smoothening event %d\n",
+              ahandler.current_event);
+
+  // Smoothen the initial conditions
+  std::unique_ptr<Stepper> smoothener;
+  bool use_implicit_step = inputs["ModelGDiffusionStep"]["use_implicit_step"];
+  if (use_implicit_step) {
+    PetscPrintf(PETSC_COMM_WORLD, "Using implicit step\n");
+    smoothener = std::make_unique<ModelGDiffusionStep>(*model, use_implicit_step);
+  } else {
+    PetscPrintf(PETSC_COMM_WORLD, "Using explicit step\n");
+    smoothener = std::make_unique<ModelGExplicitDiffusionStep>(*model);
+  }
+
+  for (int i = 0; i < nsteps; i++) {
+    const int substeps = 6;
+    for (int j = 0; j < substeps; j++) {
+      smoothener->step(0.5 / substeps);
+    }
+    PetscPrintf(PETSC_COMM_WORLD,
+                "Smoothening Event/Timestep %d/%d: step size = %g, time = %g, "
+                "nsteps to smoothen = %d, Gamma %e, D %e \n",
+                ahandler.current_event, i, (double)atime.dt(),
+                (double)atime.t(), nsteps, model->data.acoefficients.Gamma(),
+                model->data.acoefficients.D()
+);
+  }
+  smoothener->finalize();
+}
+
 void initialize_event(const int &ievent, ModelA *const model,
                       nlohmann::json &inputs) {
   const auto &ahandler = model->data.ahandler;
@@ -254,6 +291,12 @@ void Run(nlohmann::json &inputs) {
   for (int i = 0; i < nevents; i++) {
     atime.reset();
     initialize_event(i, &model, inputs);
+    // smoothen if smoothen=True
+    bool do_smoothening = inputs["smoothen"];
+    if (do_smoothening){
+      smoothen_event(&model, inputs);
+      // reset time?
+    }
     run_event(i, &model, step.get(), inputs);
     ahandler.current_event++;
   }
