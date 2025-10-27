@@ -1,7 +1,7 @@
 # Load the e4s stack
 ====================
 
-module load spack
+module load spack/0.22
 
 # Switch the spack stack
 ====================

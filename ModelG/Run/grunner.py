@@ -62,7 +62,7 @@ data = {
 
     # parameters for superfluid events
     "superfluidmode": False,
-    "f2_constant": 1,
+    "f2_constant": 5.,
 
 }
 
@@ -81,8 +81,12 @@ def checkinputs():
         raise SystemExit('The parameters dmassdt should be negative')
     if data["chi"] != 5.:
         raise SystemExit('Chi should be five')
-    if data["evolverType"] != "PV2HBSplit23":
-        raise SystemExit('The evovlerType is not "PV2HBSplit23"')
+    if data["f2_constant"] != 5.:
+        raise SystemExit('f2 constant should be five')
+    if not data["superfluidmode"] :
+        raise SystemExit('We should be in superfluidmode')
+    if data["evolverType"] != "SuperSplitStep":
+        raise SystemExit('The evovlerType is not "SuperSplit"')
 
 
 # dump the data into a .json file
@@ -133,7 +137,7 @@ def find_program(program_name="SuperPions.exe"):
 
 
 def prlmrun(time=2, debug=False, dry_run=True, moreopts=[
-            "-log_view"], seed=None, nnodes=1, nodeid=False):
+            "-log_view"], seed=None, nnodes=1, nodeid=False, interactive=False):
     prgm = find_program()
 
     # Create a run directory "name"  if does not exist, and cd to it
@@ -165,6 +169,7 @@ def prlmrun(time=2, debug=False, dry_run=True, moreopts=[
     # Prepare the shell script
     #
     filenamesh = tag + '.sh'
+    filenamestdout = tag + '.stdout'
 
     fh = open(filenamesh, 'w')
 
@@ -214,7 +219,12 @@ def prlmrun(time=2, debug=False, dry_run=True, moreopts=[
 
     # Submit the shell script
     if not dry_run:
-        subprocess.run(['sbatch', filenamesh])
+        if interactive:
+            with open(filenamestdout, "w") as outfile:
+                subprocess.run(['sh', filenamesh], stdout=outfile, check=True)
+        else:
+            subprocess.run(['sbatch', filenamesh])
+
 
     # There was a side effect that the outputfiletag got modified
     # This should be undone for transparency

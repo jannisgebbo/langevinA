@@ -276,6 +276,9 @@ void Run(nlohmann::json &inputs) {
         inputs["SuperSplitStep"].value<bool>("use_implicit_step", false);
     std::string step_sequence =
         inputs["SuperSplitStep"].value<std::string>("step_sequence", "AB");
+    PetscPrintf(
+        PETSC_COMM_WORLD,
+        "Using the SuperSplitStep stepper step_sequence %s \n", step_sequence.c_str());
     step = std::make_unique<SuperSplitStep>(model, step_sequence,
                                             use_implicit_step);
     ;
@@ -334,7 +337,12 @@ int main(int argc, char **argv) {
 
   PetscPrintf(PETSC_COMM_WORLD, "Running SuperPions with input file %s\n",
               filename);
-  std::cout << "Input parameters:\n" << inputs.dump(2) << std::endl;
+
+  int rank = 0;
+  MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
+  if (rank ==0) {
+     std::cout << "Input parameters:\n" << inputs.dump(2) << std::endl;
+  }
 
   Run(inputs);
 
