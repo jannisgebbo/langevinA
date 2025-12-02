@@ -314,3 +314,73 @@ void Measurer::computeDerivedObs() {
   fftw->execute(wallYPhase, wallYPhase_k);
   fftw->execute(wallZPhase, wallZPhase_k);
 }
+
+// Input: solution vector
+//
+// Routine: compute different terms that contribute to total energy and 
+// store inside Energy[NEnergy]
+// 
+// H = H_s + H_A + H_V + H_H
+// H: total energy - Energy[0]
+// H_s: spin field gradient term - Energy[1]
+// H_A: axial charge field term - Energy[2]
+// H_V: vector charge field term - Energy[3]
+// H_H: term induced by presence of magnetic field - Energy[4]
+void Measurer::computeEnergy(Vec *solution) {
+   
+  DM &da = model->domain;
+  const auto &coeff = model->data.acoefficients;
+  Vec localU;
+  DMGetLocalVector(da, &localU);
+  // take the global vector U and distribute to the local vector localU
+  DMGlobalToLocalBegin(da, *solution, INSERT_VALUES, localU);
+  DMGlobalToLocalEnd(da, *solution, INSERT_VALUES, localU);
+
+  // From the vector define the pointer for the field phi
+  G_node ***fld;
+  DMDAVecGetArrayRead(da, localU, &fld);
+
+  // Initializing the energy array to zero
+  Energy = std::vector<PetscScalar>(NEnergy, 0.);
+
+  // Get the ranges
+  PetscInt ixs, iys, izs, nx, ny, nz;
+  DMDAGetCorners(da, &ixs, &iys, &izs, &nx, &ny, &nz);
+
+  int actualInd = 0;
+
+  // Store the local averages
+  for (int k = izs; k < izs + nz; k++) {
+    for (int j = iys; j < iys + ny; j++) {
+      for (int i = ixs; i < ixs + nx; i++) {
+        for (int l = 0; l < ModelAData::Nphi; l++) {
+          // field gradient 
+          Energy[1] += 0.5 * (pow(fld[k+1][j][i].f[l],2) + pow(fld[k][j+1][i].f[l],2) 
+              + pow(fld[k][j][i+1].f[l],2) + 2.0*fld[k][j][i].f[l] * (
+                  3.0/2.0 * fld[k][j][i].f[l] - fld[k+1][j][i].f[l] - fld[k][j+1][i].f[l]
+                  - fld[k][j][i+1].f[l] )); 
+        }
+        for (int l = ModelAData::Nphi; l < ModelAData::Nphi + ModelAData::NA;
+             l++) {
+          actualInd = l - ModelAData::Nphi;
+          // axial charge 
+          Energy[2] += 1/(2.0*coeff.chi) * pow(fld[k][j][i].A[actualInd],2); 
+        }
+        for (int l = ModelAData::Nphi + ModelAData::NA;
+             l < ModelAData::Nphi + ModelAData::NA + ModelAData::NV; l++) {
+          actualInd = l - ModelAData::Nphi - ModelAData::NA;
+          // vector charge 
+          Energy[3] += 1/(2.0*coeff.chi) * pow(fld[k][j][i].V[actualInd],2); 
+        }
+        // magnetic field - field  
+        Energy[4] += -1.0*coeff.H * coeff.sigmabyf(model->data.atime.t()) * fld[k][j][i].f[0]; 
+      }
+    }
+  }
+  // Dividing by volume and adding parts to total energy 
+  for (int l = 1; l < NEnergy; l++) {
+    Energy[l] /= pow(PetscReal(N),3);
+    Energy[0] += Energy[l];
+  }
+
+}

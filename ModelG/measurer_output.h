@@ -55,6 +55,7 @@ private:
 
   // One dimensional quantities
   std::unique_ptr<ntuple<1>> scalars;
+  std::unique_ptr<ntuple<1>> energy;
   // Time and mass of the measurement is also recorded.
   std::unique_ptr<ntuple<1>> timeout;
 

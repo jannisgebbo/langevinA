@@ -95,6 +95,10 @@ public:
   static const PetscInt NScalars = NObs;
   std::vector<PetscScalar> OAverage;
 
+  // energy data (different parts of H)
+  static const PetscInt NEnergy = 5;
+  std::vector<PetscScalar> Energy;
+
   // First dimension is NObs, last is spatial index x=0...N
   nvector<PetscScalar, 2> wallX;
   nvector<PetscScalar, 2> wallY;
@@ -178,6 +182,7 @@ public:
 
     computeSliceAverage(solution);
     computeSliceAveragePhase(solution);
+    computeEnergy(solution);
 
     // Take the FFT and other steps based on the data collected
     if (rank == 0) {
@@ -191,6 +196,7 @@ public:
 private:
   void computeSliceAverage(Vec *solution);
   void computeSliceAveragePhase(Vec *solution);
+  void computeEnergy(Vec *solution);
   void computeDerivedObs();
 
   ModelA *model;
