@@ -348,17 +348,41 @@ void Measurer::computeEnergy(Vec *solution) {
   DMDAGetCorners(da, &ixs, &iys, &izs, &nx, &ny, &nz);
 
   int actualInd = 0;
+  int kplus1, jplus1, iplus1;
 
   // Store the local averages
   for (int k = izs; k < izs + nz; k++) {
+    // take care of periodic boundary conditions
+    if (k == izs + nz){
+      kplus1 = izs;
+    }
+    else {
+      kplus1 = k + 1;
+    }
     for (int j = iys; j < iys + ny; j++) {
+      // take care of periodic boundary conditions
+      if (j == iys + ny){
+        jplus1 = iys;
+      }
+      else {
+        jplus1 = j + 1;
+      }
       for (int i = ixs; i < ixs + nx; i++) {
+        // take care of periodic boundary conditions
+        if (i == ixs + nx){
+          iplus1 = ixs;
+        }
+        else {
+          iplus1 = i + 1;
+        }
+
+        // add local part to different energy contributions
         for (int l = 0; l < ModelAData::Nphi; l++) {
           // field gradient 
-          Energy[1] += 0.5 * (pow(fld[k+1][j][i].f[l],2) + pow(fld[k][j+1][i].f[l],2) 
-              + pow(fld[k][j][i+1].f[l],2) + 2.0*fld[k][j][i].f[l] * (
-                  3.0/2.0 * fld[k][j][i].f[l] - fld[k+1][j][i].f[l] - fld[k][j+1][i].f[l]
-                  - fld[k][j][i+1].f[l] )); 
+          Energy[1] += 0.5 * (pow(fld[kplus1][j][i].f[l],2) + pow(fld[k][jplus1][i].f[l],2) 
+              + pow(fld[k][j][iplus1].f[l],2) + 2.0*fld[k][j][i].f[l] * (
+                  3.0/2.0 * fld[k][j][i].f[l] - fld[kplus1][j][i].f[l] - fld[k][jplus1][i].f[l]
+                  - fld[k][j][iplus1].f[l] )); 
         }
         for (int l = ModelAData::Nphi; l < ModelAData::Nphi + ModelAData::NA;
              l++) {
