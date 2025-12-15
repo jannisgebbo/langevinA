@@ -31,7 +31,7 @@ measurer_output_fasthdf5::measurer_output_fasthdf5(Measurer *in,
 
   std::array<size_t, 1> NN1{Measurer::NScalars};
   scalars = std::make_unique<ntuple<1>>(NN1, "phi", file_id);
-  std::array<size_t, 1> NN1{Measurer::NEnergy};
+  NN1 = {Measurer::NEnergy};
   energy = std::make_unique<ntuple<1>>(NN1, "energy", file_id);
   NN1 = {2};
   timeout = std::make_unique<ntuple<1>>(NN1, "timeout", file_id);

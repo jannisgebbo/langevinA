@@ -182,7 +182,7 @@ public:
 
     computeSliceAverage(solution);
     computeSliceAveragePhase(solution);
-    computeEnergy(solution);
+    computeEnergy();
 
     // Take the FFT and other steps based on the data collected
     if (rank == 0) {
@@ -196,7 +196,7 @@ public:
 private:
   void computeSliceAverage(Vec *solution);
   void computeSliceAveragePhase(Vec *solution);
-  void computeEnergy(Vec *solution);
+  void computeEnergy();
   void computeDerivedObs();
 
   ModelA *model;

@@ -83,7 +83,7 @@ void Measurer::computeSliceAverage(Vec *solution) {
     }
   }
 
-  // Retstore the array
+  // Restore the array
   DMDAVecRestoreArrayRead(da, localU, &fld);
   DMRestoreLocalVector(da, &localU);
 
@@ -326,85 +326,164 @@ void Measurer::computeDerivedObs() {
 // H_A: axial charge field term - Energy[2]
 // H_V: vector charge field term - Energy[3]
 // H_H: term induced by presence of magnetic field - Energy[4]
-void Measurer::computeEnergy(Vec *solution) {
-   
-  DM &da = model->domain;
-  const auto &coeff = model->data.acoefficients;
-  Vec localU;
-  DMGetLocalVector(da, &localU);
-  // take the global vector U and distribute to the local vector localU
-  DMGlobalToLocalBegin(da, *solution, INSERT_VALUES, localU);
-  DMGlobalToLocalEnd(da, *solution, INSERT_VALUES, localU);
+void Measurer::computeEnergy() {
+//   DM &da = model->domain;
+//   const auto &coeff = model->data.acoefficients;
+//   Vec localU;
+//   DMGetLocalVector(da, &localU);
+//   // take the global vector U and distribute to the local vector localU
+//   DMGlobalToLocalBegin(da, model->solution, INSERT_VALUES, localU);
+//   DMGlobalToLocalEnd(da, model->solution, INSERT_VALUES, localU);
+// 
+//   // From the vector define the pointer for the field phi
+//   G_node ***fld;
+//   DMDAVecGetArrayRead(da, localU, &fld);
+// 
+//   // Initializing the energy array to zero
+//   Energy = std::vector<PetscScalar>(NEnergy, 0.);
+//   // create local energy arrays
+//   std::vector<PetscScalar> EnergyLocal(NEnergy, 0.);
+// 
+//   // Get the ranges
+//   PetscInt ixs, iys, izs, nx, ny, nz;
+//   DMDAGetCorners(da, &ixs, &iys, &izs, &nx, &ny, &nz);
+// 
+//   int actualInd = 0;
+//   int kplus1, jplus1, iplus1;
+// 
+//   // Store the local averages
+//   for (int k = izs; k < izs + nz; k++) {
+//     // take care of periodic boundary conditions
+//     /*
+//     if (k == (N-1)){
+//       kplus1 = 0;
+//     }
+//     else {
+//       kplus1 = k + 1;
+//     }
+//     */
+//       kplus1 = k + 1;
+//     for (int j = iys; j < iys + ny; j++) {
+//       // take care of periodic boundary conditions
+//     /*
+//       if (j == (N-1)){
+//         jplus1 = 0;
+//       }
+//       else {
+//         jplus1 = j + 1;
+//       }
+//     */
+//         jplus1 = j + 1;
+//       for (int i = ixs; i < ixs + nx; i++) {
+//         // take care of periodic boundary conditions
+//     /*
+//         if (i == (N-1)){
+//           iplus1 = 0;
+//         }
+//         else {
+//           iplus1 = i + 1;
+//         }
+//     */
+//           iplus1 = i + 1;
+// 
+//         // add local part to different energy contributions
+//         for (int l = 0; l < ModelAData::Nphi; l++) {
+//           // field gradient 
+//           EnergyLocal[1] += 0.5 * (pow(fld[kplus1][j][i].f[l],2) + pow(fld[k][jplus1][i].f[l],2) 
+//               + pow(fld[k][j][iplus1].f[l],2) + 2.0*fld[k][j][i].f[l] * (
+//                   3.0/2.0 * fld[k][j][i].f[l] - fld[kplus1][j][i].f[l] - fld[k][jplus1][i].f[l]
+//                   - fld[k][j][iplus1].f[l] )); 
+//         }
+//         for (int l = ModelAData::Nphi; l < ModelAData::Nphi + ModelAData::NA;
+//              l++) {
+//           actualInd = l - ModelAData::Nphi;
+//           // axial charge 
+//           EnergyLocal[2] += 1/(2.0*coeff.chi) * pow(fld[k][j][i].A[actualInd],2); 
+//         }
+//         for (int l = ModelAData::Nphi + ModelAData::NA;
+//              l < ModelAData::Nphi + ModelAData::NA + ModelAData::NV; l++) {
+//           actualInd = l - ModelAData::Nphi - ModelAData::NA;
+//           // vector charge 
+//           EnergyLocal[3] += 1/(2.0*coeff.chi) * pow(fld[k][j][i].V[actualInd],2); 
+//         }
+//         // magnetic field - field  
+//         EnergyLocal[4] += -1.0*coeff.H * coeff.sigmabyf(model->data.atime.t()) * fld[k][j][i].f[0]; 
+//       }
+//     }
+//   }
+//   // Dividing by volume and adding parts to total energy 
+//   for (int l = 1; l < NEnergy; l++) {
+//     EnergyLocal[l] /= pow(PetscReal(N),3);
+//     EnergyLocal[0] += EnergyLocal[l];
+//   }
+//  
+//   MPI_Reduce(&EnergyLocal[0], &Energy[0], NEnergy, MPIU_SCALAR, MPI_SUM, 0,
+//              PETSC_COMM_WORLD);
+//   // Retstore the array
+//   DMDAVecRestoreArrayRead(da, localU, &fld);
+//   DMRestoreLocalVector(da, &localU);
 
-  // From the vector define the pointer for the field phi
-  G_node ***fld;
-  DMDAVecGetArrayRead(da, localU, &fld);
 
-  // Initializing the energy array to zero
-  Energy = std::vector<PetscScalar>(NEnergy, 0.);
+  DM da = model->domain;
+  // Get a local vector with ghost cells
+  Vec localUNew;
+  DMGetLocalVector(da, &localUNew);
 
-  // Get the ranges
-  PetscInt ixs, iys, izs, nx, ny, nz;
-  DMDAGetCorners(da, &ixs, &iys, &izs, &nx, &ny, &nz);
+  // Fill in the ghost celss with mpicalls
 
-  int actualInd = 0;
-  int kplus1, jplus1, iplus1;
+  DMGlobalToLocalBegin(da, model->solution, INSERT_VALUES, localUNew);
+  DMGlobalToLocalEnd(da, model->solution, INSERT_VALUES, localUNew);
 
-  // Store the local averages
-  for (int k = izs; k < izs + nz; k++) {
-    // take care of periodic boundary conditions
-    if (k == izs + nz){
-      kplus1 = izs;
-    }
-    else {
-      kplus1 = k + 1;
-    }
-    for (int j = iys; j < iys + ny; j++) {
-      // take care of periodic boundary conditions
-      if (j == iys + ny){
-        jplus1 = iys;
-      }
-      else {
-        jplus1 = j + 1;
-      }
-      for (int i = ixs; i < ixs + nx; i++) {
-        // take care of periodic boundary conditions
-        if (i == ixs + nx){
-          iplus1 = ixs;
+  const auto &data = model->data;
+  const auto &coeff = data.acoefficients;
+
+  G_node ***phiNew;
+  DMDAVecGetArrayRead(da, localUNew, &phiNew);
+
+  const PetscReal H[4] = {coeff.H, 0., 0., 0.};
+
+  PetscInt xstart, ystart, zstart, xdimension, ydimension, zdimension;
+  DMDAGetCorners(da, &xstart, &ystart, &zstart, &xdimension, &ydimension,
+                 &zdimension);
+
+  // Loop over central elements
+  PetscScalar phimid = 0, grad2 = 0, nab2 = 0, hEn = 0;
+  PetscScalar localEnergy = 0;
+  // std::array<PetscScalar,3> localEnergyArr {0,0,0};
+
+  for (PetscInt k = zstart; k < zstart + zdimension; k++) {
+    for (PetscInt j = ystart; j < ystart + ydimension; j++) {
+      for (PetscInt i = xstart; i < xstart + xdimension; i++) {
+        for (int s = 0; s < ModelAData::Nphi; ++s) {
+
+          phimid = phiNew[k][j][i].f[s];
+
+          grad2 += pow(phiNew[k + 1][j][i].f[s] - phimid, 2);
+          grad2 += pow(phiNew[k][j + 1][i].f[s] - phimid, 2);
+          grad2 += pow(phiNew[k][j][i + 1].f[s] - phimid, 2);
+
+          hEn += phimid * H[s];
         }
-        else {
-          iplus1 = i + 1;
+        for (PetscInt s = 0; s < ModelAData::NV; s++) {
+          nab2 += pow(phiNew[k][j][i].V[s], 2);
         }
 
-        // add local part to different energy contributions
-        for (int l = 0; l < ModelAData::Nphi; l++) {
-          // field gradient 
-          Energy[1] += 0.5 * (pow(fld[kplus1][j][i].f[l],2) + pow(fld[k][jplus1][i].f[l],2) 
-              + pow(fld[k][j][iplus1].f[l],2) + 2.0*fld[k][j][i].f[l] * (
-                  3.0/2.0 * fld[k][j][i].f[l] - fld[kplus1][j][i].f[l] - fld[k][jplus1][i].f[l]
-                  - fld[k][j][iplus1].f[l] )); 
+        for (PetscInt s = 0; s < ModelAData::NA; s++) {
+          nab2 += pow(phiNew[k][j][i].A[s], 2);
         }
-        for (int l = ModelAData::Nphi; l < ModelAData::Nphi + ModelAData::NA;
-             l++) {
-          actualInd = l - ModelAData::Nphi;
-          // axial charge 
-          Energy[2] += 1/(2.0*coeff.chi) * pow(fld[k][j][i].A[actualInd],2); 
-        }
-        for (int l = ModelAData::Nphi + ModelAData::NA;
-             l < ModelAData::Nphi + ModelAData::NA + ModelAData::NV; l++) {
-          actualInd = l - ModelAData::Nphi - ModelAData::NA;
-          // vector charge 
-          Energy[3] += 1/(2.0*coeff.chi) * pow(fld[k][j][i].V[actualInd],2); 
-        }
-        // magnetic field - field  
-        Energy[4] += -1.0*coeff.H * coeff.sigmabyf(model->data.atime.t()) * fld[k][j][i].f[0]; 
       }
     }
   }
-  // Dividing by volume and adding parts to total energy 
-  for (int l = 1; l < NEnergy; l++) {
-    Energy[l] /= pow(PetscReal(N),3);
-    Energy[0] += Energy[l];
-  }
+
+  localEnergy += 0.5 / coeff.chi * nab2;
+  localEnergy += 0.5 * grad2;
+  localEnergy -= hEn;
+
+  Energy = 0.0;
+  MPI_Reduce(&localEnergy, &Energy, 1, MPIU_SCALAR, MPI_SUM, 0,
+             PETSC_COMM_WORLD);
+
+  DMDAVecRestoreArrayRead(da, localUNew, &phiNew);
+  DMRestoreLocalVector(da, &localUNew);
 
 }
