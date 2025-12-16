@@ -420,7 +420,7 @@ void Measurer::computeEnergyRotated() {
   G_node ***phiNew;
   DMDAVecGetArrayRead(da, localUNew, &phiNew);
 
-  const PetscReal m2 = coeff.sigmabyf(model->data.atime.t())*coeff.H;
+  const PetscReal m2 = coeff.sigmabyf(data.atime.t())*coeff.H/sqrt(coeff.f2(data.atime.t()));
 
   PetscInt xstart, ystart, zstart, xdimension, ydimension, zdimension;
   DMDAGetCorners(da, &xstart, &ystart, &zstart, &xdimension, &ydimension,
@@ -495,7 +495,7 @@ void Measurer::computeEnergyRotated() {
         A = contract_rho(n, rho);
         V = contract_rho(n, dualize_rho(rho));
         
-        for (int s = 0; s < ModelAData::Nphi; s++) {
+        for (int s = 1; s < ModelAData::Nphi; s++) {
 
           phimid = phir[s];
 
@@ -504,9 +504,10 @@ void Measurer::computeEnergyRotated() {
           grad2 += pow(phi_xplus[s] - phimid, 2);
 
           if (s!=0){  
-            hEn += pow(phimid, 2);
+            grad2 += m2 * pow(phimid, 2);
           }    
         }
+        //hEn -= phi[0];
         for (PetscInt s = 0; s < 4; s++) {
           nV2 += pow(V[s], 2);
         }
@@ -524,7 +525,7 @@ void Measurer::computeEnergyRotated() {
   EnergyLocal[1] = 0.5 / pow(PetscReal(N),3) * grad2;
   EnergyLocal[2] = 0.5 / pow(PetscReal(N),3) / coeff.chi * nA2;
   EnergyLocal[3] = 0.5 / pow(PetscReal(N),3) / coeff.chi * nV2;
-  EnergyLocal[4] = m2 / pow(PetscReal(N),3) * hEn;
+  EnergyLocal[4] = coeff.sigmabyf(model->data.atime.t())*coeff.H / pow(PetscReal(N),3) * hEn;
 
   for (int l = 1; l < NEnergy; l++) {
      EnergyLocal[0] += EnergyLocal[l];
@@ -564,8 +565,8 @@ void Measurer::computeEnergyPhase() {
   G_node ***phiNew;
   DMDAVecGetArrayRead(da, localUNew, &phiNew);
 
-  const PetscReal m2 = coeff.sigmabyf(model->data.atime.t())*coeff.H;
-
+  const PetscReal m2 = coeff.sigmabyf(data.atime.t())*coeff.H/sqrt(coeff.f2(data.atime.t()));
+    
   PetscInt xstart, ystart, zstart, xdimension, ydimension, zdimension;
   DMDAGetCorners(da, &xstart, &ystart, &zstart, &xdimension, &ydimension,
                  &zdimension);
@@ -614,7 +615,7 @@ void Measurer::computeEnergyPhase() {
             grad2_0 += pow(phiNew[k + 1][j][i].f[s] - phimid, 2);
             grad2_0 += pow(phiNew[k][j + 1][i].f[s] - phimid, 2);
             grad2_0 += pow(phiNew[k][j][i + 1].f[s] - phimid, 2);
-            hEn_0 += pow(phimid, 2);  
+            //hEn_0 += pow(phimid, 2);  
           }  
           else {
             grad2 += pow(phiNew[k + 1][j][i].f[s] - phimid, 2);
@@ -640,7 +641,7 @@ void Measurer::computeEnergyPhase() {
   EnergyLocal[1] = 0.5 / pow(PetscReal(N),3) * (grad2 + m2 * hEn);
   EnergyLocal[2] = 0.5 / pow(PetscReal(N),3) / coeff.chi * nA2;
   EnergyLocal[3] = 0.5 / pow(PetscReal(N),3) / coeff.chi * nV2;
-  EnergyLocal[4] =  0.5 / pow(PetscReal(N),3) * (grad2_0 + m2 * hEn_0);
+  EnergyLocal[4] =  0.5 / pow(PetscReal(N),3) * (grad2_0); // + m2 * hEn_0);
 
   for (int l = 1; l < NEnergy; l++) {
      EnergyLocal[0] += EnergyLocal[l];
