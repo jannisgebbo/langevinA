@@ -219,6 +219,118 @@ void Measurer::computeSliceAveragePhase(Vec *solution) {
   }
 }
 
+// takes the solution, evolves it with diffusion stepper and locally decomposes solution 
+// along the diffused solution
+void Measurer::computeSliceAverageCoarsened(Vec *solution) {
+  
+  // Get the local information and store in info
+  DM &da = model->domain;
+  Vec localU, localU_cpy;
+  DMGetLocalVector(da, &localU);
+  VecDuplicate(localU, &localU_cpy);
+  // take the global vector U and distribute to the local vector localU
+  DMGlobalToLocalBegin(da, *solution, INSERT_VALUES, localU);
+  DMGlobalToLocalEnd(da, *solution, INSERT_VALUES, localU);
+
+  // From the vector define the pointer for the field phi
+  G_node ***fld;
+  DMDAVecGetArrayRead(da, localU, &fld);
+  G_node ***fld_diffused;
+  DMDAVecGetArrayRead(da, localU_cpy, &fld_diffused);
+
+  // do the coarsening step
+
+  // Set up the slize averages initialized to zero in c++11
+  std::fill(wallXCoarse.v.begin(), wallXCoarse.v.end(), 0.);
+  std::fill(wallYCoarse.v.begin(), wallYCoarse.v.end(), 0.);
+  std::fill(wallZCoarse.v.begin(), wallZCoarse.v.end(), 0.);
+
+  // Local arrays with same dimensions initialized to zero
+  nvector<double, 2> wallXCoarseLocal(NObsCoarse, N);
+  nvector<double, 2> wallYCoarseLocal(NObsCoarse, N);
+  nvector<double, 2> wallZCoarseLocal(NObsCoarse, N);
+
+  // Get the ranges
+  PetscInt ixs, iys, izs, nx, ny, nz;
+  DMDAGetCorners(da, &ixs, &iys, &izs, &nx, &ny, &nz);
+
+  double sigma;
+  std::array<double, 4> n{};
+  std::array<double, 4> phi{};
+  std::array<double, 6> rho{};
+  std::array<double, 4> V{};
+  std::array<double, 4> A{};
+  // Store the local averages
+  for (int k = izs; k < izs + nz; k++) {
+    for (int j = iys; j < iys + ny; j++) {
+      for (int i = ixs; i < ixs + nx; i++) {
+
+        double phi2 = 0.0;
+        for (int l = 0; l < ModelAData::Nphi; l++) {
+          phi[l] = fld[k][j][i].f[l];
+          phi2 += pow(phi[l], 2);
+        }
+        sigma = sqrt(phi2);
+
+        if (phi2 > 100. * std::numeric_limits<double>::min()) {
+          for (int l = 0; l < ModelAData::Nphi; l++) {
+            n[l] = phi[l] / sigma;
+          }
+        } else {
+          n = {1, 0, 0, 0};
+        }
+
+        for (int l = 0; l < ModelAData::NA; l++) {
+          rho[l] = fld[k][j][i].A[l];
+          rho[l + ModelAData::NA] = fld[k][j][i].V[l];
+        }
+        A = contract_rho(n, rho);
+        V = contract_rho(n, dualize_rho(rho));
+
+        wallXPhaseLocal(0, i) += sigma;
+        wallYPhaseLocal(0, j) += sigma;
+        wallZPhaseLocal(0, k) += sigma;
+        for (int l = 0; l < ModelAData::Nphi; l++) {
+          wallXPhaseLocal(1 + l, i) += n[l];
+          wallYPhaseLocal(1 + l, j) += n[l];
+          wallZPhaseLocal(1 + l, k) += n[l];
+
+          wallXPhaseLocal(5 + l, i) += A[l];
+          wallYPhaseLocal(5 + l, j) += A[l];
+          wallZPhaseLocal(5 + l, k) += A[l];
+
+          wallXPhaseLocal(9 + l, i) += V[l];
+          wallYPhaseLocal(9 + l, j) += V[l];
+          wallZPhaseLocal(9 + l, k) += V[l];
+        }
+        wallXPhaseLocal(Measurer::NObsPhase - 1, i) += sigma * sigma;
+        wallYPhaseLocal(Measurer::NObsPhase - 1, j) += sigma * sigma;
+        wallZPhaseLocal(Measurer::NObsPhase - 1, k) += sigma * sigma;
+      }
+    }
+  }
+  for (int l = 0; l < NObsPhase; ++l) {
+    for (int i = 0; i < N; ++i) {
+      wallXPhaseLocal(l, i) /= PetscReal(N * N);
+      wallYPhaseLocal(l, i) /= PetscReal(N * N);
+      wallZPhaseLocal(l, i) /= PetscReal(N * N);
+    }
+  }
+
+  // Retstore the array
+  DMDAVecRestoreArrayRead(da, localU, &fld);
+  DMRestoreLocalVector(da, &localU);
+
+  // Bring all the data x data into one
+  for (int l = 0; l < NObsPhase; l++) {
+    MPI_Reduce(&wallXPhaseLocal(l, 0), &wallXPhase(l, 0), N, MPIU_SCALAR,
+               MPI_SUM, 0, PETSC_COMM_WORLD);
+    MPI_Reduce(&wallYPhaseLocal(l, 0), &wallYPhase(l, 0), N, MPIU_SCALAR,
+               MPI_SUM, 0, PETSC_COMM_WORLD);
+    MPI_Reduce(&wallZPhaseLocal(l, 0), &wallZPhase(l, 0), N, MPIU_SCALAR,
+               MPI_SUM, 0, PETSC_COMM_WORLD);
+  }
+}
 // Given the fourier transform of phi_a(t,k) and other fields
 // stored in the wallk strucutre, compute the rotated fields
 // The zero mode has phi(t,0) defines a unit four vector n_a
@@ -653,4 +765,70 @@ void Measurer::computeEnergyPhase() {
   DMDAVecRestoreArrayRead(da, localUNew, &phiNew);
   DMRestoreLocalVector(da, &localUNew);
 
+}
+
+// 3D Fourier transformation
+void Measurer::compute3DFourier(Vec *solution) {
+  
+  DM &da = model->domain;
+  Vec localU;
+  DMGetLocalVector(da, &localU);
+  // take the global vector U and distribute to the local vector localU
+  DMGlobalToLocalBegin(da, *solution, INSERT_VALUES, localU);
+  DMGlobalToLocalEnd(da, *solution, INSERT_VALUES, localU);
+
+  // From the vector define the pointer for the field phi
+  G_node ***fld;
+  DMDAVecGetArrayRead(da, localU, &fld);
+
+  // Set up the slize averages initialized to zero in c++11
+  std::fill(fld_3D_k.begin(), fld_3D_k.end(), 0.);
+  std::fill(G_3D_k.v.begin(), G_3D_k.v.end(), 0.);
+
+  // measurer_fft3d needs to be given fld
+  fftw3d->execute3d(fld, fld_3D_k);
+
+  // 3D FFT needs to be tested
+  //
+  // After: Construct 2pt correlators and reconstruct pion occupations from thermalize
+  // Store only absolute magnitude of occupations
+}
+
+
+// routine that at initialization creates the index map from 3D k space to radial k space and 
+// resizes the array storing the 3D Fourier transforms accordingly
+void Measurer::mapToRadial(std::vector<int> index_3D_radial, 
+        nvector<std::complex<double>, N3D> G_3D_k){
+  // map that stores radii and indices that were already reached
+  std::unordered_map<double, int> map_r2index;
+
+  double r;
+  int counter = 0;
+  int l = 0;
+  // iterate through k lattice (Note that k_x has only N/2 + 1 elements)
+  for (int iz = 0; iz < N; iz++) {
+    for (int iy = 0; iy < N; iy++) {
+      for (int ix = 0; ix < N/2 + 1; ix++) {
+        r = ix*ix + iy*iy + iz*iz;
+        auto it = map_r2index.find(r);
+        // check if r has already been reached
+        if (it != map_r2index.end()) {
+          // if yes: push back same index as assigned previously
+          index_3D_radial[counter] = it->second;
+        }
+        else {
+          // store new radius - index pair and push_back new index
+          map_r2index[r] = l;
+          index_3D_radial[counter] = l;
+          // increase radial index 
+          l++;
+        }
+        // increase counter
+        counter++;
+      }
+    }
+  }
+  // current value of l is the total number of radial indizes
+  // resize G_3D_k
+  G_3D_k.resize(4, l);
 }

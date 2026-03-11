@@ -205,6 +205,7 @@ public:
 
 private:
   ModelA *model;
+  bool evolveLocalSolution(const double &dt, G_node ***phi, G_node ***phinew);
 };
 /////////////////////////////////////////////////////////////////////////
 

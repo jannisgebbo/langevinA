@@ -760,24 +760,14 @@ ModelGDiffusionStep::Form3PointLaplacian(DM da, Mat J, const double &hx,
 
 /////////////////////////////////////////////////////////////////////////
 
-bool ModelGExplicitDiffusionStep::step(const double &dt) {
-
+bool ModelGExplicitDiffusionStep::evolveLocalSolution(const double &dt, 
+                                                      G_node ***phi, 
+                                                      G_node ***phi_new){
+  
   auto &data = model->data;
 
   // Get a local vector with ghost cells
   DM da = model->domain;
-  Vec localU;
-  PetscCall(DMGetLocalVector(da, &localU));
-
-  // Fill in the ghost celss with mpicalls
-  PetscCall(DMGlobalToLocalBegin(da, model->solution, INSERT_VALUES, localU));
-  PetscCall(DMGlobalToLocalEnd(da, model->solution, INSERT_VALUES, localU));
-
-  // Get Access to arrays with drifted solution
-  G_node ***phi;
-  PetscCall(DMDAVecGetArrayRead(da, localU, &phi));
-  G_node ***phinew;
-  PetscCall(DMDAVecGetArray(da, model->solution, &phinew));
 
   const auto &coeff = data.acoefficients;
   PetscReal H[4] = {coeff.H, 0., 0., 0.};
@@ -847,6 +837,35 @@ bool ModelGExplicitDiffusionStep::step(const double &dt) {
       }
     }
   }
+
+  return true;
+}
+
+// call to do a diffusion step that evolves current solution and updates it 
+bool ModelGExplicitDiffusionStep::step(const double &dt) {
+
+  auto &data = model->data;
+
+  // Get a local vector with ghost cells
+  DM da = model->domain;
+  Vec localU;
+  PetscCall(DMGetLocalVector(da, &localU));
+
+  // Fill in the ghost celss with mpicalls
+  PetscCall(DMGlobalToLocalBegin(da, model->solution, INSERT_VALUES, localU));
+  PetscCall(DMGlobalToLocalEnd(da, model->solution, INSERT_VALUES, localU));
+
+  // Get Access to arrays with drifted solution
+  G_node ***phi;
+  PetscCall(DMDAVecGetArrayRead(da, localU, &phi));
+  G_node ***phinew;
+  // this is the evolution step, new phi will update Vec solution
+  PetscCall(DMDAVecGetArray(da, model->solution, &phinew));
+
+  // call subroutine that computes phinew
+  evolveLocalSolution(dt, phi, phinew)
+
+  // restore solution vector
   PetscCall(DMDAVecRestoreArray(da, model->solution, &phinew));
   PetscCall(DMDAVecRestoreArrayRead(da, localU, &phi));
   PetscCall(DMRestoreLocalVector(da, &localU));
@@ -854,6 +873,37 @@ bool ModelGExplicitDiffusionStep::step(const double &dt) {
   return true;
 }
 
+// call to do a diffusion step that evolves current solution and does not update the model 
+// solution, but stores it as a copy used for the coarsened read out 
+bool ModelGExplicitDiffusionStep::step_coarsening(const double &dt) {
+
+  auto &data = model->data;
+
+  // Get a local vector with ghost cells
+  DM da = model->domain;
+  Vec localU;
+  PetscCall(DMGetLocalVector(da, &localU));
+
+  // Fill in the ghost celss with mpicalls
+  PetscCall(DMGlobalToLocalBegin(da, model->solution, INSERT_VALUES, localU));
+  PetscCall(DMGlobalToLocalEnd(da, model->solution, INSERT_VALUES, localU));
+
+  // Get Access to arrays with drifted solution
+  G_node ***phi;
+  PetscCall(DMDAVecGetArrayRead(da, localU, &phi));
+  G_node ***phinew;
+  // this is the evolution step, new phi will update Vec solution
+  PetscCall(DMDAVecGetArray(da, model->solution, &phinew));
+
+  // call subroutine that coputes phinew
+  evolveLocalSolution(dt, phi, phinew)
+
+  PetscCall(DMDAVecRestoreArray(da, model->solution, &phinew));
+  PetscCall(DMDAVecRestoreArrayRead(da, localU, &phi));
+  PetscCall(DMRestoreLocalVector(da, &localU));
+
+  return true;
+}
 /////////////////////////////////////////////////////////////////////////
 
 PV2HBSplit::PV2HBSplit(ModelA &in, const std::string &insteps,
