@@ -147,7 +147,7 @@ measurer_output_txt::measurer_output_txt(Measurer *in,
                                          const std::string &filename)
     : measure(in) {
 
-  const auto &ahandler = measure->getModel()->data.ahandler;
+  //const auto &ahandler = measure->getModel()->data.ahandler;
   std::string name = filename + std::string("_averages.txt");
   PetscInt ierr = PetscViewerASCIIOpenMode(
       PETSC_COMM_SELF, name.c_str(), FILE_MODE_WRITE, &averages_asciiviewer);

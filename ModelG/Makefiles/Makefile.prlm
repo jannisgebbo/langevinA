@@ -17,17 +17,17 @@ PETSc.pc := PETSc
 
 
 # Additional libraries that support pkg-config can be added to the list of PACKAGES below.
-PACKAGES := $(PETSc.pc) hdf5
+PACKAGES := $(PETSc.pc) hdf5 fftw3
 
-CC := cc
-CXX := CC
+CC := $(shell pkg-config --variable=ccompiler $(PACKAGES))
+CXX := $(shell pkg-config --variable=cxxcompiler $(PACKAGES))
 FC := $(shell pkg-config --variable=fcompiler $(PACKAGES))
 CFLAGS_OTHER := $(shell pkg-config --cflags-only-other $(PACKAGES))
-CFLAGS := $(shell pkg-config --variable=cflags_extra $(PACKAGES)) $(CFLAGS_OTHER) 
-CXXFLAGS := $(shell pkg-config --variable=cxxflags_extra $(PACKAGES)) $(CFLAGS_OTHER) -craype-verbose -O3
+CFLAGS := $(shell pkg-config --variable=cflags_extra $(PACKAGES)) $(CFLAGS_OTHER)
+CXXFLAGS := $(shell pkg-config --variable=cxxflags_extra $(PACKAGES)) $(CFLAGS_OTHER) -O3
 FFLAGS := $(shell pkg-config --variable=fflags_extra $(PACKAGES))
-CPPFLAGS := $(shell pkg-config --cflags-only-I $(PACKAGES)) 
-LDFLAGS := $(shell pkg-config --libs-only-L --libs-only-other $(PACKAGES)) 
+CPPFLAGS := $(shell pkg-config --cflags-only-I $(PACKAGES))
+LDFLAGS := $(shell pkg-config --libs-only-L --libs-only-other $(PACKAGES))
 LDFLAGS += $(patsubst -L%, $(shell pkg-config --variable=ldflag_rpath $(PACKAGES))%, $(shell pkg-config --libs-only-L $(PACKAGES)))
 LDLIBS := $(shell pkg-config --libs-only-l $(PACKAGES)) -lm #-lhdf5
 
@@ -53,7 +53,7 @@ LDLIBS := $(shell pkg-config --libs-only-l $(PACKAGES)) -lm #-lhdf5
 
 
 HEADRS = ModelA.h Stepper.h NoiseGenerator.h measurer.h measurer_output.h O4AlgebraHelper.h ntuple.h gitversion.h initialize.h
-OBJS = measurer.o measurer_output.o Stepper.o NoiseGenerator.o jsoncpp.o initialize.o
+OBJS = measurer.o measurer_output.o Stepper.o NoiseGenerator.o initialize.o
 
 all: SuperPions.exe
 
@@ -106,7 +106,7 @@ O4AlgebraTester.exe: O4AlgebraTester.o $(OBJS)
 noisetest.exe: noisetest.o $(OBJS)
 	$(LINK.cc) -o $@ $^ $(LDLIBS) -lstdc++
 
-q_heatbathtest.exe: q_heatbathtest.o $(OBJS) 
+q_heatbathtest.exe: q_heatbathtest.o $(OBJS)
 	$(LINK.cc) -o $@ $^ $(LDLIBS) -lstdc++
 
 q_heatbathtest.o: q_heatbathtest.cxx $(HEADRS)
@@ -116,12 +116,7 @@ test_random.exe: test_random.cxx $(HEADRS)
 	$(COMPILE.cc) test_random.cxx
 	$(LINK.cc) -o test_random.exe test_random.o  $(LDLIBS) -lstdc++
 
-test_json.exe: jsoncpp.o test_json.cpp
-	$(COMPILE.cc) test_json.cpp
-	$(LINK.cc) -o test_json.exe test_json.o jsoncpp.o -lstdc++
-
-
-test_ntuple.exe: test_ntuple.o $(OBJS) 
+test_ntuple.exe: test_ntuple.o $(OBJS)
 	$(LINK.cc) -o $@ $^ $(LDLIBS) -lstdc++
 
 test_ntuple.o: test_ntuple.cxx $(HEADRS)

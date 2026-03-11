@@ -117,7 +117,7 @@ void run_event(const int &ievent, ModelA *const model, Stepper *const step,
 
   // Set up logging for PETSc so we can find out how much time
   // each part takes
-  PetscInt steps = 0;
+  int steps = 0;
   PetscLogEvent measurements, stepmonitor, saving;
   PetscLogEventRegister("Measurements", 0, &measurements);
   PetscLogEventRegister("Saving the fields", 0, &saving);

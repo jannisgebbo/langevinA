@@ -128,7 +128,7 @@ struct ModelAHandlerData {
   std::string evolverType = "PV2HBSplit23";
 
   // random seed
-  PetscInt seed = 10;
+  int seed = 10;
 
   // If we are to restore
   bool restart = false;
@@ -136,8 +136,8 @@ struct ModelAHandlerData {
   // Options controlling the output. The outputfiletag labells the run. All
   // output files are tag_foo.txt, or tag_bar.h5
   std::string outputfiletag = "o4output";
-  PetscInt saveFrequency = 3;
-  PetscInt writeFrequency = -1;
+  int saveFrequency = 3;
+  int writeFrequency = -1;
 
   bool eventmode = false;
   int nevents = 1;
@@ -156,7 +156,7 @@ struct ModelAHandlerData {
 
   void read(nlohmann::json &params) {
     evolverType = params.value("evolverType", evolverType);
-    seed = (PetscInt)params.value("seed", seed);
+    seed = params.value("seed", seed);
     restart = params.value("restart", false);
     outputfiletag = params.value("outputfiletag", "o4output");
     saveFrequency = params.value("saveFrequency", saveFrequency);
@@ -271,9 +271,9 @@ public:
   //! Print out ModelAData for subsequent reading
   void print() {
     // Lattice
-    PetscPrintf(PETSC_COMM_WORLD, "NX = %d\n", NX);
-    PetscPrintf(PETSC_COMM_WORLD, "NY = %d\n", NY);
-    PetscPrintf(PETSC_COMM_WORLD, "NZ = %d\n", NZ);
+    PetscPrintf(PETSC_COMM_WORLD, "NX = %" PetscInt_FMT "\n", NX);
+    PetscPrintf(PETSC_COMM_WORLD, "NY = %" PetscInt_FMT "\n", NY);
+    PetscPrintf(PETSC_COMM_WORLD, "NZ = %" PetscInt_FMT "\n", NZ);
     PetscPrintf(PETSC_COMM_WORLD, "LX = %e\n", LX);
     PetscPrintf(PETSC_COMM_WORLD, "LY = %e\n", LY);
     PetscPrintf(PETSC_COMM_WORLD, "LZ = %e\n", LZ);

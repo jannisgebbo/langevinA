@@ -56,7 +56,7 @@ bool IdealPV2::step(const double &dt) {
 
   // If we doing the accept reject, we need to acctualy reject
   if (accept_reject) {
-    MPI_Bcast(&reject, 1, MPIU_BOOL, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&reject, 1, MPI_C_BOOL, 0, MPI_COMM_WORLD);
 
     if (reject) {
       PetscCall(VecCopy(previoussolution, model->solution));
@@ -235,7 +235,7 @@ PetscScalar IdealPV2::computeEnergy(double dt) {
   for (PetscInt k = zstart; k < zstart + zdimension; k++) {
     for (PetscInt j = ystart; j < ystart + ydimension; j++) {
       for (PetscInt i = xstart; i < xstart + xdimension; i++) {
-        for (int s = 0; s < ModelAData::Nphi; ++s) {
+        for (PetscInt s = 0; s < ModelAData::Nphi; ++s) {
 
           phimid = phiNew[k][j][i].f[s];
 
@@ -311,7 +311,6 @@ bool EulerLangevinHB::step(const double &dt) {
   // is multiplied  by a factor $\bar \sigma/f$.
   double f = 0.;
   if (ahandler.superfluidmode) {
-    double f = sqrt(coeff.f2(atime.t()));
     double sigmabyf = coeff.sigmabyf(atime.t());
     H *= sigmabyf;
   }
@@ -322,7 +321,7 @@ bool EulerLangevinHB::step(const double &dt) {
   PetscLogEventRegister("Loop", 0, &loop);
 
   // Checkerboard order ieo = even and odd sites
-  for (int ieo = 0; ieo < 2; ieo++) {
+  for (PetscInt ieo = 0; ieo < 2; ieo++) {
     // take the global vector U and distribute to the local vector localU
     PetscLogEventBegin(communication, 0, 0, 0, 0);
     PetscCall(DMGlobalToLocalBegin(model->domain, model->solution,
@@ -338,9 +337,9 @@ bool EulerLangevinHB::step(const double &dt) {
     PetscCall(DMDAVecGetArray(model->domain, model->solution, &phinew));
 
     PetscLogEventBegin(loop, 0, 0, 0, 0);
-    for (int k = izs; k < izs + nz; k++) {
-      for (int j = iys; j < iys + ny; j++) {
-        for (int i = ixs; i < ixs + nx; i++) {
+    for (PetscInt k = izs; k < izs + nz; k++) {
+      for (PetscInt j = iys; j < iys + ny; j++) {
+        for (PetscInt i = ixs; i < ixs + nx; i++) {
           if ((k + j + i) % 2 != ieo) {
             continue;
           }
@@ -352,27 +351,27 @@ bool EulerLangevinHB::step(const double &dt) {
 
           if (ahandler.superfluidmode) {
             // This is the update for superfluid mode
-            for (int l = 0; l < ModelAData::Nphi; l++) {
+            for (PetscInt l = 0; l < ModelAData::Nphi; l++) {
               phi_o.f[l] = phi[k][j][i].f[l]; // Fill up the old values
               phi_n.f[l] = phi[k][j][i].f[l]; // Will hold the new values
             }
 
             // Fill up random angles and do the rotation
             PetscScalar V[3], A[3];
-            for (int iva = 0; iva < ModelAData::NV; iva++) {
+            for (PetscInt iva = 0; iva < ModelAData::NV; iva++) {
               V[iva] = rdtg * ModelARndm->variance1() / f;
               A[iva] = rdtg * ModelARndm->variance1() / f;
             }
             O4AlgebraHelper::O4Rotation(V, A, phi_n.f);
           } else {
             // This is the normal model A updatae
-            for (int l = 0; l < ModelAData::Nphi; l++) {
+            for (PetscInt l = 0; l < ModelAData::Nphi; l++) {
               phi_o.f[l] = phi[k][j][i].f[l]; // Fill up the old values
               phi_n.f[l] = phi_o.f[l] + rdtg * ModelARndm->variance1();
             }
           }
 
-          for (int l = 0; l < ModelAData::Nphi; l++) {
+          for (PetscInt l = 0; l < ModelAData::Nphi; l++) {
             heff.f[l] = (phi[k][j][i + 1].f[l] + phi[k][j][i - 1].f[l]) +
                         (phi[k][j + 1][i].f[l] + phi[k][j - 1][i].f[l]) +
                         (phi[k + 1][j][i].f[l] + phi[k - 1][j][i].f[l]);
@@ -391,7 +390,7 @@ bool EulerLangevinHB::step(const double &dt) {
 
           // Downward step
           if (dS < 0) {
-            for (int l = 0; l < ModelAData::Nphi; l++) {
+            for (PetscInt l = 0; l < ModelAData::Nphi; l++) {
               phinew[k][j][i].f[l] = phi_n.f[l];
             }
             monitor.increment_down(dS);
@@ -401,7 +400,7 @@ bool EulerLangevinHB::step(const double &dt) {
           double r = ModelARndm->uniform();
           if (r < exp(-dS)) {
             // keep the upward step w. probl exp(-dS)
-            for (int l = 0; l < ModelAData::Nphi; l++) {
+            for (PetscInt l = 0; l < ModelAData::Nphi; l++) {
               phinew[k][j][i].f[l] = phi_n.f[l];
             }
             monitor.increment_up_yes(dS);
@@ -656,7 +655,7 @@ bool ModelGDiffusionStep::step(const double &dt) {
 
   if (superfluidmode) {
     // Normalize the first four components of the solution
-    PetscInt i, j, k, L, xstart, ystart, zstart, xdimension, ydimension,
+    PetscInt i, j, k, xstart, ystart, zstart, xdimension, ydimension,
         zdimension;
 
     DMDAGetCorners(model->domain, &xstart, &ystart, &zstart, &xdimension,

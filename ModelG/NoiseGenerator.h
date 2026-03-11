@@ -64,7 +64,7 @@ public:
   // Initialize the random number generator according to a base seed.
   //
   // Each processor receives its own seed (based on the base seed), uisng
-  // the c++ seed_seq function 
+  // the c++ seed_seq function
   NoiseGenerator(const int &baseSeed = 0)
       : uniformDistributionRt3(-sqrt(3.), sqrt(3.)) {
 
@@ -84,7 +84,7 @@ public:
 
   PetscErrorCode fillVec(Vec U) {
     PetscScalar *array;
-    int nloc = 0;
+    PetscInt nloc = 0;
     VecGetLocalSize(U, &nloc);
     VecGetArray(U, &array);
 
@@ -107,7 +107,7 @@ public:
   RNGType &generator() { return rng; }
 
   //! Write out the state of the random number generator
-  //! for each processor, the output files take the form 
+  //! for each processor, the output files take the form
   //! name_0.rng, name_1.rng, ...
   void write(const std::string &filename_stub) {
     int rank;
