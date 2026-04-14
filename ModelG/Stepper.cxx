@@ -846,7 +846,7 @@ bool ModelGExplicitDiffusionStep::step(const double &dt) {
 
   auto &data = model->data;
 
-  // Get a local vector with ghost cells
+  // Get a local vector (buffer) with ghost cells
   DM da = model->domain;
   Vec localU;
   PetscCall(DMGetLocalVector(da, &localU));
@@ -855,55 +855,72 @@ bool ModelGExplicitDiffusionStep::step(const double &dt) {
   PetscCall(DMGlobalToLocalBegin(da, model->solution, INSERT_VALUES, localU));
   PetscCall(DMGlobalToLocalEnd(da, model->solution, INSERT_VALUES, localU));
 
-  // Get Access to arrays with drifted solution
-  G_node ***phi;
+  G_node ***phi, ***phinew;
+  // get access to arrays indexed using the local dimensions
   PetscCall(DMDAVecGetArrayRead(da, localU, &phi));
-  G_node ***phinew;
-  // this is the evolution step, new phi will update Vec solution
+  // this one needs to also have write access & points to the solution directly
+  // but careful! this only works since we only write to phinew and only read from it locally
+  // otherwise, corruption through ghost cells is possible
   PetscCall(DMDAVecGetArray(da, model->solution, &phinew));
 
   // call subroutine that computes phinew
   evolveLocalSolution(dt, phi, phinew)
 
-  // restore solution vector
+  // restore pointer arrays
   PetscCall(DMDAVecRestoreArray(da, model->solution, &phinew));
   PetscCall(DMDAVecRestoreArrayRead(da, localU, &phi));
+
+  // restore local vectors
   PetscCall(DMRestoreLocalVector(da, &localU));
 
   return true;
 }
 
-// call to do a diffusion step that evolves current solution and does not update the model 
-// solution, but stores it as a copy used for the coarsened read out 
-bool ModelGExplicitDiffusionStep::step_coarsening(const double &dt) {
+// call to do a diffusion step that evolves current solution which was deep copied into 
+// solution_coarsened ncoarsen_steps times but does not update the model solution, 
+// but stores it into input solution_coarsened 
+bool ModelGExplicitDiffusionStep::step_coarsening(const double &dt, 
+                                                  Vec *solution_coarsened) {
 
   auto &data = model->data;
+  // diffusive steps will be dt/3., so multiply by 3 
+  int ncoarsen_steps = 3 * data.ahandler.ncoarsen_steps;
 
   // Get a local vector with ghost cells
   DM da = model->domain;
   Vec localU;
   PetscCall(DMGetLocalVector(da, &localU));
 
-  // Fill in the ghost celss with mpicalls
-  PetscCall(DMGlobalToLocalBegin(da, model->solution, INSERT_VALUES, localU));
-  PetscCall(DMGlobalToLocalEnd(da, model->solution, INSERT_VALUES, localU));
+  // pointer arrays
+  G_node ***phi, ***phinew;
 
-  // Get Access to arrays with drifted solution
-  G_node ***phi;
-  PetscCall(DMDAVecGetArrayRead(da, localU, &phi));
-  G_node ***phinew;
-  // this is the evolution step, new phi will update Vec solution
-  PetscCall(DMDAVecGetArray(da, model->solution, &phinew));
+  for (int i = 0; i < ncoarsen_steps; i++) {
+    // Fill in the ghost cells with mpicalls
+    PetscCall(DMGlobalToLocalBegin(da, solution_coarsened, INSERT_VALUES, localU));
+    PetscCall(DMGlobalToLocalEnd(da, solution_coarsened, INSERT_VALUES, localU));
+    // all mpi calls complete: localU is up to date
 
-  // call subroutine that coputes phinew
-  evolveLocalSolution(dt, phi, phinew)
+    // get access to arrays indexed using the local dimensions
+    PetscCall(DMDAVecGetArrayRead(da, localU, &phi));
+    // this one needs to also have write access & points to solution_coarsened directly
+    // but careful! this only works since we only write to phinew and only read from it locally
+    // otherwise, corruption through ghost cells is possible
+    PetscCall(DMDAVecGetArray(da, solution_coarsened, &phinew));
+  
+    // call subroutine that computes phinew
+    evolveLocalSolution(dt/3., phi, phinew)
 
-  PetscCall(DMDAVecRestoreArray(da, model->solution, &phinew));
-  PetscCall(DMDAVecRestoreArrayRead(da, localU, &phi));
+    // restore localUnew from phinew
+    PetscCall(DMDAVecRestoreArray(da, solution_coarsened, &phinew));
+    PetscCall(DMDAVecRestoreArrayRead(da, localU, &phi));
+  }
+
+  // Restore local vectors after loop
   PetscCall(DMRestoreLocalVector(da, &localU));
 
   return true;
 }
+
 /////////////////////////////////////////////////////////////////////////
 
 PV2HBSplit::PV2HBSplit(ModelA &in, const std::string &insteps,

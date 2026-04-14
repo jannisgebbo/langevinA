@@ -223,22 +223,23 @@ void Measurer::computeSliceAveragePhase(Vec *solution) {
 // along the diffused solution
 void Measurer::computeSliceAverageCoarsened(Vec *solution) {
   
-  // Get the local information and store in info
+  // Get the local information
   DM &da = model->domain;
-  Vec localU, localU_cpy;
+  Vec localU;
+  // localU has the dimensions of the local domain
   DMGetLocalVector(da, &localU);
-  VecDuplicate(localU, &localU_cpy);
-  // take the global vector U and distribute to the local vector localU
+  // take the global solution and distribute to the local vector localU
   DMGlobalToLocalBegin(da, *solution, INSERT_VALUES, localU);
   DMGlobalToLocalEnd(da, *solution, INSERT_VALUES, localU);
-
   // From the vector define the pointer for the field phi
   G_node ***fld;
   DMDAVecGetArrayRead(da, localU, &fld);
-  G_node ***fld_diffused;
-  DMDAVecGetArrayRead(da, localU_cpy, &fld_diffused);
 
-  // do the coarsening step
+  // first, deep copy solution into solution_coarsened
+  PetscCall(VecCopy(solution, solution_coarsened));
+  // do the coarsening step (this is done by the subroutine of ModelGExplicitDiffusionStep) 
+  // and store the coarsened current solution in solution_coarsened 
+  diffuser->step_coarsening(model->data.atime.dt(), &solution_coarsened);
 
   // Set up the slize averages initialized to zero in c++11
   std::fill(wallXCoarse.v.begin(), wallXCoarse.v.end(), 0.);

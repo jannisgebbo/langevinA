@@ -138,6 +138,7 @@ struct ModelAHandlerData {
   std::string outputfiletag = "o4output";
   PetscInt saveFrequency = 3;
   PetscInt writeFrequency = -1;
+  int ncoarsen_steps = 3;
 
   bool eventmode = false;
   int nevents = 1;
@@ -161,6 +162,7 @@ struct ModelAHandlerData {
     outputfiletag = params.value("outputfiletag", "o4output");
     saveFrequency = params.value("saveFrequency", saveFrequency);
     writeFrequency = params.value("writeFrequency", writeFrequency);
+    ncoarsen_steps = params.value("ncoarsen_steps", ncoarsen_steps);
 
     eventmode = params.value("eventmode", eventmode);
     nevents = params.value("nevents", nevents);
@@ -182,6 +184,7 @@ struct ModelAHandlerData {
                 outputfiletag.c_str());
     PetscPrintf(PETSC_COMM_WORLD, "saveFrequency = %d\n", saveFrequency);
     PetscPrintf(PETSC_COMM_WORLD, "writeFrequency = %d\n", writeFrequency);
+    PetscPrintf(PETSC_COMM_WORLD, "ncoarsen_steps = %d\n", ncoarsen_steps);
 
     PetscPrintf(PETSC_COMM_WORLD, "eventmode = %s\n",
                 (eventmode ? "true" : "false"));

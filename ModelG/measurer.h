@@ -214,6 +214,7 @@ public:
   // q[1..2*Nphi], phi2)
   // The first dimension is NObsPhase, the second dimension is the spatial index
   static const PetscInt NObsCoarse = 3 * ModelAData::Nphi + 2;
+  Vec solution_coarsened;
   nvector<PetscScalar, 2> wallXCoarse;
   nvector<PetscScalar, 2> wallYCoarse;
   nvector<PetscScalar, 2> wallZCoarse;
@@ -228,8 +229,6 @@ public:
   std::vector<int> index_3D_radial;
   std::vector<std::complex<double>> fld_3D_k;
   nvector<std::complex<double>, N3D> G_3D_k;
-
-step = std::make_unique<ModelGExplicitDiffusionStep>(model);
 
 
 public:
@@ -288,6 +287,8 @@ public:
 
     // create unique diffusion stepper
     diffuser = std::make_unique<ModelGExplicitDiffusionStep>(model);
+    // create global vector that stores coarsened solution
+    DMCreateGlobalVector(model->domain, &solution_coarsened);
   }
 
   virtual ~Measurer() {}
@@ -320,6 +321,7 @@ public:
 private:
   void computeSliceAverage(Vec *solution);
   void computeSliceAveragePhase(Vec *solution);
+  void computeSliceAverageCoarsened(Vec *solution);
   void computeEnergy();
   void computeEnergyRotated();
   void computeEnergyPhase();
