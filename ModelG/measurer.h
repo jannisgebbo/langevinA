@@ -4,6 +4,7 @@
 #include "ModelA.h"
 // #include "make_unique.h"
 #include "nvector.h"
+#include "Stepper.h"
 #include <array>
 #include <complex>
 #include <fftw3.h>
@@ -95,6 +96,12 @@ public:
   static const PetscInt NScalars = NObs;
   std::vector<PetscScalar> OAverage;
 
+  // energy data (different parts of H)
+  static const PetscInt NEnergy = 5;
+  std::vector<PetscScalar> Energy;
+  std::vector<PetscScalar> EnergyRotated;
+  std::vector<PetscScalar> EnergyPhase;
+
   // First dimension is NObs, last is spatial index x=0...N
   nvector<PetscScalar, 2> wallX;
   nvector<PetscScalar, 2> wallY;
@@ -125,6 +132,20 @@ public:
   nvector<std::complex<double>, 2> wallXPhase_k;
   nvector<std::complex<double>, 2> wallYPhase_k;
   nvector<std::complex<double>, 2> wallZPhase_k;
+
+  // Array of size NObsCoarse contains XCoarse = (sigma, pi[1..Nphi],
+  // q[1..2*Nphi], phi2)
+  // The first dimension is NObsCoarse, the second dimension is the spatial index
+  static const PetscInt NObsCoarse = 3 * ModelAData::Nphi + 2;
+  Vec solution_coarsened;
+  nvector<PetscScalar, 2> wallXCoarse;
+  nvector<PetscScalar, 2> wallYCoarse;
+  nvector<PetscScalar, 2> wallZCoarse;
+
+  // First dimension is NObsCoarse, last dimension is the fourier index 0..N/2+1
+  nvector<std::complex<double>, 2> wallXCoarse_k;
+  nvector<std::complex<double>, 2> wallYCoarse_k;
+  nvector<std::complex<double>, 2> wallZCoarse_k;
 
 public:
   Measurer(ModelA *ptr) : model(ptr) {
@@ -164,6 +185,19 @@ public:
     wallXPhase_k.resize(NObsPhase, N / 2 + 1);
     wallYPhase_k.resize(NObsPhase, N / 2 + 1);
     wallZPhase_k.resize(NObsPhase, N / 2 + 1);
+
+    wallXCoarse.resize(NObsCoarse, N);
+    wallYCoarse.resize(NObsCoarse, N);
+    wallZCoarse.resize(NObsCoarse, N);
+
+    wallXCoarse_k.resize(NObsCoarse, N / 2 + 1);
+    wallYCoarse_k.resize(NObsCoarse, N / 2 + 1);
+    wallZCoarse_k.resize(NObsCoarse, N / 2 + 1);
+
+    // create unique diffusion stepper
+    diffuser = std::make_unique<ModelGExplicitDiffusionStep>(model);
+    // create global vector that stores coarsened solution
+    DMCreateGlobalVector(model->domain, &solution_coarsened);
   }
 
   virtual ~Measurer() {}
@@ -191,6 +225,10 @@ public:
 private:
   void computeSliceAverage(Vec *solution);
   void computeSliceAveragePhase(Vec *solution);
+  void computeSliceAverageCoarsened(Vec *solution);
+  void computeEnergy();
+  void computeEnergyRotated();
+  void computeEnergyPhase();
   void computeDerivedObs();
 
   ModelA *model;
@@ -198,6 +236,8 @@ private:
 
   // FFT engine using the fftw3 library
   std::unique_ptr<measurer_fft> fftw;
+  // Diffusion stepper to coarsen/diffuse the solution
+  std::unique_ptr<Stepper> diffuser;
 };
 
 #endif
