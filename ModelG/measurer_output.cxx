@@ -1,8 +1,5 @@
 #include "measurer_output.h"
 #include <cstdio>
-#include <iomanip>
-#include <iostream>
-#include <sstream>
 
 #ifndef MODELA_NO_HDF5
 /////////////////////////////////////////////////////////////////////////

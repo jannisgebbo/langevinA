@@ -6,14 +6,11 @@
 #include <iostream>
 #include <memory>
 #include <sstream>
-#include <vector>
 
 #include "ModelA.h"
-#include "NoiseGenerator.h"
 #include "Stepper.h"
 #include "gitversion.h"
 #include "initialize.h"
-#include "make_unique.h"
 
 // Measurer, where the Petsc are included
 #include "measurer.h"

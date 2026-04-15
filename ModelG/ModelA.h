@@ -2,7 +2,6 @@
 #define MODELASTRUCT
 
 #include "NoiseGenerator.h"
-#include <fstream>
 #include <petscdm.h>
 #include <petscdmda.h>
 #include <petscsys.h>

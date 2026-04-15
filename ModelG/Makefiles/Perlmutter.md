@@ -3,9 +3,10 @@
 
 From the ModelG directory one executes
 ```bash
-source ./Makefiles/setupprlm.sh
-make -f Makefiles/Makefile.prlm
+ModelG> source ./Makefiles/setupprlm.sh
+ModelG> make -f ./Makefiles/Makefile.prlm
 ```
+You can look at Makefiles/setupprlm.sh to see what it does. 
 
 # How it works
 =============
