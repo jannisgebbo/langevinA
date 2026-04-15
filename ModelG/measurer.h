@@ -303,6 +303,7 @@ public:
 
     computeSliceAverage(solution);
     computeSliceAveragePhase(solution);
+    computeSliceAverageCoarsened(solution);
     computeEnergy();
     computeEnergyRotated();
     computeEnergyPhase();

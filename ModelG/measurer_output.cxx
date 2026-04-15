@@ -70,6 +70,14 @@ measurer_output_fasthdf5::measurer_output_fasthdf5(Measurer *in,
   wallx_phase_k = std::make_unique<ntuple<3>>(NN3, "wallx_phase_k", file_id);
   wally_phase_k = std::make_unique<ntuple<3>>(NN3, "wally_phase_k", file_id);
   wallz_phase_k = std::make_unique<ntuple<3>>(NN3, "wallz_phase_k", file_id);
+  
+  NN3 = {Measurer::NObsCoarse, static_cast<size_t>(measure->getN()) / 2 + 1, 2};
+  wallx_coarsened_k = std::make_unique<ntuple<3>>(NN3, "wallx_coarsened_k", 
+                                                  file_id);
+  wally_coarsened_k = std::make_unique<ntuple<3>>(NN3, "wally_coarsened_k", 
+                                                  file_id);
+  wallz_coarsened_k = std::make_unique<ntuple<3>>(NN3, "wallz_coarsened_k", 
+                                                  file_id);
 }
 
 measurer_output_fasthdf5::~measurer_output_fasthdf5() { H5Fclose(file_id); }
@@ -142,6 +150,17 @@ void measurer_output_fasthdf5::save(const std::string &what) {
   wallx_phase_k->fill();
   wally_phase_k->fill();
   wallz_phase_k->fill();
+  
+  std::memcpy(wallx_coarsened_k->row.data(), measure->wallXCoarse_k.v.data(),
+              wallx_coarsened_k->row.size() * sizeof(double));
+  std::memcpy(wally_coarsened_k->row.data(), measure->wallYCoarse_k.v.data(),
+              wally_coarsened_k->row.size() * sizeof(double));
+  std::memcpy(wallz_coarsened_k->row.data(), measure->wallZCoarse_k.v.data(),
+              wallz_coarsened_k->row.size() * sizeof(double));
+
+  wallx_coarsened_k->fill();
+  wally_coarsened_k->fill();
+  wallz_coarsened_k->fill();
 }
 #endif
 

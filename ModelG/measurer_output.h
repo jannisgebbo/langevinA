@@ -85,6 +85,11 @@ private:
   std::unique_ptr<ntuple<3>> wallx_phase_k;
   std::unique_ptr<ntuple<3>> wally_phase_k;
   std::unique_ptr<ntuple<3>> wallz_phase_k;
+  
+  // Output of fourier coarsened info
+  std::unique_ptr<ntuple<3>> wallx_coarsened_k;
+  std::unique_ptr<ntuple<3>> wally_coarsened_k;
+  std::unique_ptr<ntuple<3>> wallz_coarsened_k;
 };
 #endif
 #endif
