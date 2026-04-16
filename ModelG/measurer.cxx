@@ -290,14 +290,12 @@ void Measurer::computeSliceAverageCoarsened(Vec *solution) {
           phi_s += n[l]*phi[l];
           // norm_c
           norm2_c += pow(n[l], 2);
-          // norm
-          norm2 += pow(phi[l], 2);
         }
         // sigma is norm of projected which is
         // norm = sqrt(<phi, phi> - 2<phi_coarse, phi>^2/<phi_coarse, phi_coarse>
         //             + <phi, phi_coarse>^2 / <phi_coarse, phi_coarse> )
-        //      = sqrt(norm2 - 2phi_s^2/norm2_c + phi_s^2/norm2_c )
-        sigma = sqrt(norm2 - 2.0*phi_s*phi_s/norm2_c + phi_s*phi_s/norm2_c );
+        //      = sqrt(norm2 - phi_s^2/norm2_c )
+        sigma = sqrt(norm2 - phi_s*phi_s/norm2_c );
         // store charge fields
         for (int l = 0; l < ModelAData::NA; l++) {
           rho[l] = fld[k][j][i].A[l];
@@ -307,8 +305,6 @@ void Measurer::computeSliceAverageCoarsened(Vec *solution) {
         for (int l = 0; l < ModelAData::Nphi; l++) {
           // project phi
           phi[l] = phi[l] - phi_s/norm2_c * n[l];
-          // rescale phi_project: phi_rescale = phi_proj * f /sigma
-          phi[l] = phi[l] * sqrt(coeff.f2(data.atime.t())) / sigma;
           // normalize n to unity
           n[l] = n[l] / sqrt(norm2_c);
         }
