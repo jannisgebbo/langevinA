@@ -195,7 +195,7 @@ public:
     wallZCoarse_k.resize(NObsCoarse, N / 2 + 1);
 
     // create unique diffusion stepper
-    diffuser = std::make_unique<ModelGExplicitDiffusionStep>(model);
+    diffuser = std::make_unique<ModelGExplicitDiffusionStep>(*model);
     // create global vector that stores coarsened solution
     DMCreateGlobalVector(model->domain, &solution_coarsened);
   }

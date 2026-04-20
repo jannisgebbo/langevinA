@@ -290,6 +290,8 @@ void Measurer::computeSliceAverageCoarsened(Vec *solution) {
           phi_s += n[l]*phi[l];
           // norm_c
           norm2_c += pow(n[l], 2);
+          // norm2
+          norm2 += pow(phi[l], 2);
         }
         // sigma is norm of projected which is
         // norm = sqrt(<phi, phi> - 2<phi_coarse, phi>^2/<phi_coarse, phi_coarse>
