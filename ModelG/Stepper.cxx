@@ -875,15 +875,15 @@ bool ModelGExplicitDiffusionStep::step(const double &dt) {
   return true;
 }
 
-// call to do a diffusion step that evolves current solution which was deep copied into 
-// solution_coarsened ncoarsen_steps times but does not update the model solution, 
-// but stores it into input solution_coarsened 
-bool ModelGExplicitDiffusionStep::step_coarsening(const double &dt, 
-                                                  Vec *solution_coarsened) {
+// call to do a diffusion step that evolves current solution which was deep copied into
+// solution_coarsened nsteps coarsen-steps (each = 3 diffusion steps) but does not
+// update the model solution, but stores it into input solution_coarsened
+bool ModelGExplicitDiffusionStep::step_coarsening(const double &dt,
+                                                  Vec *solution_coarsened,
+                                                  int nsteps) {
 
-  auto &data = model->data;
-  // diffusive steps will be dt/3., so multiply by 3 
-  int ncoarsen_steps = 3 * data.ahandler.ncoarsen_steps;
+  // each coarsen step consists of 3 diffusion steps with dt/3
+  int ndiffusion_steps = 3 * nsteps;
 
   // Get a local vector with ghost cells
   DM da = model->domain;
@@ -893,7 +893,7 @@ bool ModelGExplicitDiffusionStep::step_coarsening(const double &dt,
   // pointer arrays
   G_node ***phi, ***phinew;
 
-  for (int i = 0; i < ncoarsen_steps; i++) {
+  for (int i = 0; i < ndiffusion_steps; i++) {
     // Fill in the ghost cells with mpicalls
     PetscCall(DMGlobalToLocalBegin(da, *solution_coarsened, INSERT_VALUES, localU));
     PetscCall(DMGlobalToLocalEnd(da, *solution_coarsened, INSERT_VALUES, localU));

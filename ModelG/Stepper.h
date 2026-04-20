@@ -200,7 +200,7 @@ class ModelGExplicitDiffusionStep : public Stepper {
 public:
   ModelGExplicitDiffusionStep(ModelA &in) : model(&in) { ; }
   bool step(const double &dt) override;
-  bool step_coarsening(const double &dt, Vec *solution_coarsened);
+  bool step_coarsening(const double &dt, Vec *solution_coarsened, int nsteps = 1);
   void finalize() override { ; }
   ~ModelGExplicitDiffusionStep() { ; }
 

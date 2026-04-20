@@ -138,14 +138,16 @@ public:
   // The first dimension is NObsCoarse, the second dimension is the spatial index
   static const PetscInt NObsCoarse = 3 * ModelAData::Nphi + 2;
   Vec solution_coarsened;
-  nvector<PetscScalar, 2> wallXCoarse;
-  nvector<PetscScalar, 2> wallYCoarse;
-  nvector<PetscScalar, 2> wallZCoarse;
+  int ncoarsen_steps;
+  // Vectors of length ncoarsen_steps; index c holds result for c+1 coarsen steps
+  std::vector<nvector<PetscScalar, 2>> wallXCoarse;
+  std::vector<nvector<PetscScalar, 2>> wallYCoarse;
+  std::vector<nvector<PetscScalar, 2>> wallZCoarse;
 
   // First dimension is NObsCoarse, last dimension is the fourier index 0..N/2+1
-  nvector<std::complex<double>, 2> wallXCoarse_k;
-  nvector<std::complex<double>, 2> wallYCoarse_k;
-  nvector<std::complex<double>, 2> wallZCoarse_k;
+  std::vector<nvector<std::complex<double>, 2>> wallXCoarse_k;
+  std::vector<nvector<std::complex<double>, 2>> wallYCoarse_k;
+  std::vector<nvector<std::complex<double>, 2>> wallZCoarse_k;
 
 public:
   Measurer(ModelA *ptr) : model(ptr) {
@@ -186,13 +188,21 @@ public:
     wallYPhase_k.resize(NObsPhase, N / 2 + 1);
     wallZPhase_k.resize(NObsPhase, N / 2 + 1);
 
-    wallXCoarse.resize(NObsCoarse, N);
-    wallYCoarse.resize(NObsCoarse, N);
-    wallZCoarse.resize(NObsCoarse, N);
-
-    wallXCoarse_k.resize(NObsCoarse, N / 2 + 1);
-    wallYCoarse_k.resize(NObsCoarse, N / 2 + 1);
-    wallZCoarse_k.resize(NObsCoarse, N / 2 + 1);
+    ncoarsen_steps = model->data.ahandler.ncoarsen_steps;
+    wallXCoarse.resize(ncoarsen_steps);
+    wallYCoarse.resize(ncoarsen_steps);
+    wallZCoarse.resize(ncoarsen_steps);
+    wallXCoarse_k.resize(ncoarsen_steps);
+    wallYCoarse_k.resize(ncoarsen_steps);
+    wallZCoarse_k.resize(ncoarsen_steps);
+    for (int c = 0; c < ncoarsen_steps; c++) {
+      wallXCoarse[c].resize(NObsCoarse, N);
+      wallYCoarse[c].resize(NObsCoarse, N);
+      wallZCoarse[c].resize(NObsCoarse, N);
+      wallXCoarse_k[c].resize(NObsCoarse, N / 2 + 1);
+      wallYCoarse_k[c].resize(NObsCoarse, N / 2 + 1);
+      wallZCoarse_k[c].resize(NObsCoarse, N / 2 + 1);
+    }
 
     // create unique diffusion stepper
     diffuser = std::make_unique<ModelGExplicitDiffusionStep>(*model);
@@ -225,6 +235,7 @@ public:
 
   ModelA *getModel() { return model; }
   PetscInt getN() { return N; }
+  int getNCoarsenSteps() { return ncoarsen_steps; }
 
 private:
   void computeSliceAverage(Vec *solution);

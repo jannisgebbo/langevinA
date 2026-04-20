@@ -219,10 +219,10 @@ void Measurer::computeSliceAveragePhase(Vec *solution) {
   }
 }
 
-// takes the solution, evolves it with diffusion stepper and locally decomposes solution 
-// along the diffused solution
+// takes the solution, evolves it with diffusion stepper and locally decomposes solution
+// along the diffused solution; repeats for each coarsen level 1..ncoarsen_steps
 void Measurer::computeSliceAverageCoarsened(Vec *solution) {
-  
+
   // Get the local information
   DM &da = model->domain;
   const auto &data = model->data;
@@ -238,131 +238,133 @@ void Measurer::computeSliceAverageCoarsened(Vec *solution) {
   // From the vector define the pointer for the field phi
   DMDAVecGetArrayRead(da, localU, &fld);
 
-  // first, deep copy solution into solution_coarsened
+  // deep copy solution into solution_coarsened; will be evolved one step at a time
   VecCopy(*solution, solution_coarsened);
-  // do the coarsening step (this is done by the subroutine of ModelGExplicitDiffusionStep) 
-  // and store the coarsened current solution in solution_coarsened 
-  diffuser->step_coarsening(data.atime.dt(), &solution_coarsened);
 
-  // convert solution_coarsened to a local 3d array
-  DMGlobalToLocalBegin(da, solution_coarsened, INSERT_VALUES, localU_coarsened);
-  DMGlobalToLocalEnd(da, solution_coarsened, INSERT_VALUES, localU_coarsened);
-  DMDAVecGetArrayRead(da, localU_coarsened, &fld_coarsened);
-  
-  // Set up the slize averages initialized to zero in c++11
-  std::fill(wallXCoarse.v.begin(), wallXCoarse.v.end(), 0.);
-  std::fill(wallYCoarse.v.begin(), wallYCoarse.v.end(), 0.);
-  std::fill(wallZCoarse.v.begin(), wallZCoarse.v.end(), 0.);
-
-  // Local arrays with same dimensions initialized to zero
-  nvector<double, 2> wallXCoarseLocal(NObsCoarse, N);
-  nvector<double, 2> wallYCoarseLocal(NObsCoarse, N);
-  nvector<double, 2> wallZCoarseLocal(NObsCoarse, N);
-
-  // Get the ranges
+  // Get the ranges (same for all coarsen levels)
   PetscInt ixs, iys, izs, nx, ny, nz;
   DMDAGetCorners(da, &ixs, &iys, &izs, &nx, &ny, &nz);
 
-  double sigma;
-  std::array<double, 4> n{};
-  std::array<double, 4> phi{};
-  std::array<double, 6> rho{};
-  std::array<double, 4> V{};
-  std::array<double, 4> A{};
-  // Store the local averages
-  for (int k = izs; k < izs + nz; k++) {
-    for (int j = iys; j < iys + ny; j++) {
-      for (int i = ixs; i < ixs + nx; i++) {
+  // Loop over coarsen levels: index c stores result after c+1 coarsen steps
+  for (int c = 0; c < ncoarsen_steps; c++) {
+    // Apply 1 more coarsen step (= 3 diffusion steps with dt/3)
+    diffuser->step_coarsening(data.atime.dt(), &solution_coarsened, 1);
 
-        // Gram-Schmidt procedure:
-        // phi_project = phi - <phi, phi_coarse>/<phi_coarse, phi_coarse> phi_coarse
+    // convert solution_coarsened to a local 3d array
+    DMGlobalToLocalBegin(da, solution_coarsened, INSERT_VALUES, localU_coarsened);
+    DMGlobalToLocalEnd(da, solution_coarsened, INSERT_VALUES, localU_coarsened);
+    DMDAVecGetArrayRead(da, localU_coarsened, &fld_coarsened);
 
-        double norm2_c = 0.0;   // <phi_coarse, phi_coarse>
-        double norm2 = 0.0;     // <phi, phi>
-        double phi_s = 0.0;     // <phi, phi_coarse>
-        for (int l=0; l < ModelAData::Nphi; l++){
-          // unnormalized coarse spin
-          n[l] = fld_coarsened[k][j][i].f[l];
-          // solution spin
-          phi[l] = fld[k][j][i].f[l];
-          // scalar product
-          phi_s += n[l]*phi[l];
-          // norm_c
-          norm2_c += pow(n[l], 2);
-          // norm2
-          norm2 += pow(phi[l], 2);
-        }
-        // sigma is norm of projected which is
-        // norm = sqrt(<phi, phi> - 2<phi_coarse, phi>^2/<phi_coarse, phi_coarse>
-        //             + <phi, phi_coarse>^2 / <phi_coarse, phi_coarse> )
-        //      = sqrt(norm2 - phi_s^2/norm2_c )
-        sigma = sqrt(norm2 - phi_s*phi_s/norm2_c );
-        // store charge fields
-        for (int l = 0; l < ModelAData::NA; l++) {
-          rho[l] = fld[k][j][i].A[l];
-          rho[l + ModelAData::NA] = fld[k][j][i].V[l];
-        }
-        // project phi
-        for (int l = 0; l < ModelAData::Nphi; l++) {
+    // Set up the slice averages initialized to zero
+    std::fill(wallXCoarse[c].v.begin(), wallXCoarse[c].v.end(), 0.);
+    std::fill(wallYCoarse[c].v.begin(), wallYCoarse[c].v.end(), 0.);
+    std::fill(wallZCoarse[c].v.begin(), wallZCoarse[c].v.end(), 0.);
+
+    // Local arrays with same dimensions initialized to zero
+    nvector<double, 2> wallXCoarseLocal(NObsCoarse, N);
+    nvector<double, 2> wallYCoarseLocal(NObsCoarse, N);
+    nvector<double, 2> wallZCoarseLocal(NObsCoarse, N);
+
+    double sigma;
+    std::array<double, 4> n{};
+    std::array<double, 4> phi{};
+    std::array<double, 6> rho{};
+    std::array<double, 4> V{};
+    std::array<double, 4> A{};
+    // Store the local averages
+    for (int k = izs; k < izs + nz; k++) {
+      for (int j = iys; j < iys + ny; j++) {
+        for (int i = ixs; i < ixs + nx; i++) {
+
+          // Gram-Schmidt procedure:
+          // phi_project = phi - <phi, phi_coarse>/<phi_coarse, phi_coarse> phi_coarse
+
+          double norm2_c = 0.0;   // <phi_coarse, phi_coarse>
+          double norm2 = 0.0;     // <phi, phi>
+          double phi_s = 0.0;     // <phi, phi_coarse>
+          for (int l=0; l < ModelAData::Nphi; l++){
+            // unnormalized coarse spin
+            n[l] = fld_coarsened[k][j][i].f[l];
+            // solution spin
+            phi[l] = fld[k][j][i].f[l];
+            // scalar product
+            phi_s += n[l]*phi[l];
+            // norm_c
+            norm2_c += pow(n[l], 2);
+            // norm2
+            norm2 += pow(phi[l], 2);
+          }
+          // sigma is norm of projected which is
+          // norm = sqrt(<phi, phi> - 2<phi_coarse, phi>^2/<phi_coarse, phi_coarse>
+          //             + <phi, phi_coarse>^2 / <phi_coarse, phi_coarse> )
+          //      = sqrt(norm2 - phi_s^2/norm2_c )
+          sigma = sqrt(norm2 - phi_s*phi_s/norm2_c );
+          // store charge fields
+          for (int l = 0; l < ModelAData::NA; l++) {
+            rho[l] = fld[k][j][i].A[l];
+            rho[l + ModelAData::NA] = fld[k][j][i].V[l];
+          }
           // project phi
-          phi[l] = phi[l] - phi_s/norm2_c * n[l];
-          // normalize n to unity
-          n[l] = n[l] / sqrt(norm2_c);
+          for (int l = 0; l < ModelAData::Nphi; l++) {
+            // project phi
+            phi[l] = phi[l] - phi_s/norm2_c * n[l];
+            // normalize n to unity
+            n[l] = n[l] / sqrt(norm2_c);
+          }
+          // project charge fields
+          A = contract_rho(n, rho);
+          V = contract_rho(n, dualize_rho(rho));
+
+          // store projected in wall*CoarseLocal
+          wallXCoarseLocal(0, i) += sigma;
+          wallYCoarseLocal(0, j) += sigma;
+          wallZCoarseLocal(0, k) += sigma;
+          for (int l = 0; l < ModelAData::Nphi; l++) {
+            wallXCoarseLocal(1 + l, i) += n[l];
+            wallYCoarseLocal(1 + l, j) += n[l];
+            wallZCoarseLocal(1 + l, k) += n[l];
+
+            wallXCoarseLocal(5 + l, i) += A[l];
+            wallYCoarseLocal(5 + l, j) += A[l];
+            wallZCoarseLocal(5 + l, k) += A[l];
+
+            wallXCoarseLocal(9 + l, i) += V[l];
+            wallYCoarseLocal(9 + l, j) += V[l];
+            wallZCoarseLocal(9 + l, k) += V[l];
+          }
+          wallXCoarseLocal(Measurer::NObsCoarse - 1, i) += sigma * sigma;
+          wallYCoarseLocal(Measurer::NObsCoarse - 1, j) += sigma * sigma;
+          wallZCoarseLocal(Measurer::NObsCoarse - 1, k) += sigma * sigma;
         }
-        // project charge fields
-        A = contract_rho(n, rho);
-        V = contract_rho(n, dualize_rho(rho));
-
-
-        // store projected in wall*CoarseLocal
-        
-        wallXCoarseLocal(0, i) += sigma;
-        wallYCoarseLocal(0, j) += sigma;
-        wallZCoarseLocal(0, k) += sigma;
-        for (int l = 0; l < ModelAData::Nphi; l++) {
-          wallXCoarseLocal(1 + l, i) += n[l];
-          wallYCoarseLocal(1 + l, j) += n[l];
-          wallZCoarseLocal(1 + l, k) += n[l];
-
-          wallXCoarseLocal(5 + l, i) += A[l];
-          wallYCoarseLocal(5 + l, j) += A[l];
-          wallZCoarseLocal(5 + l, k) += A[l];
-
-          wallXCoarseLocal(9 + l, i) += V[l];
-          wallYCoarseLocal(9 + l, j) += V[l];
-          wallZCoarseLocal(9 + l, k) += V[l];
-        }
-        wallXCoarseLocal(Measurer::NObsCoarse - 1, i) += sigma * sigma;
-        wallYCoarseLocal(Measurer::NObsCoarse - 1, j) += sigma * sigma;
-        wallZCoarseLocal(Measurer::NObsCoarse - 1, k) += sigma * sigma;
       }
     }
-  }
 
-  // normalize by 1/N^2
-  for (int l = 0; l < NObsCoarse; ++l) {
-    for (int i = 0; i < N; ++i) {
-      wallXCoarseLocal(l, i) /= PetscReal(N * N);
-      wallYCoarseLocal(l, i) /= PetscReal(N * N);
-      wallZCoarseLocal(l, i) /= PetscReal(N * N);
+    // normalize by 1/N^2
+    for (int l = 0; l < NObsCoarse; ++l) {
+      for (int i = 0; i < N; ++i) {
+        wallXCoarseLocal(l, i) /= PetscReal(N * N);
+        wallYCoarseLocal(l, i) /= PetscReal(N * N);
+        wallZCoarseLocal(l, i) /= PetscReal(N * N);
+      }
+    }
+
+    DMDAVecRestoreArrayRead(da, localU_coarsened, &fld_coarsened);
+
+    // Bring all the data into one
+    for (int l = 0; l < NObsCoarse; l++) {
+      MPI_Reduce(&wallXCoarseLocal(l, 0), &wallXCoarse[c](l, 0), N, MPIU_SCALAR,
+                 MPI_SUM, 0, PETSC_COMM_WORLD);
+      MPI_Reduce(&wallYCoarseLocal(l, 0), &wallYCoarse[c](l, 0), N, MPIU_SCALAR,
+                 MPI_SUM, 0, PETSC_COMM_WORLD);
+      MPI_Reduce(&wallZCoarseLocal(l, 0), &wallZCoarse[c](l, 0), N, MPIU_SCALAR,
+                 MPI_SUM, 0, PETSC_COMM_WORLD);
     }
   }
 
-  // Retstore the array
+  // Restore the uncoarsened arrays
   DMDAVecRestoreArrayRead(da, localU, &fld);
   DMRestoreLocalVector(da, &localU);
-  DMDAVecRestoreArrayRead(da, localU_coarsened, &fld_coarsened);
   DMRestoreLocalVector(da, &localU_coarsened);
-
-  // Bring all the data x data into one
-  for (int l = 0; l < NObsCoarse; l++) {
-    MPI_Reduce(&wallXCoarseLocal(l, 0), &wallXCoarse(l, 0), N, MPIU_SCALAR,
-               MPI_SUM, 0, PETSC_COMM_WORLD);
-    MPI_Reduce(&wallYCoarseLocal(l, 0), &wallYCoarse(l, 0), N, MPIU_SCALAR,
-               MPI_SUM, 0, PETSC_COMM_WORLD);
-    MPI_Reduce(&wallZCoarseLocal(l, 0), &wallZCoarse(l, 0), N, MPIU_SCALAR,
-               MPI_SUM, 0, PETSC_COMM_WORLD);
-  }
 }
 
 
@@ -461,9 +463,11 @@ void Measurer::computeDerivedObs() {
   fftw->execute(wallYPhase, wallYPhase_k);
   fftw->execute(wallZPhase, wallZPhase_k);
 
-  fftw->execute(wallXCoarse, wallXCoarse_k);
-  fftw->execute(wallYCoarse, wallYCoarse_k);
-  fftw->execute(wallZCoarse, wallZCoarse_k);
+  for (int c = 0; c < ncoarsen_steps; c++) {
+    fftw->execute(wallXCoarse[c], wallXCoarse_k[c]);
+    fftw->execute(wallYCoarse[c], wallYCoarse_k[c]);
+    fftw->execute(wallZCoarse[c], wallZCoarse_k[c]);
+  }
 }
 
 // Routine: compute different terms that contribute to total energy and 
