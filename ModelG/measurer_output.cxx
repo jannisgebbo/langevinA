@@ -69,12 +69,13 @@ measurer_output_fasthdf5::measurer_output_fasthdf5(Measurer *in,
   wallz_phase_k = std::make_unique<ntuple<3>>(NN3, "wallz_phase_k", file_id);
 
   NN3 = {Measurer::NObsCoarse, static_cast<size_t>(measure->getN()) / 2 + 1, 2};
-  int ncoarsen = measure->getNCoarsenSteps();
+  int ncoarsen = measure->getNCoarsenOutputs();
+  const auto &levels = measure->getCoarsenLevels();
   wallx_coarsened_k.resize(ncoarsen);
   wally_coarsened_k.resize(ncoarsen);
   wallz_coarsened_k.resize(ncoarsen);
   for (int c = 0; c < ncoarsen; c++) {
-    std::string suffix = "_" + std::to_string(c + 1);
+    std::string suffix = "_" + std::to_string(levels[c]);
     wallx_coarsened_k[c] = std::make_unique<ntuple<3>>(NN3, "wallx_coarsened_k" + suffix, file_id);
     wally_coarsened_k[c] = std::make_unique<ntuple<3>>(NN3, "wally_coarsened_k" + suffix, file_id);
     wallz_coarsened_k[c] = std::make_unique<ntuple<3>>(NN3, "wallz_coarsened_k" + suffix, file_id);
@@ -152,7 +153,7 @@ void measurer_output_fasthdf5::save(const std::string &what) {
   wally_phase_k->fill();
   wallz_phase_k->fill();
 
-  for (int c = 0; c < measure->getNCoarsenSteps(); c++) {
+  for (int c = 0; c < measure->getNCoarsenOutputs(); c++) {
     std::memcpy(wallx_coarsened_k[c]->row.data(), measure->wallXCoarse_k[c].v.data(),
                 wallx_coarsened_k[c]->row.size() * sizeof(double));
     std::memcpy(wally_coarsened_k[c]->row.data(), measure->wallYCoarse_k[c].v.data(),

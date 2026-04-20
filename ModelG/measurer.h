@@ -138,8 +138,9 @@ public:
   // The first dimension is NObsCoarse, the second dimension is the spatial index
   static const PetscInt NObsCoarse = 3 * ModelAData::Nphi + 2;
   Vec solution_coarsened;
-  int ncoarsen_steps;
-  // Vectors of length ncoarsen_steps; index c holds result for c+1 coarsen steps
+  // Selected coarsen levels to record: ncoarsen_start, ncoarsen_start+stride, ...
+  std::vector<int> coarsen_levels;
+  // Vectors of length coarsen_levels.size(); index c holds result for coarsen_levels[c] steps
   std::vector<nvector<PetscScalar, 2>> wallXCoarse;
   std::vector<nvector<PetscScalar, 2>> wallYCoarse;
   std::vector<nvector<PetscScalar, 2>> wallZCoarse;
@@ -188,14 +189,19 @@ public:
     wallYPhase_k.resize(NObsPhase, N / 2 + 1);
     wallZPhase_k.resize(NObsPhase, N / 2 + 1);
 
-    ncoarsen_steps = model->data.ahandler.ncoarsen_steps;
-    wallXCoarse.resize(ncoarsen_steps);
-    wallYCoarse.resize(ncoarsen_steps);
-    wallZCoarse.resize(ncoarsen_steps);
-    wallXCoarse_k.resize(ncoarsen_steps);
-    wallYCoarse_k.resize(ncoarsen_steps);
-    wallZCoarse_k.resize(ncoarsen_steps);
-    for (int c = 0; c < ncoarsen_steps; c++) {
+    {
+      const auto &h = model->data.ahandler;
+      for (int s = h.ncoarsen_start; s <= h.ncoarsen_steps; s += h.ncoarsen_stride)
+        coarsen_levels.push_back(s);
+    }
+    int nout = static_cast<int>(coarsen_levels.size());
+    wallXCoarse.resize(nout);
+    wallYCoarse.resize(nout);
+    wallZCoarse.resize(nout);
+    wallXCoarse_k.resize(nout);
+    wallYCoarse_k.resize(nout);
+    wallZCoarse_k.resize(nout);
+    for (int c = 0; c < nout; c++) {
       wallXCoarse[c].resize(NObsCoarse, N);
       wallYCoarse[c].resize(NObsCoarse, N);
       wallZCoarse[c].resize(NObsCoarse, N);
@@ -235,7 +241,8 @@ public:
 
   ModelA *getModel() { return model; }
   PetscInt getN() { return N; }
-  int getNCoarsenSteps() { return ncoarsen_steps; }
+  int getNCoarsenOutputs() { return static_cast<int>(coarsen_levels.size()); }
+  const std::vector<int> &getCoarsenLevels() { return coarsen_levels; }
 
 private:
   void computeSliceAverage(Vec *solution);

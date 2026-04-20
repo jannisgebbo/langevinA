@@ -245,10 +245,13 @@ void Measurer::computeSliceAverageCoarsened(Vec *solution) {
   PetscInt ixs, iys, izs, nx, ny, nz;
   DMDAGetCorners(da, &ixs, &iys, &izs, &nx, &ny, &nz);
 
-  // Loop over coarsen levels: index c stores result after c+1 coarsen steps
-  for (int c = 0; c < ncoarsen_steps; c++) {
-    // Apply 1 more coarsen step (= 3 diffusion steps with dt/3)
-    diffuser->step_coarsening(data.atime.dt(), &solution_coarsened, 1);
+  // Iterate through selected coarsen levels, applying incremental steps between them
+  int current_step = 0;
+  for (int c = 0; c < static_cast<int>(coarsen_levels.size()); c++) {
+    int steps_to_apply = coarsen_levels[c] - current_step;
+    // Apply the remaining steps to reach the next selected level
+    diffuser->step_coarsening(data.atime.dt(), &solution_coarsened, steps_to_apply);
+    current_step = coarsen_levels[c];
 
     // convert solution_coarsened to a local 3d array
     DMGlobalToLocalBegin(da, solution_coarsened, INSERT_VALUES, localU_coarsened);
@@ -463,7 +466,7 @@ void Measurer::computeDerivedObs() {
   fftw->execute(wallYPhase, wallYPhase_k);
   fftw->execute(wallZPhase, wallZPhase_k);
 
-  for (int c = 0; c < ncoarsen_steps; c++) {
+  for (int c = 0; c < static_cast<int>(coarsen_levels.size()); c++) {
     fftw->execute(wallXCoarse[c], wallXCoarse_k[c]);
     fftw->execute(wallYCoarse[c], wallYCoarse_k[c]);
     fftw->execute(wallZCoarse[c], wallZCoarse_k[c]);

@@ -138,6 +138,8 @@ struct ModelAHandlerData {
   int saveFrequency = 3;
   int writeFrequency = -1;
   int ncoarsen_steps = 3;
+  int ncoarsen_start = 1;
+  int ncoarsen_stride = 1;
 
   bool eventmode = false;
   int nevents = 1;
@@ -162,6 +164,8 @@ struct ModelAHandlerData {
     saveFrequency = params.value("saveFrequency", saveFrequency);
     writeFrequency = params.value("writeFrequency", writeFrequency);
     ncoarsen_steps = params.value("ncoarsen_steps", ncoarsen_steps);
+    ncoarsen_start = params.value("ncoarsen_start", ncoarsen_start);
+    ncoarsen_stride = params.value("ncoarsen_stride", ncoarsen_stride);
 
     eventmode = params.value("eventmode", eventmode);
     nevents = params.value("nevents", nevents);
@@ -184,6 +188,8 @@ struct ModelAHandlerData {
     PetscPrintf(PETSC_COMM_WORLD, "saveFrequency = %d\n", saveFrequency);
     PetscPrintf(PETSC_COMM_WORLD, "writeFrequency = %d\n", writeFrequency);
     PetscPrintf(PETSC_COMM_WORLD, "ncoarsen_steps = %d\n", ncoarsen_steps);
+    PetscPrintf(PETSC_COMM_WORLD, "ncoarsen_start = %d\n", ncoarsen_start);
+    PetscPrintf(PETSC_COMM_WORLD, "ncoarsen_stride = %d\n", ncoarsen_stride);
 
     PetscPrintf(PETSC_COMM_WORLD, "eventmode = %s\n",
                 (eventmode ? "true" : "false"));
