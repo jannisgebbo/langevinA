@@ -212,6 +212,10 @@ public:
 
     computeSliceAverage(solution);
     computeSliceAveragePhase(solution);
+    computeSliceAverageCoarsened(solution);
+    computeEnergy();
+    computeEnergyRotated();
+    computeEnergyPhase();
 
     // Take the FFT and other steps based on the data collected
     if (rank == 0) {
@@ -237,7 +241,7 @@ private:
   // FFT engine using the fftw3 library
   std::unique_ptr<measurer_fft> fftw;
   // Diffusion stepper to coarsen/diffuse the solution
-  std::unique_ptr<Stepper> diffuser;
+  std::unique_ptr<ModelGExplicitDiffusionStep> diffuser;
 };
 
 #endif

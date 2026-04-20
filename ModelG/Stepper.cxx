@@ -761,7 +761,7 @@ ModelGDiffusionStep::Form3PointLaplacian(DM da, Mat J, const double &hx,
 
 bool ModelGExplicitDiffusionStep::evolveLocalSolution(const double &dt,
                                                       G_node ***phi,
-                                                      G_node ***phi_new){
+                                                      G_node ***phinew){
 
   auto &data = model->data;
 
@@ -863,7 +863,7 @@ bool ModelGExplicitDiffusionStep::step(const double &dt) {
   PetscCall(DMDAVecGetArray(da, model->solution, &phinew));
 
   // call subroutine that computes phinew
-  evolveLocalSolution(dt, phi, phinew)
+  evolveLocalSolution(dt, phi, phinew);
 
   // restore pointer arrays
   PetscCall(DMDAVecRestoreArray(da, model->solution, &phinew));
@@ -895,8 +895,8 @@ bool ModelGExplicitDiffusionStep::step_coarsening(const double &dt,
 
   for (int i = 0; i < ncoarsen_steps; i++) {
     // Fill in the ghost cells with mpicalls
-    PetscCall(DMGlobalToLocalBegin(da, solution_coarsened, INSERT_VALUES, localU));
-    PetscCall(DMGlobalToLocalEnd(da, solution_coarsened, INSERT_VALUES, localU));
+    PetscCall(DMGlobalToLocalBegin(da, *solution_coarsened, INSERT_VALUES, localU));
+    PetscCall(DMGlobalToLocalEnd(da, *solution_coarsened, INSERT_VALUES, localU));
     // all mpi calls complete: localU is up to date
 
     // get access to arrays indexed using the local dimensions
@@ -904,13 +904,13 @@ bool ModelGExplicitDiffusionStep::step_coarsening(const double &dt,
     // this one needs to also have write access & points to solution_coarsened directly
     // but careful! this only works since we only write to phinew and only read from it locally
     // otherwise, corruption through ghost cells is possible
-    PetscCall(DMDAVecGetArray(da, solution_coarsened, &phinew));
+    PetscCall(DMDAVecGetArray(da, *solution_coarsened, &phinew));
   
     // call subroutine that computes phinew
-    evolveLocalSolution(dt/3., phi, phinew)
+    evolveLocalSolution(dt/3., phi, phinew);
 
     // restore localUnew from phinew
-    PetscCall(DMDAVecRestoreArray(da, solution_coarsened, &phinew));
+    PetscCall(DMDAVecRestoreArray(da, *solution_coarsened, &phinew));
     PetscCall(DMDAVecRestoreArrayRead(da, localU, &phi));
   }
 

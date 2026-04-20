@@ -226,7 +226,6 @@ void Measurer::computeSliceAverageCoarsened(Vec *solution) {
   // Get the local information
   DM &da = model->domain;
   const auto &data = model->data;
-  const auto &coeff = data.acoefficients;
 
   Vec localU, localU_coarsened;
   G_node ***fld, ***fld_coarsened;
@@ -240,14 +239,14 @@ void Measurer::computeSliceAverageCoarsened(Vec *solution) {
   DMDAVecGetArrayRead(da, localU, &fld);
 
   // first, deep copy solution into solution_coarsened
-  PetscCall(VecCopy(*solution, solution_coarsened));
+  VecCopy(*solution, solution_coarsened);
   // do the coarsening step (this is done by the subroutine of ModelGExplicitDiffusionStep) 
   // and store the coarsened current solution in solution_coarsened 
   diffuser->step_coarsening(data.atime.dt(), &solution_coarsened);
 
   // convert solution_coarsened to a local 3d array
-  DMGlobalToLocalBegin(da, *solution_coarsened, INSERT_VALUES, localU_coarsened);
-  DMGlobalToLocalEnd(da, *solution_coarsened, INSERT_VALUES, localU_coarsened);
+  DMGlobalToLocalBegin(da, solution_coarsened, INSERT_VALUES, localU_coarsened);
+  DMGlobalToLocalEnd(da, solution_coarsened, INSERT_VALUES, localU_coarsened);
   DMDAVecGetArrayRead(da, localU_coarsened, &fld_coarsened);
   
   // Set up the slize averages initialized to zero in c++11
