@@ -323,9 +323,9 @@ void Measurer::computeSliceAverageCoarsened(Vec *solution) {
           wallYCoarseLocal(0, j) += sigma;
           wallZCoarseLocal(0, k) += sigma;
           for (int l = 0; l < ModelAData::Nphi; l++) {
-            wallXCoarseLocal(1 + l, i) += n[l];
-            wallYCoarseLocal(1 + l, j) += n[l];
-            wallZCoarseLocal(1 + l, k) += n[l];
+            wallXCoarseLocal(1 + l, i) += phi[l];
+            wallYCoarseLocal(1 + l, j) += phi[l];
+            wallZCoarseLocal(1 + l, k) += phi[l];
 
             wallXCoarseLocal(5 + l, i) += A[l];
             wallYCoarseLocal(5 + l, j) += A[l];
