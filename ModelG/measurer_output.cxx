@@ -153,6 +153,10 @@ void measurer_output_fasthdf5::save(const std::string &what) {
   wally_phase_k->fill();
   wallz_phase_k->fill();
 
+}
+
+void measurer_output_fasthdf5::save_coarsen(const std::string &what) {
+
   for (int c = 0; c < measure->getNCoarsenOutputs(); c++) {
     std::memcpy(wallx_coarsened_k[c]->row.data(), measure->wallXCoarse_k[c].v.data(),
                 wallx_coarsened_k[c]->row.size() * sizeof(double));
@@ -165,7 +169,9 @@ void measurer_output_fasthdf5::save(const std::string &what) {
     wally_coarsened_k[c]->fill();
     wallz_coarsened_k[c]->fill();
   }
+
 }
+
 #endif
 
 /////////////////////////////////////////////////////////////////////////

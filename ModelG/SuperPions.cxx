@@ -169,6 +169,16 @@ void run_event(const int &ievent, ModelA *const model, Stepper *const step,
       PetscLogEventEnd(measurements, 0, 0, 0, 0);
     }
 
+    // on separate frequency: measure coarsen solution
+    if (ahandler.saveFrequencyCoarsen > 0 and steps % ahandler.saveFrequencyCoarsen == 0) {
+      PetscLogEventBegin(measurements, 0, 0, 0, 0);
+      measurer.measure_coarsen(&model->solution);
+      if (rank == 0) {
+        measurer_output->save_coarsen();
+      }
+      PetscLogEventEnd(measurements, 0, 0, 0, 0);
+    }
+
     // Write the solution to tape if writeFrequency > 0. This is used for
     // plotting of the solution. It is normally not analyzed, or written.
     if (ahandler.writeFrequency > 0 and steps % ahandler.writeFrequency == 0) {

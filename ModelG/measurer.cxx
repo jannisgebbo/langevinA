@@ -465,6 +465,11 @@ void Measurer::computeDerivedObs() {
   fftw->execute(wallXPhase, wallXPhase_k);
   fftw->execute(wallYPhase, wallYPhase_k);
   fftw->execute(wallZPhase, wallZPhase_k);
+}
+
+void Measurer::computeDerivedObs_coarsen() {
+  // NB: the intent is that this is to be called only
+  // from the rank=0
 
   for (int c = 0; c < static_cast<int>(coarsen_levels.size()); c++) {
     fftw->execute(wallXCoarse[c], wallXCoarse_k[c]);

@@ -237,10 +237,6 @@ public:
     computeSliceAveragePhase(solution);
     PetscLogEventEnd(convt_log, 0, 0, 0, 0);
     
-    PetscLogEventBegin(coarsen_log, 0, 0, 0, 0);
-    computeSliceAverageCoarsened(solution);
-    PetscLogEventEnd(coarsen_log, 0, 0, 0, 0);
-    
     PetscLogEventBegin(energy_log, 0, 0, 0, 0);
     computeEnergy();
     computeEnergyRotated();
@@ -251,6 +247,22 @@ public:
     if (rank == 0) {
       PetscLogEventBegin(derived_log, 0, 0, 0, 0);
       computeDerivedObs();
+      PetscLogEventEnd(derived_log, 0, 0, 0, 0);
+    }
+  }
+
+  void measure_coarsen(Vec * solution){
+    int rank = -1;
+    MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
+    
+    PetscLogEventBegin(coarsen_log, 0, 0, 0, 0);
+    computeSliceAverageCoarsened(solution);
+    PetscLogEventEnd(coarsen_log, 0, 0, 0, 0);
+    
+    // Take the FFT and other steps based on the data collected
+    if (rank == 0) {
+      PetscLogEventBegin(derived_log, 0, 0, 0, 0);
+      computeDerivedObs_coarsen();
       PetscLogEventEnd(derived_log, 0, 0, 0, 0);
     }
   }

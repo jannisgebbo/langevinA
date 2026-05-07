@@ -136,6 +136,7 @@ struct ModelAHandlerData {
   // output files are tag_foo.txt, or tag_bar.h5
   std::string outputfiletag = "o4output";
   int saveFrequency = 3;
+  int saveFrequencyCoarsen = -1;
   int writeFrequency = -1;
   int ncoarsen_steps = 3;
   int ncoarsen_start = 1;
@@ -162,6 +163,7 @@ struct ModelAHandlerData {
     restart = params.value("restart", false);
     outputfiletag = params.value("outputfiletag", "o4output");
     saveFrequency = params.value("saveFrequency", saveFrequency);
+    saveFrequencyCoarsen = params.value("saveFrequencyCoarsen", saveFrequencyCoarsen);
     writeFrequency = params.value("writeFrequency", writeFrequency);
     ncoarsen_steps = params.value("ncoarsen_steps", ncoarsen_steps);
     ncoarsen_start = params.value("ncoarsen_start", ncoarsen_start);
@@ -186,6 +188,7 @@ struct ModelAHandlerData {
     PetscPrintf(PETSC_COMM_WORLD, "outputfiletag = %s\n",
                 outputfiletag.c_str());
     PetscPrintf(PETSC_COMM_WORLD, "saveFrequency = %d\n", saveFrequency);
+    PetscPrintf(PETSC_COMM_WORLD, "saveFrequencyCoarsen = %d\n", saveFrequencyCoarsen);
     PetscPrintf(PETSC_COMM_WORLD, "writeFrequency = %d\n", writeFrequency);
     PetscPrintf(PETSC_COMM_WORLD, "ncoarsen_steps = %d\n", ncoarsen_steps);
     PetscPrintf(PETSC_COMM_WORLD, "ncoarsen_start = %d\n", ncoarsen_start);
