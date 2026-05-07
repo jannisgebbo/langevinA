@@ -214,6 +214,11 @@ public:
     diffuser = std::make_unique<ModelGExplicitDiffusionStep>(*model);
     // create global vector that stores coarsened solution
     DMCreateGlobalVector(model->domain, &solution_coarsened);
+
+    PetscLogEventRegister("Energy_measure", 0, &energy_log);
+    PetscLogEventRegister("Normal+Phase_measure", 0, &convt_log);
+    PetscLogEventRegister("Coarsen_measure", 0, &coarsen_log);
+    PetscLogEventRegister("Derived_measure", 0, &derived_log);
   }
 
   virtual ~Measurer() {}
@@ -223,19 +228,30 @@ public:
   // wallX_rotated, as well as Y and Z are filled with the data. This can be
   // accessed to write the data to disk.
   void measure(Vec *solution) {
+
     int rank = -1;
     MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
 
+    PetscLogEventBegin(convt_log, 0, 0, 0, 0);
     computeSliceAverage(solution);
     computeSliceAveragePhase(solution);
+    PetscLogEventEnd(convt_log, 0, 0, 0, 0);
+    
+    PetscLogEventBegin(coarsen_log, 0, 0, 0, 0);
     computeSliceAverageCoarsened(solution);
+    PetscLogEventEnd(coarsen_log, 0, 0, 0, 0);
+    
+    PetscLogEventBegin(energy_log, 0, 0, 0, 0);
     computeEnergy();
     computeEnergyRotated();
     computeEnergyPhase();
+    PetscLogEventEnd(energy_log, 0, 0, 0, 0);
 
     // Take the FFT and other steps based on the data collected
     if (rank == 0) {
+      PetscLogEventBegin(derived_log, 0, 0, 0, 0);
       computeDerivedObs();
+      PetscLogEventEnd(derived_log, 0, 0, 0, 0);
     }
   }
 
@@ -260,6 +276,8 @@ private:
   std::unique_ptr<measurer_fft> fftw;
   // Diffusion stepper to coarsen/diffuse the solution
   std::unique_ptr<ModelGExplicitDiffusionStep> diffuser;
+    
+  PetscLogEvent energy_log, convt_log, coarsen_log, derived_log;
 };
 
 #endif

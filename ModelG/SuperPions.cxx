@@ -16,6 +16,7 @@
 #include "measurer.h"
 #include "measurer_output.h"
 
+
 void thermalize_event(ModelA *const model) {
   const auto &ahandler = model->data.ahandler;
   auto &atime = model->data.atime;

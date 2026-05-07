@@ -310,7 +310,7 @@ void Measurer::computeSliceAverageCoarsened(Vec *solution) {
           // project phi
           for (int l = 0; l < ModelAData::Nphi; l++) {
             // project phi
-            phi[l] = phi[l] - phi_s/norm2_c * n[l];
+            //phi[l] = phi[l] - phi_s/norm2_c * n[l];
             // normalize n to unity
             n[l] = n[l] / sqrt(norm2_c);
           }
