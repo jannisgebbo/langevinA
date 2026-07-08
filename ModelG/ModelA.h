@@ -163,7 +163,8 @@ struct ModelAHandlerData {
     restart = params.value("restart", false);
     outputfiletag = params.value("outputfiletag", "o4output");
     saveFrequency = params.value("saveFrequency", saveFrequency);
-    saveFrequencyCoarsen = params.value("saveFrequencyCoarsen", saveFrequencyCoarsen);
+    saveFrequencyCoarsen =
+        params.value("saveFrequencyCoarsen", saveFrequencyCoarsen);
     writeFrequency = params.value("writeFrequency", writeFrequency);
     ncoarsen_steps = params.value("ncoarsen_steps", ncoarsen_steps);
     ncoarsen_start = params.value("ncoarsen_start", ncoarsen_start);
@@ -188,7 +189,8 @@ struct ModelAHandlerData {
     PetscPrintf(PETSC_COMM_WORLD, "outputfiletag = %s\n",
                 outputfiletag.c_str());
     PetscPrintf(PETSC_COMM_WORLD, "saveFrequency = %d\n", saveFrequency);
-    PetscPrintf(PETSC_COMM_WORLD, "saveFrequencyCoarsen = %d\n", saveFrequencyCoarsen);
+    PetscPrintf(PETSC_COMM_WORLD, "saveFrequencyCoarsen = %d\n",
+                saveFrequencyCoarsen);
     PetscPrintf(PETSC_COMM_WORLD, "writeFrequency = %d\n", writeFrequency);
     PetscPrintf(PETSC_COMM_WORLD, "ncoarsen_steps = %d\n", ncoarsen_steps);
     PetscPrintf(PETSC_COMM_WORLD, "ncoarsen_start = %d\n", ncoarsen_start);
@@ -568,43 +570,19 @@ public:
     return (0);
   }
 
-  PetscErrorCode initialize_gaussian_const() {
-    // This Get a pointer to do the calculation
-    PetscScalar ****u;
-    PetscCall(DMDAVecGetArrayDOF(domain, solution, &u));
+  PetscErrorCode initialize_gaussian_const(const PetscScalar *value_in = nullptr) {
+    PetscScalar chi   = data.acoefficients.chi;
+    PetscScalar value = (value_in != nullptr) ? *value_in
+                                               : PetscSqrtScalar(chi) * 0.5;
 
-    // Get the Local Corner od the vector
-    PetscInt i, j, k, L, xstart, ystart, zstart, xdimension, ydimension,
-        zdimension;
-
-    PetscCall(DMDAGetCorners(domain, &xstart, &ystart, &zstart, &xdimension,
-                             &ydimension, &zdimension));
-
-    // We are going initialize the grid with the charges being gaussian random
-    // numbers. The charges are normalized so that the total charge is zero.
-    std::vector<PetscScalar> charge_sum_local(ModelAData::Ndof, 0.);
-    std::vector<PetscScalar> charge_sum(ModelAData::Ndof, 0.);
-
-    PetscScalar chi = data.acoefficients.chi;
-    for (k = zstart; k < zstart + zdimension; k++) {
-      for (j = ystart; j < ystart + ydimension; j++) {
-        for (i = xstart; i < xstart + xdimension; i++) {
-          for (L = 0; L < ModelAData::Ndof; L++) {
-            // Dont update the phi components
-            if (L < ModelAData::Nphi) {
-              continue;
-            }
-
-            u[k][j][i][L] = sqrt(chi) * 0.5;
-          }
-        }
-      }
+    for (PetscInt L = ModelAData::Nphi; L < ModelAData::Ndof; L++) {
+        PetscCall(VecStrideSet(solution, L, value));
     }
 
-    PetscCall(DMDAVecRestoreArrayDOF(domain, solution, &u));
+    return 0;
+}
 
-    return (0);
-  }
+
 
   // Routine that initializes the fields randomly under the constraint phi^2 =
   // R, i.e. uniformly distributed spins on a 4d sphere
