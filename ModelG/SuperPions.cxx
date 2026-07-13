@@ -192,6 +192,17 @@ void run_event(const int &ievent, ModelA *const model, Stepper *const step,
       PetscLogEventEnd(measurements, 0, 0, 0, 0);
     }
 
+    // on separate frequency: measure the topological charge Fourier readout
+    if (ahandler.saveFrequencyTopcharge > 0 and
+        steps % ahandler.saveFrequencyTopcharge == 0) {
+      PetscLogEventBegin(measurements, 0, 0, 0, 0);
+      measurer.measure_topcharge(&model->solution);
+      if (rank == 0) {
+        measurer_output->save_topcharge();
+      }
+      PetscLogEventEnd(measurements, 0, 0, 0, 0);
+    }
+
     // Write the solution to tape if writeFrequency > 0. This is used for
     // plotting of the solution. It is normally not analyzed, or written.
     if (ahandler.writeFrequency > 0 and steps % ahandler.writeFrequency == 0) {
