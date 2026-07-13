@@ -436,6 +436,147 @@ void rotate_to_vev(nvector<std::complex<double>, 2> &wallk,
   }
 }
 
+// Determinant of the 4x4 matrix whose rows are the four 4-vectors r0..r3.
+// This equals the fully-antisymmetric contraction
+//   eps^{abcd} r0_a r1_b r2_c r3_d   with eps^{0123} = +1,
+// which is exactly what appears in the topological charge density with
+// (r0, r1, r2, r3) = (phi, dx phi, dy phi, dz phi).
+static inline double det4x4(const double r0[4], const double r1[4],
+                            const double r2[4], const double r3[4]) {
+  // 3x3 minor of rows (r1, r2, r3) over columns (c0, c1, c2)
+  auto minor3 = [&](int c0, int c1, int c2) {
+    return r1[c0] * (r2[c1] * r3[c2] - r2[c2] * r3[c1]) -
+           r1[c1] * (r2[c0] * r3[c2] - r2[c2] * r3[c0]) +
+           r1[c2] * (r2[c0] * r3[c1] - r2[c1] * r3[c0]);
+  };
+  return r0[0] * minor3(1, 2, 3) - r0[1] * minor3(0, 2, 3) +
+         r0[2] * minor3(0, 1, 3) - r0[3] * minor3(0, 1, 2);
+}
+
+// Compute the topological charge density q(x) of the O(4) field at every
+// lattice site, take its 3D Fourier transform, and store two reduced
+// quantities: the spherically (azimuthally) averaged power spectrum S(k) and
+// the zero mode qtilde(k=0).  The full complex qtilde(k) cube is NOT kept.
+//
+// The topological charge density (target manifold S^3) is
+//
+//   q(x) = 1/(12 pi^2) eps^{abcd} phi_a (dx phi_b)(dy phi_c)(dz phi_d)
+//        = 1/(12 pi^2) det[ phi , dx phi , dy phi , dz phi ]
+//
+// with centered finite differences d_i phi = (phi(x+e_i) - phi(x-e_i))/(2 h_i)
+// and periodic boundary conditions (supplied by the DMDA ghost cells).
+//
+// NOTE: the spherical average below assumes an isotropic medium.  It retains
+// length-scale / ordering information but discards angular (lattice-symmetry /
+// orientation) information.
+void Measurer::computeTopChargeFourier(Vec *solution) {
+  DM &da = model->domain;
+  Vec localU;
+  DMGetLocalVector(da, &localU);
+  DMGlobalToLocalBegin(da, *solution, INSERT_VALUES, localU);
+  DMGlobalToLocalEnd(da, *solution, INSERT_VALUES, localU);
+
+  G_node ***fld;
+  DMDAVecGetArrayRead(da, localU, &fld);
+
+  const auto &data = model->data;
+  const double hx = data.hX();
+  const double hy = data.hY();
+  const double hz = data.hZ();
+  const double prefac = 1.0 / (12.0 * M_PI * M_PI);
+
+  PetscInt ixs, iys, izs, nx, ny, nz;
+  DMDAGetCorners(da, &ixs, &iys, &izs, &nx, &ny, &nz);
+
+  // Full-volume buffer holding q(x) in natural (lexicographic) ordering with x
+  // the fastest index: idx = i + N*j + N*N*k.  Sites not owned by this rank
+  // stay zero so that a plain MPI_Reduce(SUM) assembles the whole volume.
+  const size_t Ntot = static_cast<size_t>(N) * N * N;
+  std::vector<double> qlocal(Ntot, 0.0);
+
+  for (int k = izs; k < izs + nz; k++) {
+    for (int j = iys; j < iys + ny; j++) {
+      for (int i = ixs; i < ixs + nx; i++) {
+        double phi[ModelAData::Nphi], Dx[ModelAData::Nphi],
+            Dy[ModelAData::Nphi], Dz[ModelAData::Nphi];
+        for (int a = 0; a < ModelAData::Nphi; a++) {
+          phi[a] = fld[k][j][i].f[a];
+          Dx[a] = (fld[k][j][i + 1].f[a] - fld[k][j][i - 1].f[a]) / (2.0 * hx);
+          Dy[a] = (fld[k][j + 1][i].f[a] - fld[k][j - 1][i].f[a]) / (2.0 * hy);
+          Dz[a] = (fld[k + 1][j][i].f[a] - fld[k - 1][j][i].f[a]) / (2.0 * hz);
+        }
+        const double q = prefac * det4x4(phi, Dx, Dy, Dz);
+        const size_t idx = static_cast<size_t>(i) +
+                           static_cast<size_t>(N) * j +
+                           static_cast<size_t>(N) * N * k;
+        qlocal[idx] = q;
+      }
+    }
+  }
+
+  DMDAVecRestoreArrayRead(da, localU, &fld);
+  DMRestoreLocalVector(da, &localU);
+
+  // Assemble the full q(x) volume on rank 0.
+  int rank = -1;
+  MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
+  std::vector<double> qfull;
+  if (rank == 0) {
+    qfull.assign(Ntot, 0.0);
+  }
+  MPI_Reduce(qlocal.data(), rank == 0 ? qfull.data() : nullptr,
+             static_cast<int>(Ntot), MPI_DOUBLE, MPI_SUM, 0, PETSC_COMM_WORLD);
+
+  if (rank != 0) {
+    return;
+  }
+
+  // 3D FFT.  The FFTW dimensions are (n0,n1,n2) = (NZ,NY,NX) so that the x
+  // direction is the contiguous (last) index, matching the natural ordering
+  // idx = i + N*j + N*N*k used to fill qfull above.
+  std::vector<std::complex<double>> qtilde(static_cast<size_t>(N) * N *
+                                           (N / 2 + 1));
+  fftw3d->execute(qfull, qtilde);
+
+  // Zero mode / DC component.  (Equals the normalized spatial sum of q(x).)
+  topcharge_zero = qtilde[0];
+
+  // Spherical (azimuthal) average of the power spectrum |qtilde(k)|^2.
+  // Modes are binned by |k| into shells of width dk = 2*pi/L.  We iterate over
+  // the FFTW r2c half spectrum (kx in [0, N/2]); the wrap-around convention for
+  // ky, kz maps index m -> m for m <= N/2 and m -> m-N otherwise.
+  std::fill(topcharge_Sk.begin(), topcharge_Sk.end(), 0.0);
+  std::fill(topcharge_Nshell.begin(), topcharge_Nshell.end(), 0.0);
+
+  const int half = N / 2;
+  const size_t nxh = static_cast<size_t>(N / 2 + 1);
+  for (int kz = 0; kz < N; kz++) {
+    const int mz = (kz <= half) ? kz : kz - N;
+    for (int ky = 0; ky < N; ky++) {
+      const int my = (ky <= half) ? ky : ky - N;
+      for (int kx = 0; kx < static_cast<int>(nxh); kx++) {
+        const int mx = kx; // half spectrum: kx in [0, N/2]
+        const double r =
+            sqrt(static_cast<double>(mx * mx + my * my + mz * mz));
+        int m = static_cast<int>(floor(r + 0.5));
+        if (m >= NtopchargeBins) {
+          m = NtopchargeBins - 1;
+        }
+        const size_t idx =
+            (static_cast<size_t>(kz) * N + static_cast<size_t>(ky)) * nxh +
+            static_cast<size_t>(kx);
+        topcharge_Sk[m] += std::norm(qtilde[idx]);
+        topcharge_Nshell[m] += 1.0;
+      }
+    }
+  }
+  for (int m = 0; m < NtopchargeBins; m++) {
+    if (topcharge_Nshell[m] > 0.0) {
+      topcharge_Sk[m] /= topcharge_Nshell[m];
+    }
+  }
+}
+
 void Measurer::computeDerivedObs() {
   // NB: the intent is that this is to be called only
   // from the rank=0

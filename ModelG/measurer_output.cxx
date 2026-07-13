@@ -68,6 +68,27 @@ measurer_output_fasthdf5::measurer_output_fasthdf5(Measurer *in,
   wally_phase_k = std::make_unique<ntuple<3>>(NN3, "wally_phase_k", file_id);
   wallz_phase_k = std::make_unique<ntuple<3>>(NN3, "wallz_phase_k", file_id);
 
+  // Topological charge spherically-averaged Fourier readout.
+  //
+  // topcharge_Sk[m]     = S(k_m) = < |qtilde(k)|^2 >, averaged over the modes
+  //                       of the FFTW r2c half spectrum falling in radial
+  //                       shell m (a time series: one row per save).
+  // topcharge_zeromode  = [ Re qtilde(0), Im qtilde(0) ] (one row per save).
+  // topcharge_kbins[m]  = |k| bin center = m*dk, dk = 2*pi/L (written once).
+  // topcharge_Nshell[m] = number of modes in shell m (written once).
+  //
+  // Normalization matches wall_k generalized to 3D:
+  //   qtilde(k) = (1/(NX*NY*NZ)) sum_x exp(-i k.x) q(x).
+  const size_t nbins = static_cast<size_t>(measure->getNTopchargeBins());
+  NN1 = {nbins};
+  topcharge_sk = std::make_unique<ntuple<1>>(NN1, "topcharge_Sk", file_id);
+  topcharge_kbins = std::make_unique<ntuple<1>>(NN1, "topcharge_kbins", file_id);
+  topcharge_nshell =
+      std::make_unique<ntuple<1>>(NN1, "topcharge_Nshell", file_id);
+  NN1 = {2};
+  topcharge_zero =
+      std::make_unique<ntuple<1>>(NN1, "topcharge_zeromode", file_id);
+
   NN3 = {Measurer::NObsCoarse, static_cast<size_t>(measure->getN()) / 2 + 1, 2};
   int ncoarsen = measure->getNCoarsenOutputs();
   const auto &levels = measure->getCoarsenLevels();
@@ -153,6 +174,24 @@ void measurer_output_fasthdf5::save(const std::string &what) {
   wally_phase_k->fill();
   wallz_phase_k->fill();
 
+}
+
+void measurer_output_fasthdf5::save_topcharge(const std::string &what) {
+
+  // Topological charge spherically-averaged Fourier readout.  The bin centers
+  // and per-shell mode counts are time independent, so write them only once.
+  if (!topcharge_static_written) {
+    topcharge_kbins->row = measure->topcharge_kbins;
+    topcharge_kbins->fill();
+    topcharge_nshell->row = measure->topcharge_Nshell;
+    topcharge_nshell->fill();
+    topcharge_static_written = true;
+  }
+  topcharge_sk->row = measure->topcharge_Sk;
+  topcharge_sk->fill();
+  topcharge_zero->row[0] = measure->topcharge_zero.real();
+  topcharge_zero->row[1] = measure->topcharge_zero.imag();
+  topcharge_zero->fill();
 }
 
 void measurer_output_fasthdf5::save_coarsen(const std::string &what) {
