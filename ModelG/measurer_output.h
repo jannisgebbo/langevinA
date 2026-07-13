@@ -48,7 +48,7 @@ public:
   ~measurer_output_fasthdf5();
   //  Computes the contents of the data from measurer to the output file
   virtual void save(const std::string &what = "") override;
-  virtual void save_coarsen(const std::string &what = "") override;
+  virtual void save_coarsen(const std::string &what = "");
 
 private:
   Measurer *measure;

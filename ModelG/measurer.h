@@ -280,6 +280,7 @@ private:
   void computeEnergyRotated();
   void computeEnergyPhase();
   void computeDerivedObs();
+  void computeDerivedObs_coarsen();
 
   ModelA *model;
   PetscInt N;
